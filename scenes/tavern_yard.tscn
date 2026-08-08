@@ -1,0 +1,94 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/grid_scene.gd" id="1_grid"]
+[ext_resource type="Script" path="res://scripts/grid_obstacle.gd" id="2_obstacle"]
+[ext_resource type="Script" path="res://scripts/location_exit.gd" id="3_exit"]
+
+[node name="TavernYard" type="Node2D"]
+script = ExtResource("1_grid")
+display_name = "酒馆后院"
+grid_size = Vector2i(24, 18)
+floor_color = Color(0.33, 0.49, 0.25, 1)
+grid_color = Color(0.08, 0.16, 0.07, 0.2)
+
+[node name="PackedEarth" type="Polygon2D" parent="."]
+color = Color(0.47, 0.36, 0.23, 1)
+polygon = PackedVector2Array(320, 32, 448, 32, 448, 288, 320, 288)
+
+[node name="OpenGround" type="Polygon2D" parent="."]
+color = Color(0.37, 0.45, 0.24, 1)
+polygon = PackedVector2Array(128, 320, 640, 320, 640, 512, 128, 512)
+
+[node name="TopFenceLeft" type="StaticBody2D" parent="."]
+script = ExtResource("2_obstacle")
+cell_rect = Rect2i(0, 0, 11, 1)
+fill_color = Color(0.31, 0.22, 0.13, 1)
+
+[node name="TopFenceRight" type="StaticBody2D" parent="."]
+script = ExtResource("2_obstacle")
+cell_rect = Rect2i(13, 0, 11, 1)
+fill_color = Color(0.31, 0.22, 0.13, 1)
+
+[node name="BottomFence" type="StaticBody2D" parent="."]
+script = ExtResource("2_obstacle")
+cell_rect = Rect2i(0, 17, 24, 1)
+fill_color = Color(0.31, 0.22, 0.13, 1)
+
+[node name="LeftFence" type="StaticBody2D" parent="."]
+script = ExtResource("2_obstacle")
+cell_rect = Rect2i(0, 1, 1, 16)
+fill_color = Color(0.31, 0.22, 0.13, 1)
+
+[node name="RightFence" type="StaticBody2D" parent="."]
+script = ExtResource("2_obstacle")
+cell_rect = Rect2i(23, 1, 1, 16)
+fill_color = Color(0.31, 0.22, 0.13, 1)
+
+[node name="SmallShed" type="StaticBody2D" parent="."]
+script = ExtResource("2_obstacle")
+cell_rect = Rect2i(3, 3, 5, 4)
+fill_color = Color(0.35, 0.255, 0.17, 1)
+edge_color = Color(0.18, 0.125, 0.08, 1)
+
+[node name="WoodPile" type="StaticBody2D" parent="."]
+script = ExtResource("2_obstacle")
+cell_rect = Rect2i(18, 4, 3, 2)
+fill_color = Color(0.38, 0.23, 0.11, 1)
+edge_color = Color(0.18, 0.11, 0.06, 1)
+
+[node name="Well" type="StaticBody2D" parent="."]
+script = ExtResource("2_obstacle")
+cell_rect = Rect2i(17, 9, 2, 2)
+fill_color = Color(0.32, 0.36, 0.36, 1)
+edge_color = Color(0.16, 0.19, 0.19, 1)
+
+[node name="Crates" type="StaticBody2D" parent="."]
+script = ExtResource("2_obstacle")
+cell_rect = Rect2i(5, 10, 2, 2)
+fill_color = Color(0.48, 0.31, 0.14, 1)
+edge_color = Color(0.24, 0.15, 0.07, 1)
+
+[node name="TavernDoorExit" type="Area2D" parent="."]
+z_index = 5
+collision_layer = 0
+collision_mask = 1
+script = ExtResource("3_exit")
+cell_rect = Rect2i(11, 0, 2, 1)
+target_scene_path = "res://scenes/tavern.tscn"
+target_entry = &"back_door"
+exit_direction = Vector2(0, -1)
+marker_color = Color(0.95, 0.79, 0.33, 1)
+
+[node name="EntryPoints" type="Node2D" parent="."]
+
+[node name="tavern_entrance" type="Marker2D" parent="EntryPoints"]
+position = Vector2(384, 80)
+
+[node name="YardLabel" type="Label" parent="."]
+offset_left = 64.0
+offset_top = 464.0
+offset_right = 232.0
+offset_bottom = 493.0
+theme_override_colors/font_color = Color(0.12, 0.22, 0.10, 0.72)
+theme_override_font_sizes/font_size = 18
+text = "后院空地"

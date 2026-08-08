@@ -1,0 +1,97 @@
+class_name PlayerCharacter
+extends CharacterBody2D
+
+enum Facing {
+	UP,
+	DOWN,
+	LEFT,
+	RIGHT,
+}
+
+@export var move_speed := 140.0
+
+var facing := Facing.DOWN
+
+@onready var camera: Camera2D = $Camera2D
+
+
+func _physics_process(_delta: float) -> void:
+	var input_direction := _get_input_direction()
+	velocity = input_direction * move_speed
+
+	if not input_direction.is_zero_approx():
+		_update_facing(input_direction)
+
+	move_and_slide()
+
+
+func stop() -> void:
+	velocity = Vector2.ZERO
+
+
+func set_camera_bounds(bounds: Rect2) -> void:
+	camera.limit_left = floori(bounds.position.x)
+	camera.limit_top = floori(bounds.position.y)
+	camera.limit_right = ceili(bounds.end.x)
+	camera.limit_bottom = ceili(bounds.end.y)
+	camera.reset_smoothing()
+
+
+func _get_input_direction() -> Vector2:
+	var direction := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
+
+	if Input.is_physical_key_pressed(KEY_A):
+		direction.x -= 1.0
+	if Input.is_physical_key_pressed(KEY_D):
+		direction.x += 1.0
+	if Input.is_physical_key_pressed(KEY_W):
+		direction.y -= 1.0
+	if Input.is_physical_key_pressed(KEY_S):
+		direction.y += 1.0
+
+	if absf(direction.x) > absf(direction.y):
+		return Vector2(signf(direction.x), 0.0)
+	if not is_zero_approx(direction.y):
+		return Vector2(0.0, signf(direction.y))
+	return Vector2.ZERO
+
+
+func _update_facing(direction: Vector2) -> void:
+	var next_facing := facing
+	if absf(direction.x) > absf(direction.y):
+		next_facing = Facing.RIGHT if direction.x > 0.0 else Facing.LEFT
+	else:
+		next_facing = Facing.DOWN if direction.y > 0.0 else Facing.UP
+
+	if next_facing != facing:
+		facing = next_facing
+		queue_redraw()
+
+
+func _draw() -> void:
+	draw_circle(Vector2(0.0, 7.0), 11.0, Color(0.08, 0.07, 0.07, 0.30))
+	draw_circle(Vector2.ZERO, 11.0, Color("#315a79"))
+	draw_circle(Vector2.ZERO, 8.0, Color("#4f86a6"))
+
+	var facing_vector := _get_facing_vector()
+	var side := facing_vector.orthogonal()
+	draw_colored_polygon(
+		PackedVector2Array([
+			facing_vector * 13.0,
+			facing_vector * 4.0 + side * 5.0,
+			facing_vector * 4.0 - side * 5.0,
+		]),
+		Color("#f3ddb2")
+	)
+
+
+func _get_facing_vector() -> Vector2:
+	match facing:
+		Facing.UP:
+			return Vector2.UP
+		Facing.LEFT:
+			return Vector2.LEFT
+		Facing.RIGHT:
+			return Vector2.RIGHT
+		_:
+			return Vector2.DOWN
