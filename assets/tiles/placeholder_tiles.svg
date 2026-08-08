@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="416" height="32" viewBox="0 0 416 32" shape-rendering="crispEdges">
+  <!-- 0: indoor floor -->
+  <rect x="0" y="0" width="32" height="32" fill="#966f48"/>
+  <path d="M0 0H32V32H0Z" fill="none" stroke="#795737" stroke-width="1"/>
+  <path d="M4 9H28M4 23H28" stroke="#aa8258" stroke-width="1" opacity="0.55"/>
+
+  <!-- 1: interior wall (solid) -->
+  <rect x="32" y="0" width="32" height="32" fill="#4b382b"/>
+  <rect x="34" y="2" width="28" height="28" fill="none" stroke="#281d16" stroke-width="3"/>
+  <path d="M34 16H62M48 2V16M40 16V30M56 16V30" stroke="#665044" stroke-width="1"/>
+
+  <!-- 2: wooden fixture (solid) -->
+  <rect x="64" y="0" width="32" height="32" fill="#673b1d"/>
+  <rect x="66" y="2" width="28" height="28" fill="none" stroke="#351c0d" stroke-width="3"/>
+  <path d="M70 8H90M70 16H90M70 24H90" stroke="#8a5630" stroke-width="2"/>
+
+  <!-- 3: kitchen floor -->
+  <rect x="96" y="0" width="32" height="32" fill="#65584c"/>
+  <path d="M96 0H128V32H96Z" fill="none" stroke="#4b4037" stroke-width="1"/>
+  <path d="M96 16H128M112 0V32" stroke="#7b6d60" stroke-width="1" opacity="0.65"/>
+
+  <!-- 4: grass -->
+  <rect x="128" y="0" width="32" height="32" fill="#4d7540"/>
+  <path d="M128 0H160V32H128Z" fill="none" stroke="#3f6436" stroke-width="1"/>
+  <path d="M135 22l2-5 2 5M149 12l2-4 2 4M143 28l1-3 1 3" stroke="#6c915b" fill="none" stroke-width="1"/>
+
+  <!-- 5: road -->
+  <rect x="160" y="0" width="32" height="32" fill="#766a58"/>
+  <path d="M160 0H192V32H160Z" fill="none" stroke="#655a4b" stroke-width="1"/>
+  <circle cx="169" cy="10" r="1.5" fill="#8f826e"/><circle cx="183" cy="22" r="1.5" fill="#5f5548"/>
+
+  <!-- 6: fence / boundary (solid) -->
+  <rect x="192" y="0" width="32" height="32" fill="#4b683d"/>
+  <rect x="194" y="6" width="28" height="8" fill="#584026" stroke="#2e2114" stroke-width="2"/>
+  <rect x="194" y="20" width="28" height="8" fill="#584026" stroke="#2e2114" stroke-width="2"/>
+  <path d="M201 2V31M215 2V31" stroke="#765b39" stroke-width="4"/>
+
+  <!-- 7: building (solid) -->
+  <rect x="224" y="0" width="32" height="32" fill="#74462d"/>
+  <rect x="226" y="2" width="28" height="28" fill="none" stroke="#3b2317" stroke-width="3"/>
+  <path d="M228 10H252M228 20H252" stroke="#925d3e" stroke-width="2"/>
+
+  <!-- 8: outdoor wooden obstacle (solid) -->
+  <rect x="256" y="0" width="32" height="32" fill="#5a3a20"/>
+  <rect x="258" y="2" width="28" height="28" fill="none" stroke="#2f1e11" stroke-width="3"/>
+  <path d="M260 6L284 26M284 6L260 26" stroke="#7d5431" stroke-width="2"/>
+
+  <!-- 9: packed earth -->
+  <rect x="288" y="0" width="32" height="32" fill="#795f3f"/>
+  <path d="M288 0H320V32H288Z" fill="none" stroke="#654e34" stroke-width="1"/>
+  <path d="M294 12h5M307 22h6M303 6h3" stroke="#947552" stroke-width="2"/>
+
+  <!-- 10: indoor runner -->
+  <rect x="320" y="0" width="32" height="32" fill="#773f2e"/>
+  <rect x="322" y="2" width="28" height="28" fill="none" stroke="#a96449" stroke-width="2"/>
+  <path d="M326 16H346" stroke="#d09262" stroke-width="2"/>
+
+  <!-- 11: dry grass -->
+  <rect x="352" y="0" width="32" height="32" fill="#5e723d"/>
+  <path d="M352 0H384V32H352Z" fill="none" stroke="#4e6133" stroke-width="1"/>
+  <path d="M360 25l3-8 3 8M373 14l2-6 2 6" stroke="#849456" fill="none" stroke-width="1"/>
+
+  <!-- 12: stone obstacle (solid) -->
+  <rect x="384" y="0" width="32" height="32" fill="#5d6666"/>
+  <rect x="386" y="2" width="28" height="28" fill="none" stroke="#303737" stroke-width="3"/>
+  <path d="M389 12L397 6L407 10L411 22L402 28L390 24Z" fill="#717b7b" stroke="#454d4d" stroke-width="1"/>
+</svg>
