@@ -21,7 +21,7 @@ func _ready() -> void:
 	_update_visual()
 
 
-func get_available_actions(_actor: Node2D) -> Array[StringName]:
+func get_supported_actions(_actor: Character) -> Array[StringName]:
 	var actions: Array[StringName] = []
 	actions.append(ACTION_CLOSE if state == State.OPEN else ACTION_OPEN)
 	return actions

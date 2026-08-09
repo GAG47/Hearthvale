@@ -4,7 +4,7 @@ extends WorldObject
 const ACTION_SLEEP := &"sleep"
 
 
-func get_available_actions(_actor: Node2D) -> Array[StringName]:
+func get_supported_actions(_actor: Character) -> Array[StringName]:
 	var actions: Array[StringName] = []
 	actions.append(ACTION_SLEEP)
 	return actions

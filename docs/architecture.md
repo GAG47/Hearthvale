@@ -60,7 +60,7 @@ Presentation 呈现世界状态与结果
 
 Location 内的地图结构与世界对象表达不同的事实。
 
-TileMapLayer / TileSet 负责描述“这里是什么空间”，包括地面、墙体、道路和建筑边界等固定地图结构。WorldObject 负责描述“这个空间中存在什么东西”：它是能够被稳定引用、具有自身空间占位，并可能拥有状态或参与行为的世界实体。需要独立身份、状态或行为的内容不应仅作为地图瓦片存在。
+TileMapLayer / TileSet 负责描述“这里是什么空间”，包括地面、墙体、道路和建筑边界等固定地图结构。抽象 WorldObject 负责定义“这个空间中的东西为什么属于世界对象”：具体世界对象能够被稳定引用、具有自身空间占位，并可能拥有状态或参与行为。需要独立身份、状态或行为的内容不应仅作为地图瓦片存在。
 
 当前 WorldObject 的共同职责是：
 
@@ -70,27 +70,47 @@ TileMapLayer / TileSet 负责描述“这里是什么空间”，包括地面、
 - 明确是否阻挡移动，并让阻挡碰撞与空间占位一致；
 - 提供零个、一个或多个当前行为。
 
-世界对象不等于可交互对象。成为世界对象不以能够响应玩家交互为前提；交互只是对象可能提供的一种能力。只有在多类对象已经出现真实共同规则时，才增加中间分类，不因名称相似预建完整对象分类树。
+WorldObject 是抽象基础，不能作为普通具体对象实例化。世界对象不等于可交互对象；成为世界对象不以能够响应玩家交互为前提，交互只是对象可能提供的一种能力。`get_supported_actions()` 表达对象支持哪些行为，不表示这些行为已经通过全部规则并一定能够成功。只有在多类对象已经出现真实共同规则时，才增加中间分类，不因名称相似预建完整对象分类树。
+
+每个 GridScene / Location 维护自己的 WorldObject 格子索引。WorldObject 进入 Location 时把全部占用格登记到该索引，离开场景时注销；多格对象会在每个占用格中指向同一个对象实例。索引服务当前场景中的局部空间查询，不是 World State、对象注册中心或跨场景持久化机制。
 
 `object_id` 与承载对象的 Godot Scene Node 也不是同一个概念。前者用于稳定引用世界中的对象，后者是当前 Location 场景生命周期内的运行实例。当前实现没有规定跨场景重载的状态权威或持久化方式，也不把某次实例化得到的 Node 当作永久世界事实。
 
+## Character 的当前空间职责
+
+Character 是所有能够在世界中行动的角色的抽象基础。当前只包含已经确定的共同空间信息：所在 Location、连续世界位置、由位置计算出的当前格子，以及四方向 facing。PlayerCharacter 继承 Character，并继续独立负责玩家输入、连续移动、碰撞和 Camera；抽象 Character 不因此包含背包、属性、AI、日程、关系或战斗数据。
+
+当前格子由 Character 在所属 Location 中的连续坐标换算得到，角色移动本身仍是连续移动。facing 相邻格只用于当前普通近距离世界对象交互的目标选择和公共空间合法性，不表示所有 Action 永远具有相同朝向规则。
+
 ## 当前交互与行为关系
 
-玩家按下统一交互输入时，Presentation 根据玩家的当前位置、朝向和短距离范围筛选当前 Location 内提供行为的 WorldObject；若存在多个候选，只选择距离最近的一个。这一过程负责确定玩家意图的目标，不让各个对象分别监听输入。
+玩家按下统一交互输入时，InteractionTargetSelector 先查询 Character facing 方向的相邻格，再查询 Character 当前格。查询直接使用当前 Location 的 WorldObject 格子索引，不遍历 SceneTree。每个格子只选择一个支持行为的对象；同格多个候选按稳定 `object_id` 排序，保证结果简单且确定。这一过程只负责确定玩家意图的目标，不让各个对象分别监听输入，也不是 Action 合法性的唯一防线。
 
 选中目标后的当前基础关系是：
 
 ```text
-Actor
-  → 提出具有明确身份的 Action
-  → 指定一个 WorldObject 目标
-  → Rule 判断当前是否合法并给出允许或拒绝原因
-  → 合法时由目标对应的游戏逻辑执行结果
-  → 返回明确的 Action Result（success / failure 与消息）
-  → Presentation 显示结果
+Character 提供 current Location / current cell / facing
+  ↓
+Location / GridScene 维护自身格子中的 WorldObject
+  ↓
+InteractionTargetSelector 选择 Actor 想操作的目标
+  ↓
+WorldAction 表达 Actor、行为身份和目标
+  ↓
+公共空间规则验证同一 Location 与当前格 / facing 相邻格
+  ↓
+WorldObject 自身行为规则
+  ↓
+执行
+  ↓
+ActionResult（success / failure、消息与失败代码）
+  ↓
+Presentation 显示结果
 ```
 
-行为合法性判断与合法行为的执行保持分离。Player 只产生意图并接收结果，不直接修改箱子等对象的状态，也不直接更新交互结果 UI。正式结果不只服务玩家画面；未来 NPC 或 AI 发起行为时，也应能得到相同的成功、失败和原因信息。
+公共空间规则属于 WorldAction 执行链，先验证 Actor 与目标有效、属于同一个 Location，并且目标占据 Actor 当前格或 facing 相邻格；通过后才进入具体 WorldObject 的行为规则和执行。即使 NPC、AI 或其他系统绕过玩家 Selector 直接创建 WorldAction，非法空间行为也不能修改目标状态。
+
+行为合法性判断与合法行为的执行保持分离。Player 只产生意图并接收结果，不直接修改箱子等对象的状态，也不直接更新交互结果 UI。空间拒绝同样返回正式 ActionResult 和明确失败代码。正式结果不只服务玩家画面；未来 NPC 或 AI 发起行为时，也应能得到相同的成功、失败和原因信息。
 
 ## 世界事实的权威边界
 

@@ -1,42 +1,26 @@
 class_name InteractionTargetSelector
 extends RefCounted
 
-const INTERACTION_RANGE := 60.0
-const INTERACTION_HALF_WIDTH := 24.0
+static func select_target(actor: Character) -> WorldObject:
+	if not is_instance_valid(actor) or not is_instance_valid(actor.current_location):
+		return null
+
+	var query_cells: Array[Vector2i] = [actor.get_front_cell(), actor.current_cell]
+	for cell in query_cells:
+		var selected := _select_supported_object(actor, actor.current_location.get_world_objects_at(cell))
+		if selected != null:
+			return selected
+
+	return null
 
 
-static func select_target(actor: PlayerCharacter) -> WorldObject:
-	var facing := actor.get_facing_vector()
-	var nearest: WorldObject
-	var nearest_distance_squared := INF
-
-	for node in actor.get_tree().get_nodes_in_group(&"world_objects"):
-		var candidate := node as WorldObject
-		if candidate == null or candidate.location == null:
+static func _select_supported_object(actor: Character, candidates: Array[WorldObject]) -> WorldObject:
+	var selected: WorldObject
+	for candidate in candidates:
+		if not is_instance_valid(candidate):
 			continue
-		if candidate.location != actor.current_location:
+		if candidate.get_supported_actions(actor).is_empty():
 			continue
-		if candidate.get_available_actions(actor).is_empty():
-			continue
-
-		var bounds := candidate.get_world_bounds()
-		var closest_point := Vector2(
-			clampf(actor.global_position.x, bounds.position.x, bounds.end.x),
-			clampf(actor.global_position.y, bounds.position.y, bounds.end.y)
-		)
-		var offset := closest_point - actor.global_position
-		var forward_distance := offset.dot(facing)
-		var lateral_distance := absf(offset.dot(facing.orthogonal()))
-		var distance_squared := offset.length_squared()
-
-		if forward_distance < 0.0:
-			continue
-		if lateral_distance > INTERACTION_HALF_WIDTH:
-			continue
-		if distance_squared > INTERACTION_RANGE * INTERACTION_RANGE:
-			continue
-		if distance_squared < nearest_distance_squared:
-			nearest = candidate
-			nearest_distance_squared = distance_squared
-
-	return nearest
+		if selected == null or String(candidate.object_id) < String(selected.object_id):
+			selected = candidate
+	return selected

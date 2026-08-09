@@ -1,3 +1,4 @@
+@abstract
 class_name WorldObject
 extends Node2D
 
@@ -11,7 +12,6 @@ var location: GridScene
 
 
 func _ready() -> void:
-	add_to_group(&"world_objects")
 	location = _find_location()
 	position = _get_local_center()
 	_configure_blocking_collision()
@@ -20,15 +20,30 @@ func _ready() -> void:
 		push_error("WorldObject '%s' requires a stable object_id." % name)
 	if location == null:
 		push_error("WorldObject '%s' must belong to a GridScene Location." % object_id)
+	else:
+		location.register_world_object(self)
 
 
-func get_available_actions(_actor: Node2D) -> Array[StringName]:
+func _exit_tree() -> void:
+	if is_instance_valid(location):
+		location.unregister_world_object(self)
+
+
+func get_supported_actions(_actor: Character) -> Array[StringName]:
 	return []
 
 
-func get_primary_action(actor: Node2D) -> StringName:
-	var actions := get_available_actions(actor)
+func get_primary_action(actor: Character) -> StringName:
+	var actions := get_supported_actions(actor)
 	return actions[0] if not actions.is_empty() else &""
+
+
+func get_occupied_grid_cells() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for y in range(occupied_cells.y):
+		for x in range(occupied_cells.x):
+			cells.append(anchor_cell + Vector2i(x, y))
+	return cells
 
 
 func check_action(action: WorldAction) -> ActionRuleDecision:
@@ -37,11 +52,6 @@ func check_action(action: WorldAction) -> ActionRuleDecision:
 
 func apply_action(action: WorldAction) -> ActionResult:
 	return ActionResult.failed(action.action_id, object_id, "%s 无法执行该行为。" % display_name)
-
-
-func get_world_bounds() -> Rect2:
-	var size := Vector2(occupied_cells * GridScene.CELL_SIZE)
-	return Rect2(global_position - size * 0.5, size)
 
 
 func _find_location() -> GridScene:

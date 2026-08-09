@@ -6,7 +6,7 @@ const ACTION_INSPECT := &"inspect"
 @export_multiline var sign_text := "今日麦酒三铜币。"
 
 
-func get_available_actions(_actor: Node2D) -> Array[StringName]:
+func get_supported_actions(_actor: Character) -> Array[StringName]:
 	var actions: Array[StringName] = []
 	actions.append(ACTION_INSPECT)
 	return actions

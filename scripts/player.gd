@@ -1,19 +1,9 @@
 class_name PlayerCharacter
-extends CharacterBody2D
+extends Character
 
 signal action_completed(result: ActionResult)
 
-enum Facing {
-	UP,
-	DOWN,
-	LEFT,
-	RIGHT,
-}
-
 @export var move_speed := 140.0
-
-var facing := Facing.DOWN
-var current_location: GridScene
 
 @onready var camera: Camera2D = $Camera2D
 
@@ -41,10 +31,6 @@ func set_camera_bounds(bounds: Rect2) -> void:
 	camera.limit_right = ceili(bounds.end.x)
 	camera.limit_bottom = ceili(bounds.end.y)
 	camera.reset_smoothing()
-
-
-func enter_location(location: GridScene) -> void:
-	current_location = location
 
 
 func request_interaction() -> ActionResult:
@@ -112,15 +98,3 @@ func _draw() -> void:
 		]),
 		Color("#f3ddb2")
 	)
-
-
-func get_facing_vector() -> Vector2:
-	match facing:
-		Facing.UP:
-			return Vector2.UP
-		Facing.LEFT:
-			return Vector2.LEFT
-		Facing.RIGHT:
-			return Vector2.RIGHT
-		_:
-			return Vector2.DOWN
