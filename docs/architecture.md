@@ -90,15 +90,27 @@ Scene、Location 与 World State 表达不同职责：
 
 Definition 与 World State 也保持分离。当前固定对象的 Definition 由场景和对象配置描述类型、稳定 ID、独立的 `initial_location_id`、初始格子位置、占位、阻挡、初始状态及静态表现；World State 只保存运行过程中已经变化、并且在 Scene 卸载后仍需成立的事实。TileMap、碰撞形状、Sprite 和完整 SceneTree 不复制到 World State。
 
-当前运行时 WorldState 是一个随本次游戏运行周期持续存在的 Autoload，也是跨 Scene 动态事实的权威。它只提供通用的 `get_object_state(object_id)`、`register_object_state(object_id, state)` 和状态存在性查询，不理解 Chest、Bed、Sign 等业务类型。具体 WorldObject 负责创建、校验和解释自己的具体 State：Chest 查询通用状态，不存在时按自身 Definition 创建并登记 ChestState，存在时由 Chest 确认类型并绑定。目前唯一真实动态对象状态是 ChestState 的 CLOSED / OPEN。Sign 内容属于静态定义，Bed 尚无动态变化，三个 Location 也没有可消费的动态状态，因此不为它们建立空 State。
+当前运行时 WorldState 是一个随本次游戏运行周期持续存在的 Autoload，也是跨 Scene 动态事实的权威。对象级事实仍通过通用的 `get_object_state(object_id)`、`register_object_state(object_id, state)` 和状态存在性查询访问；WorldState 不理解 Chest、Bed、Sign 等业务对象类型。具体 WorldObject 负责创建、校验和解释自己的具体 State：Chest 查询通用状态，不存在时按自身 Definition 创建并登记 ChestState，存在时由 Chest 确认类型并绑定。目前唯一真实动态对象状态是 ChestState 的 CLOSED / OPEN。Sign 内容属于静态定义，Bed 自身没有需要持续保存的动态事实，三个 Location 也没有可消费的动态状态，因此不为它们建立空 State。
 
-WorldState 内部明确分为两类数据：`object_id → WorldObjectState` 是真正的世界事实；已遇到的固定 Definition、当前活动 Location、当前活动 WorldObject 和场景来源仅用于登记与开发期错误检查，不表达世界发生了什么，也不会混入具体 State。
+WorldState 中的 `object_id → WorldObjectState` 和独立的 WorldTimeState 是真正的世界事实；已遇到的固定 Definition、当前活动 Location、当前活动 WorldObject 和场景来源仅用于登记与开发期错误检查，不表达世界发生了什么，也不会混入具体 State。
 
 Scene Node 被释放不代表对应世界事实被删除。Chest Node 加载时按 `object_id` 绑定已有 ChestState，Action 成功后修改这份状态并更新表现；酒馆卸载后 ChestState 继续存在，新 Chest Node 会重新绑定同一事实。固定对象 Definition 登记记录初始 Location 和对象类型，只用于发现两个场景定义误用同一 ID，不表示 `object_id` 永久属于某个 Location。
 
 未来可移动对象的 `current_location`、`current_cell` 和 orientation 应属于其动态 State。对象从一个位置移动到另一个位置不会改变 `object_id`。当前没有家具移动需求，因此不提前建立 Furniture、移动状态或布置系统。
 
 Location 的格子索引仍是当前已加载 Scene 的局部查询结构，不是 World State。当前运行时 WorldState 也不是磁盘存档；未来 Save / Load 应序列化这份世界事实结构，而不是建立另一套权威。当前不实现文件格式、版本迁移或存档槽。
+
+## 统一世界时间
+
+世界时间是世界级事实，不属于某个 WorldObject，也不依附当前加载的 Location Scene。WorldTimeState 与 WorldObjectState 分离，当前只保存一个权威基础量 `total_minutes`。年、月、日、时、分、星期和季节全部由该值及统一日历规则推导，不作为平行字段重复保存，因而不存在多个日期字段相互失配的问题。
+
+WorldState 持有 WorldTimeState，使它与其他运行时世界事实一样跨 Location Scene 生命周期持续存在。独立的 WorldTime 运行时服务负责解释并改变这份事实，包括帧率无关的自然流逝、按分钟推进、推进到指定未来时刻、日历换算以及变化通知。Location、HUD 和具体 WorldObject 不各自维护当前时间，也不直接操作 `total_minutes`。
+
+当前日历常量集中在同一处：一年 12 个月、每月 30 天、一周 7 天、一天 24 小时、每小时 60 分钟；第一年一月一日是 Monday，四季各覆盖连续三个月。运行时初始事实是第一年一月一日 08:00。自然时间使用小数秒累积，当前统一速率是 1 个真实秒对应 1 个游戏分钟；时间节点遵循 SceneTree 暂停，不在暂停期间自然推进。
+
+时间服务在推进后通知总分钟变化，并分别报告跨过的分钟、绝对小时边界和绝对天边界。一次大跨度推进只需一次通知即可携带变化前后范围与跨越数量，未来消费者能够据此处理所有跨界，不必假定每次只增加一分钟。当前不在时间系统中预建事件调度器或 NPC 日程系统。
+
+睡眠仍沿用正式 Action 链：公共空间规则和 Bed 自身规则通过后，Bed 请求 WorldTime 推进到下一天 08:00；日期进位与跨月、跨年计算由时间服务负责。Bed 不保存另一份日期，不直接写 WorldTimeState，也没有因此产生 BedState。HUD 属于 Presentation，只订阅时间变化并读取派生值进行显示，不拥有或修改世界时间。
 
 ## Character 的当前空间职责
 

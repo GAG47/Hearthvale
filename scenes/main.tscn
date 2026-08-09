@@ -39,6 +39,39 @@ text = "Hearthvale"
 horizontal_alignment = 1
 vertical_alignment = 1
 
+[node name="TimePanel" type="PanelContainer" parent="HUD"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -252.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = 118.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_hud")
+
+[node name="TimeLayout" type="VBoxContainer" parent="HUD/TimePanel"]
+theme_override_constants/separation = 1
+alignment = 1
+
+[node name="DateLabel" type="Label" parent="HUD/TimePanel/TimeLayout"]
+theme_override_colors/font_color = Color(0.96, 0.88, 0.70, 1)
+theme_override_font_sizes/font_size = 15
+text = "Year 1 · Month 1 · Day 1"
+horizontal_alignment = 1
+
+[node name="WeekdaySeasonLabel" type="Label" parent="HUD/TimePanel/TimeLayout"]
+theme_override_colors/font_color = Color(0.82, 0.84, 0.72, 1)
+theme_override_font_sizes/font_size = 14
+text = "Monday · Spring"
+horizontal_alignment = 1
+
+[node name="ClockLabel" type="Label" parent="HUD/TimePanel/TimeLayout"]
+theme_override_colors/font_color = Color(1, 0.93, 0.76, 1)
+theme_override_font_sizes/font_size = 24
+text = "08:00"
+horizontal_alignment = 1
+
 [node name="HelpLabel" type="Label" parent="HUD"]
 anchors_preset = 2
 anchor_top = 1.0

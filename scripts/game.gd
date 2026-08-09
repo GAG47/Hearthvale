@@ -9,13 +9,24 @@ var transition_in_progress := false
 @onready var world_root: Node2D = $WorldRoot
 @onready var player: PlayerCharacter = $Player
 @onready var location_label: Label = $HUD/TopBar/LocationLabel
+@onready var date_label: Label = $HUD/TimePanel/TimeLayout/DateLabel
+@onready var weekday_season_label: Label = $HUD/TimePanel/TimeLayout/WeekdaySeasonLabel
+@onready var clock_label: Label = $HUD/TimePanel/TimeLayout/ClockLabel
 @onready var action_result_label: Label = $HUD/ActionResultLabel
 @onready var action_result_timer: Timer = $HUD/ActionResultTimer
+
+var world_time: WorldTimeRuntime
 
 
 func _ready() -> void:
 	player.action_completed.connect(_on_player_action_completed)
 	action_result_timer.timeout.connect(_on_action_result_timer_timeout)
+	world_time = get_node_or_null("/root/WorldTime") as WorldTimeRuntime
+	if world_time == null:
+		push_error("WorldTime Autoload is required before loading Game.")
+	else:
+		world_time.time_changed.connect(_on_world_time_changed)
+		_refresh_time_display()
 	_replace_location(INITIAL_SCENE_PATH, INITIAL_ENTRY)
 
 
@@ -79,3 +90,22 @@ func _on_player_action_completed(result: ActionResult) -> void:
 
 func _on_action_result_timer_timeout() -> void:
 	action_result_label.text = ""
+
+
+func _on_world_time_changed(_previous_total_minutes: int, _current_total_minutes: int) -> void:
+	_refresh_time_display()
+
+
+func _refresh_time_display() -> void:
+	if world_time == null:
+		return
+	date_label.text = "Year %d · Month %d · Day %d" % [
+		world_time.get_year(),
+		world_time.get_month(),
+		world_time.get_day(),
+	]
+	weekday_season_label.text = "%s · %s" % [
+		world_time.get_weekday_name(),
+		world_time.get_season_name(),
+	]
+	clock_label.text = "%02d:%02d" % [world_time.get_hour(), world_time.get_minute()]

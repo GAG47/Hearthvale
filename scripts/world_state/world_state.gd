@@ -3,6 +3,7 @@ extends Node
 
 # Authoritative world facts that survive Location Scene lifecycles.
 var _object_states: Dictionary[StringName, WorldObjectState] = {}
+var _world_time_state: WorldTimeState
 
 # Runtime registration and development diagnostics. These are not world facts.
 # Scene paths are retained only as development diagnostics for duplicate logical IDs.
@@ -128,6 +129,24 @@ func register_object_state(object_id: StringName, state: WorldObjectState) -> bo
 
 func has_object_state(object_id: StringName) -> bool:
 	return _object_states.has(object_id)
+
+
+func get_world_time_state() -> WorldTimeState:
+	return _world_time_state
+
+
+func register_world_time_state(state: WorldTimeState) -> bool:
+	if state == null:
+		push_error("World time state registration requires a valid WorldTimeState.")
+		return false
+	if _world_time_state != null:
+		if _world_time_state == state:
+			return true
+		push_error("WorldState already has a different registered WorldTimeState.")
+		return false
+
+	_world_time_state = state
+	return true
 
 
 func _get_active_node(registry: Dictionary, stable_id: StringName) -> Node:
