@@ -60,6 +60,16 @@ func register_world_object(world_object: WorldObject) -> bool:
 	if world_object.initial_location_id.is_empty():
 		push_error("Fixed WorldObject '%s' requires an initial_location_id in its Definition." % world_object.object_id)
 		return false
+	if world_object.initial_location_id != world_object.location.location_id:
+		push_error(
+			"Fixed WorldObject '%s' declares initial_location_id '%s' but actually belongs to Location '%s'."
+			% [
+				world_object.object_id,
+				world_object.initial_location_id,
+				world_object.location.location_id,
+			]
+		)
+		return false
 
 	var object_id := world_object.object_id
 	var initial_location_id := world_object.initial_location_id

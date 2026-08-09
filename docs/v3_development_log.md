@@ -85,8 +85,11 @@ WorldState 对以下情况给出明确开发期错误并拒绝登记：
 
 - 两个同时加载的 Location 使用相同 `location_id`；
 - 两个同时加载的 WorldObject 使用相同 `object_id`；
+- 固定对象的 `initial_location_id` 与其实际所属 GridScene 的 `location_id` 不一致；
 - 已知固定 `object_id` 的初始 Location 或对象类型与已有 Definition 记录冲突；
 - Location 或 WorldObject 缺少非空稳定 ID。
+
+Definition 自身一致性检查发生在固定对象写入 Definition 记录、活动实例登记和具体 State 绑定之前。拒绝信息同时包含 `object_id`、声明的 `initial_location_id` 和实际所属 `location_id`，因此错误场景配置不会静默进入 WorldState。
 
 相同场景重载后的新 Node 可以使用同一个逻辑 ID，并重新绑定已有世界事实。
 
@@ -103,6 +106,8 @@ WorldState 对以下情况给出明确开发期错误并拒绝登记：
 - Sign inspect、Bed sleep 失败反馈保持正常，且 WorldState 中没有对应空状态；
 - 越过 Selector 创建的超出交互格或跨 Location Action 仍由 ActionSpatialRule 拒绝，ChestState 不发生变化；
 - Chest、Sign、Bed 碰撞、四方向连续移动、禁止对角移动和四个实际出口切换均正常；
+- Tavern 中 Chest、Sign、Bed 的 `initial_location_id` 均与实际 `tavern` Location 一致并正常登记；
+- 临时把一个实际位于 Tavern 的固定对象声明为 `initial_location_id = town_street` 时，系统输出包含对象 ID、声明地点和实际地点的错误，拒绝登记，且不建立 WorldObjectState；
 - 重复 Location ID、重复活动 Object ID，以及同 ID 的初始 Location / 对象类型 Definition 冲突均输出明确错误，没有静默共享状态。
 
 ## 当前限制
