@@ -9,7 +9,7 @@ Hearthvale 是一款中世纪西幻 RPG / Living World 游戏。玩家作为世�
 
 ## 当前状态
 
-世界与空间基础、世界对象与交互基础已经建立。当前工程可以直接运行：玩家能够在酒馆、小镇街道和酒馆后院三个 2D 俯视格子场景中连续移动、通过场景出口往返，并在酒馆中操作具有独立身份和行为的世界对象。
+世界与空间、世界对象与交互以及运行时 World State 基础已经建立。当前工程可以直接运行：玩家能够在三个 2D 俯视格子 Location 中移动和往返，在酒馆中操作世界对象；储物箱的开合状态会在酒馆 Scene 卸载和重载后继续成立。
 
 ## 目录
 
@@ -36,3 +36,4 @@ scripts/  游戏脚本
 - [开发原则](docs/development_principles.md)
 - [V1 开发日志](docs/v1_development_log.md)
 - [V2 开发日志](docs/v2_development_log.md)
+- [V3 开发日志](docs/v3_development_log.md)

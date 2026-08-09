@@ -9,6 +9,8 @@ extends Node2D
 @export var blocks_movement := true
 
 var location: GridScene
+var world_identity_registered := false
+var world_state: WorldStateRuntime
 
 
 func _ready() -> void:
@@ -16,17 +18,24 @@ func _ready() -> void:
 	position = _get_local_center()
 	_configure_blocking_collision()
 
-	if object_id.is_empty():
-		push_error("WorldObject '%s' requires a stable object_id." % name)
 	if location == null:
 		push_error("WorldObject '%s' must belong to a GridScene Location." % object_id)
 	else:
+		world_state = get_node_or_null("/root/WorldState") as WorldStateRuntime
+		if world_state == null:
+			push_error("WorldState Autoload is required before loading a WorldObject.")
+		else:
+			world_identity_registered = world_state.register_world_object(self)
+	if world_identity_registered:
 		location.register_world_object(self)
 
 
 func _exit_tree() -> void:
 	if is_instance_valid(location):
 		location.unregister_world_object(self)
+	if world_identity_registered:
+		world_state.unregister_world_object(self)
+		world_identity_registered = false
 
 
 func get_supported_actions(_actor: Character) -> Array[StringName]:

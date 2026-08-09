@@ -10,6 +10,7 @@
 [node name="Tavern" type="Node2D" unique_id=1256793428]
 script = ExtResource("1_8dirj")
 display_name = "酒馆"
+location_id = &"tavern"
 
 [node name="Ground" type="TileMapLayer" parent="." unique_id=914729337]
 z_index = -10

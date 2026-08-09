@@ -7,6 +7,7 @@
 [node name="TownStreet" type="Node2D" unique_id=2145950684]
 script = ExtResource("1_m5bgc")
 display_name = "小镇街道"
+location_id = &"town_street"
 grid_size = Vector2i(36, 22)
 
 [node name="Ground" type="TileMapLayer" parent="." unique_id=1568522364]

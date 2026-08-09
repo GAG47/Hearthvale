@@ -4,11 +4,28 @@ extends Node2D
 const CELL_SIZE := 32
 
 @export var display_name := "Location"
+@export var location_id := &""
 @export var grid_size := Vector2i(24, 16):
 	set(value):
 		grid_size = value.max(Vector2i.ONE)
 
 var _world_objects_by_cell: Dictionary = {}
+var world_identity_registered := false
+var world_state: WorldStateRuntime
+
+
+func _enter_tree() -> void:
+	world_state = get_node_or_null("/root/WorldState") as WorldStateRuntime
+	if world_state == null:
+		push_error("WorldState Autoload is required before loading a Location.")
+		return
+	world_identity_registered = world_state.register_location(self)
+
+
+func _exit_tree() -> void:
+	if world_identity_registered:
+		world_state.unregister_location(self)
+		world_identity_registered = false
 
 
 func get_world_rect() -> Rect2:

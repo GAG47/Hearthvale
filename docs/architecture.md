@@ -74,7 +74,25 @@ WorldObject 是抽象基础，不能作为普通具体对象实例化。世界�
 
 每个 GridScene / Location 维护自己的 WorldObject 格子索引。WorldObject 进入 Location 时把全部占用格登记到该索引，离开场景时注销；多格对象会在每个占用格中指向同一个对象实例。索引服务当前场景中的局部空间查询，不是 World State、对象注册中心或跨场景持久化机制。
 
-`object_id` 与承载对象的 Godot Scene Node 也不是同一个概念。前者用于稳定引用世界中的对象，后者是当前 Location 场景生命周期内的运行实例。当前实现没有规定跨场景重载的状态权威或持久化方式，也不把某次实例化得到的 Node 当作永久世界事实。
+`object_id` 与承载对象的 Godot Scene Node 不是同一个概念。前者用于稳定引用世界中的对象，后者是当前 Location 场景生命周期内的运行实例。需要跨场景重载成立的动态事实由运行时 WorldState 持有，不把某次实例化得到的 Node 当作永久世界事实。
+
+## Location、Scene 与运行时 World State
+
+Scene、Location 与 World State 表达不同职责：
+
+- Location 是世界中的逻辑地点，以稳定 `location_id` 识别，并作为空间归属、格子索引和局部查询边界；
+- Godot Scene 是该 Location 当前被加载后承担显示、碰撞、交互和场景行为的运行时表现；
+- World State 是独立于 Location Scene 生命周期持续存在的动态世界事实。
+
+世界身份使用 `location_id` 和 `object_id` 等稳定逻辑 ID。`.tscn` 路径只用于加载场景和开发期重复 ID 来源诊断，不作为 World State 的事实键或世界身份。
+
+Definition 与 World State 也保持分离。Definition 由场景和对象配置描述类型、稳定 ID、初始 Location、格子位置、占位、阻挡、初始状态及静态表现；World State 只保存运行过程中已经变化、并且在 Scene 卸载后仍需成立的事实。TileMap、碰撞形状、Sprite 和完整 SceneTree 不复制到 World State。
+
+当前运行时 WorldState 是一个随本次游戏运行周期持续存在的 Autoload，也是跨 Scene 动态事实的权威。它按 `object_id` 延迟建立并查询具体状态对象；目前唯一真实动态对象状态是 ChestState 的 CLOSED / OPEN。Sign 内容属于静态定义，Bed 尚无动态变化，三个 Location 也没有可消费的动态状态，因此不为它们建立空 State。
+
+Scene Node 被释放不代表对应世界事实被删除。Chest Node 加载时按 `object_id` 绑定已有 ChestState，Action 成功后修改这份状态并更新表现；酒馆卸载后 ChestState 继续存在，新 Chest Node 会重新绑定同一事实。稳定 ID 注册同时检查 Location、对象类型和当前活动实例，冲突会产生明确开发期错误。
+
+Location 的格子索引仍是当前已加载 Scene 的局部查询结构，不是 World State。当前运行时 WorldState 也不是磁盘存档；未来 Save / Load 应序列化这份世界事实结构，而不是建立另一套权威。当前不实现文件格式、版本迁移或存档槽。
 
 ## Character 的当前空间职责
 
@@ -101,7 +119,9 @@ WorldAction 表达 Actor、行为身份和目标
   ↓
 WorldObject 自身行为规则
   ↓
-执行
+执行并修改运行时 World State
+  ↓
+Scene Node 根据结果更新当前表现
   ↓
 ActionResult（success / failure、消息与失败代码）
   ↓
@@ -110,7 +130,7 @@ Presentation 显示结果
 
 公共空间规则属于 WorldAction 执行链，先验证 Actor 与目标有效、属于同一个 Location，并且目标占据 Actor 当前格或 facing 相邻格；通过后才进入具体 WorldObject 的行为规则和执行。即使 NPC、AI 或其他系统绕过玩家 Selector 直接创建 WorldAction，非法空间行为也不能修改目标状态。
 
-行为合法性判断与合法行为的执行保持分离。Player 只产生意图并接收结果，不直接修改箱子等对象的状态，也不直接更新交互结果 UI。空间拒绝同样返回正式 ActionResult 和明确失败代码。正式结果不只服务玩家画面；未来 NPC 或 AI 发起行为时，也应能得到相同的成功、失败和原因信息。
+行为合法性判断与合法行为的执行保持分离。Player 只产生意图并接收结果，不直接修改箱子等对象的状态，也不直接更新交互结果 UI。空间拒绝同样返回正式 ActionResult 和明确失败代码。合法 Chest Action 修改权威 ChestState，Node 只根据同一状态更新视觉。正式结果不只服务玩家画面；未来 NPC 或 AI 发起行为时，也应能得到相同的成功、失败和原因信息。
 
 ## 世界事实的权威边界
 
@@ -138,7 +158,7 @@ Presentation 负责把玩家输入转化为可供游戏处理的意图，并把�
 
 Presentation 可以维护表现所需的临时状态，但不能把画面上看似发生的事情直接当作已经成立的世界事实。逻辑世界也不应依赖某个特定界面或验证场景才能成立。
 
-Scene 与逻辑世界如何绑定、状态如何同步以及具体使用何种 Godot 能力，本文不作规定。
+当前 Chest 已按稳定 `object_id` 绑定运行时 ChestState。除此之外，未来其他 Scene 与逻辑世界的绑定、状态同步及具体 Godot 实现只在真实需求出现时决定。
 
 ## 暂不规定的实现事项
 

@@ -7,6 +7,7 @@
 [node name="TavernYard" type="Node2D" unique_id=1460247309]
 script = ExtResource("1_rk08o")
 display_name = "酒馆后院"
+location_id = &"tavern_yard"
 grid_size = Vector2i(24, 18)
 
 [node name="Ground" type="TileMapLayer" parent="." unique_id=1315161424]
