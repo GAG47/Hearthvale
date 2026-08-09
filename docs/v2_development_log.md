@@ -41,9 +41,9 @@ WorldObject 已使用 Godot 4.7.1 的 `@abstract` 声明为抽象基础，不能
 
 | 对象 | 稳定 ID | 格子占位 | 当前行为与状态 |
 | --- | --- | --- | --- |
-| 储物箱 Chest | `tavern.storage_chest` | 1×1 | `open` / `close`；closed 与 open 两种状态及不同贴图 |
-| 告示牌 Sign | `tavern.notice_board` | 1×1 | `inspect`；返回“今日麦酒三铜币。” |
-| 床 Bed | `tavern.guest_bed` | 1×2 | 提供 `sleep`，当前规则以“当前还不能睡觉。”拒绝 |
+| 储物箱 Chest | `obj_000001` | 1×1 | `open` / `close`；closed 与 open 两种状态及不同贴图 |
+| 告示牌 Sign | `obj_000002` | 1×1 | `inspect`；返回“今日麦酒三铜币。” |
+| 床 Bed | `obj_000003` | 1×2 | 提供 `sleep`，当前规则以“当前还不能睡觉。”拒绝 |
 
 三者都使用 Sprite2D 和占位 SVG 表现，使用 StaticBody2D、CollisionShape2D 与占用格对应地阻挡玩家。世界对象没有使用 `_draw()` 绘制。
 

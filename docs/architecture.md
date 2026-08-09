@@ -86,11 +86,17 @@ Scene、Location 与 World State 表达不同职责：
 
 世界身份使用 `location_id` 和 `object_id` 等稳定逻辑 ID。`.tscn` 路径只用于加载场景和开发期重复 ID 来源诊断，不作为 World State 的事实键或世界身份。
 
-Definition 与 World State 也保持分离。Definition 由场景和对象配置描述类型、稳定 ID、初始 Location、格子位置、占位、阻挡、初始状态及静态表现；World State 只保存运行过程中已经变化、并且在 Scene 卸载后仍需成立的事实。TileMap、碰撞形状、Sprite 和完整 SceneTree 不复制到 World State。
+`object_id` 是纯粹、全世界唯一的实体身份，不编码类型、Location、用途或当前状态。当前固定对象采用人工分配的 `obj_000001` 形式；实体以后移动时继续使用原 ID，实体真正删除后旧 ID 不用于代表另一个新实体。当前没有动态实体创建和删除需求，因此不实现自动 ID 生成器。
 
-当前运行时 WorldState 是一个随本次游戏运行周期持续存在的 Autoload，也是跨 Scene 动态事实的权威。它按 `object_id` 延迟建立并查询具体状态对象；目前唯一真实动态对象状态是 ChestState 的 CLOSED / OPEN。Sign 内容属于静态定义，Bed 尚无动态变化，三个 Location 也没有可消费的动态状态，因此不为它们建立空 State。
+Definition 与 World State 也保持分离。当前固定对象的 Definition 由场景和对象配置描述类型、稳定 ID、独立的 `initial_location_id`、初始格子位置、占位、阻挡、初始状态及静态表现；World State 只保存运行过程中已经变化、并且在 Scene 卸载后仍需成立的事实。TileMap、碰撞形状、Sprite 和完整 SceneTree 不复制到 World State。
 
-Scene Node 被释放不代表对应世界事实被删除。Chest Node 加载时按 `object_id` 绑定已有 ChestState，Action 成功后修改这份状态并更新表现；酒馆卸载后 ChestState 继续存在，新 Chest Node 会重新绑定同一事实。稳定 ID 注册同时检查 Location、对象类型和当前活动实例，冲突会产生明确开发期错误。
+当前运行时 WorldState 是一个随本次游戏运行周期持续存在的 Autoload，也是跨 Scene 动态事实的权威。它只提供通用的 `get_object_state(object_id)`、`register_object_state(object_id, state)` 和状态存在性查询，不理解 Chest、Bed、Sign 等业务类型。具体 WorldObject 负责创建、校验和解释自己的具体 State：Chest 查询通用状态，不存在时按自身 Definition 创建并登记 ChestState，存在时由 Chest 确认类型并绑定。目前唯一真实动态对象状态是 ChestState 的 CLOSED / OPEN。Sign 内容属于静态定义，Bed 尚无动态变化，三个 Location 也没有可消费的动态状态，因此不为它们建立空 State。
+
+WorldState 内部明确分为两类数据：`object_id → WorldObjectState` 是真正的世界事实；已遇到的固定 Definition、当前活动 Location、当前活动 WorldObject 和场景来源仅用于登记与开发期错误检查，不表达世界发生了什么，也不会混入具体 State。
+
+Scene Node 被释放不代表对应世界事实被删除。Chest Node 加载时按 `object_id` 绑定已有 ChestState，Action 成功后修改这份状态并更新表现；酒馆卸载后 ChestState 继续存在，新 Chest Node 会重新绑定同一事实。固定对象 Definition 登记记录初始 Location 和对象类型，只用于发现两个场景定义误用同一 ID，不表示 `object_id` 永久属于某个 Location。
+
+未来可移动对象的 `current_location`、`current_cell` 和 orientation 应属于其动态 State。对象从一个位置移动到另一个位置不会改变 `object_id`。当前没有家具移动需求，因此不提前建立 Furniture、移动状态或布置系统。
 
 Location 的格子索引仍是当前已加载 Scene 的局部查询结构，不是 World State。当前运行时 WorldState 也不是磁盘存档；未来 Save / Load 应序列化这份世界事实结构，而不是建立另一套权威。当前不实现文件格式、版本迁移或存档槽。
 

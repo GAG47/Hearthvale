@@ -1,11 +1,14 @@
 class_name WorldStateRuntime
 extends Node
 
+# Authoritative world facts that survive Location Scene lifecycles.
 var _object_states: Dictionary[StringName, WorldObjectState] = {}
+
+# Runtime registration and development diagnostics. These are not world facts.
 # Scene paths are retained only as development diagnostics for duplicate logical IDs.
 # They never address or key world facts.
 var _development_location_sources: Dictionary = {}
-var _known_object_definitions: Dictionary = {}
+var _fixed_object_definition_records: Dictionary = {}
 var _active_locations: Dictionary = {}
 var _active_world_objects: Dictionary = {}
 
@@ -54,21 +57,24 @@ func register_world_object(world_object: WorldObject) -> bool:
 	if not is_instance_valid(world_object.location) or not world_object.location.world_identity_registered:
 		push_error("WorldObject '%s' requires a valid registered Location." % world_object.object_id)
 		return false
+	if world_object.initial_location_id.is_empty():
+		push_error("Fixed WorldObject '%s' requires an initial_location_id in its Definition." % world_object.object_id)
+		return false
 
 	var object_id := world_object.object_id
-	var location_id := world_object.location.location_id
+	var initial_location_id := world_object.initial_location_id
 	var object_type := _get_world_object_type(world_object)
-	if _known_object_definitions.has(object_id):
-		var definition: Dictionary = _known_object_definitions[object_id]
-		if definition["location_id"] != location_id or definition["object_type"] != object_type:
+	if _fixed_object_definition_records.has(object_id):
+		var definition: Dictionary = _fixed_object_definition_records[object_id]
+		if definition["initial_location_id"] != initial_location_id or definition["object_type"] != object_type:
 			push_error(
 				"Duplicate object_id '%s' conflicts with its existing definition (%s / %s)."
-				% [object_id, definition["location_id"], definition["object_type"]]
+				% [object_id, definition["initial_location_id"], definition["object_type"]]
 			)
 			return false
 	else:
-		_known_object_definitions[object_id] = {
-			"location_id": location_id,
+		_fixed_object_definition_records[object_id] = {
+			"initial_location_id": initial_location_id,
 			"object_type": object_type,
 		}
 
@@ -89,45 +95,29 @@ func unregister_world_object(world_object: WorldObject) -> void:
 		_active_world_objects.erase(world_object.object_id)
 
 
-func get_or_create_chest_state(object_id: StringName, initial_status: ChestState.Status) -> ChestState:
-	if not _definition_matches(object_id, &"Chest"):
-		return null
-
-	if _object_states.has(object_id):
-		var existing_state := _object_states[object_id] as ChestState
-		if existing_state == null:
-			push_error("World state for '%s' is not a ChestState." % object_id)
-		return existing_state
-
-	var chest_state := ChestState.new(initial_status)
-	_object_states[object_id] = chest_state
-	return chest_state
-
-
 func get_object_state(object_id: StringName) -> WorldObjectState:
 	return _object_states.get(object_id) as WorldObjectState
 
 
-func get_chest_state(object_id: StringName) -> ChestState:
-	return _object_states.get(object_id) as ChestState
+func register_object_state(object_id: StringName, state: WorldObjectState) -> bool:
+	if object_id.is_empty() or state == null:
+		push_error("Object state registration requires a stable object_id and a valid WorldObjectState.")
+		return false
+	if not _fixed_object_definition_records.has(object_id):
+		push_error("Cannot register state for unknown WorldObject '%s'." % object_id)
+		return false
+	if _object_states.has(object_id):
+		if _object_states[object_id] == state:
+			return true
+		push_error("WorldObject '%s' already has a different registered state." % object_id)
+		return false
+
+	_object_states[object_id] = state
+	return true
 
 
 func has_object_state(object_id: StringName) -> bool:
 	return _object_states.has(object_id)
-
-
-func _definition_matches(object_id: StringName, expected_type: StringName) -> bool:
-	if not _known_object_definitions.has(object_id):
-		push_error("WorldObject '%s' has not registered a stable definition." % object_id)
-		return false
-	var definition: Dictionary = _known_object_definitions[object_id]
-	if definition["object_type"] != expected_type:
-		push_error(
-			"WorldObject '%s' is '%s', not '%s'."
-			% [object_id, definition["object_type"], expected_type]
-		)
-		return false
-	return true
 
 
 func _get_active_node(registry: Dictionary, stable_id: StringName) -> Node:

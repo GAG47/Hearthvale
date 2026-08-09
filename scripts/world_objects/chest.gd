@@ -16,8 +16,21 @@ var chest_state: ChestState
 func _ready() -> void:
 	super()
 	if world_identity_registered:
-		chest_state = world_state.get_or_create_chest_state(object_id, initial_status)
+		_bind_world_state()
 	_update_visual()
+
+
+func _bind_world_state() -> void:
+	var existing_state := world_state.get_object_state(object_id)
+	if existing_state != null:
+		chest_state = existing_state as ChestState
+		if chest_state == null:
+			push_error("World state for Chest '%s' is not a ChestState." % object_id)
+		return
+
+	var initial_chest_state := ChestState.new(initial_status)
+	if world_state.register_object_state(object_id, initial_chest_state):
+		chest_state = initial_chest_state
 
 
 func get_supported_actions(_actor: Character) -> Array[StringName]:

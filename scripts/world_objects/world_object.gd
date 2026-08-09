@@ -4,6 +4,7 @@ extends Node2D
 
 @export var object_id := &""
 @export var display_name := "世界对象"
+@export var initial_location_id := &""
 @export var anchor_cell := Vector2i.ZERO
 @export var occupied_cells := Vector2i.ONE
 @export var blocks_movement := true
