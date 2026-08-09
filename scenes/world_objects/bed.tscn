@@ -1,0 +1,25 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/world_objects/bed.gd" id="1_bed"]
+[ext_resource type="Texture2D" path="res://assets/objects/bed.svg" id="2_texture"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_bed"]
+resource_local_to_scene = true
+size = Vector2(28, 60)
+
+[node name="Bed" type="Node2D"]
+z_index = 5
+script = ExtResource("1_bed")
+display_name = "床"
+occupied_cells = Vector2i(1, 2)
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture_filter = 1
+texture = ExtResource("2_texture")
+
+[node name="BlockingBody" type="StaticBody2D" parent="."]
+collision_layer = 1
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BlockingBody"]
+shape = SubResource("RectangleShape2D_bed")

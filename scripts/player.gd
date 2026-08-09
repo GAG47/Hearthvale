@@ -1,6 +1,8 @@
 class_name PlayerCharacter
 extends CharacterBody2D
 
+signal action_completed(result: ActionResult)
+
 enum Facing {
 	UP,
 	DOWN,
@@ -11,11 +13,15 @@ enum Facing {
 @export var move_speed := 140.0
 
 var facing := Facing.DOWN
+var current_location: GridScene
 
 @onready var camera: Camera2D = $Camera2D
 
 
 func _physics_process(_delta: float) -> void:
+	if Input.is_action_just_pressed(&"interact"):
+		request_interaction()
+
 	var input_direction := _get_input_direction()
 	velocity = input_direction * move_speed
 
@@ -35,6 +41,29 @@ func set_camera_bounds(bounds: Rect2) -> void:
 	camera.limit_right = ceili(bounds.end.x)
 	camera.limit_bottom = ceili(bounds.end.y)
 	camera.reset_smoothing()
+
+
+func enter_location(location: GridScene) -> void:
+	current_location = location
+
+
+func request_interaction() -> ActionResult:
+	var target := InteractionTargetSelector.select_target(self)
+	if target == null:
+		var no_target_result := ActionResult.failed(&"interact", &"", "前方没有可交互的对象。")
+		action_completed.emit(no_target_result)
+		return no_target_result
+
+	var action_id := target.get_primary_action(self)
+	if action_id.is_empty():
+		var no_action_result := ActionResult.failed(&"interact", target.object_id, "%s 当前没有可用行为。" % target.display_name)
+		action_completed.emit(no_action_result)
+		return no_action_result
+
+	var action := WorldAction.new(action_id, self, target)
+	var result := action.execute()
+	action_completed.emit(result)
+	return result
 
 
 func _get_input_direction() -> Vector2:
@@ -73,7 +102,7 @@ func _draw() -> void:
 	draw_circle(Vector2.ZERO, 11.0, Color("#315a79"))
 	draw_circle(Vector2.ZERO, 8.0, Color("#4f86a6"))
 
-	var facing_vector := _get_facing_vector()
+	var facing_vector := get_facing_vector()
 	var side := facing_vector.orthogonal()
 	draw_colored_polygon(
 		PackedVector2Array([
@@ -85,7 +114,7 @@ func _draw() -> void:
 	)
 
 
-func _get_facing_vector() -> Vector2:
+func get_facing_vector() -> Vector2:
 	match facing:
 		Facing.UP:
 			return Vector2.UP

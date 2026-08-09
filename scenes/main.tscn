@@ -53,4 +53,27 @@ theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
 theme_override_constants/shadow_offset_x = 1
 theme_override_constants/shadow_offset_y = 2
 theme_override_font_sizes/font_size = 15
-text = "WASD / 方向键移动 · 走入门口切换地点"
+text = "WASD / 方向键移动 · E 交互 · 走入门口切换地点"
+
+[node name="ActionResultLabel" type="Label" parent="HUD"]
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -240.0
+offset_top = -92.0
+offset_right = 240.0
+offset_bottom = -58.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.95, 0.87, 0.68, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ActionResultTimer" type="Timer" parent="HUD"]
+wait_time = 2.5
+one_shot = true
