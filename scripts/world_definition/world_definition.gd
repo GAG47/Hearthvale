@@ -14,6 +14,11 @@ func _ready() -> void:
 		push_error("WorldDefinition initialization failed; Location queries are unavailable.")
 		return
 	_index_definitions(definitions)
+	if not validate_world_scene_graph():
+		definitions_valid = false
+		push_error(
+			"WorldDefinition Scene consistency validation failed; Location queries are unavailable."
+		)
 
 
 func has_location(location_id: StringName) -> bool:
@@ -77,13 +82,79 @@ func validate_loaded_location(location: GridScene, requested_location_id: String
 		return false
 
 	var valid := _validate_location_entries(location)
+	var scene_exit_edge_keys: Dictionary[StringName, bool] = {}
 	for location_exit in _find_location_exits(location):
+		if not location_exit.edge_key.is_empty():
+			scene_exit_edge_keys[location_exit.edge_key] = true
 		if get_edge(requested_location_id, location_exit.edge_key) == null:
 			push_error(
 				"Scene '%s' for location_id '%s' contains LocationExit edge_key '%s', but that outgoing edge is not defined."
 				% [definition.scene_path, requested_location_id, location_exit.edge_key]
 			)
 			valid = false
+
+	for edge in definition.outgoing_edges:
+		if not scene_exit_edge_keys.has(edge.edge_key):
+			push_error(
+				"LocationDefinition for location_id '%s' contains outgoing edge_key '%s', but Scene '%s' has no corresponding LocationExit."
+				% [requested_location_id, edge.edge_key, definition.scene_path]
+			)
+			valid = false
+	return valid
+
+
+func validate_world_scene_graph() -> bool:
+	if not definitions_valid:
+		push_error("Cannot validate Location Scenes while WorldDefinition is invalid.")
+		return false
+
+	var valid := true
+	var loaded_locations: Dictionary[StringName, GridScene] = {}
+	for definition_value in _locations.values():
+		var definition := definition_value as LocationDefinition
+		var packed_scene := load(definition.scene_path) as PackedScene
+		if packed_scene == null:
+			push_error(
+				"Location '%s' scene_path '%s' could not be loaded during Scene consistency validation."
+				% [definition.location_id, definition.scene_path]
+			)
+			valid = false
+			continue
+
+		var location := packed_scene.instantiate() as GridScene
+		if location == null:
+			push_error(
+				"Location '%s' scene_path '%s' did not instantiate as GridScene during Scene consistency validation."
+				% [definition.location_id, definition.scene_path]
+			)
+			valid = false
+			continue
+
+		loaded_locations[definition.location_id] = location
+		if not validate_loaded_location(location, definition.location_id):
+			valid = false
+
+	for definition_value in _locations.values():
+		var definition := definition_value as LocationDefinition
+		for edge in definition.outgoing_edges:
+			var target_location := loaded_locations.get(edge.to_location) as GridScene
+			if target_location == null:
+				push_error(
+					"Location edge '%s/%s' targets location_id '%s' with to_entry '%s', but the target Scene was not available for validation."
+					% [
+						definition.location_id,
+						edge.edge_key,
+						edge.to_location,
+						edge.to_entry,
+					]
+				)
+				valid = false
+				continue
+			if get_target_entry(target_location, definition.location_id, edge) == null:
+				valid = false
+
+	for location in loaded_locations.values():
+		(location as GridScene).free()
 	return valid
 
 

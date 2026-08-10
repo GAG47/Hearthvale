@@ -106,8 +106,11 @@ Location Scene 实例化后继续校验：
 - 请求的 LocationDefinition 与 Scene 声明的 `location_id` 一致；
 - Scene 来源路径与定义的 `scene_path` 一致；
 - Scene 中每个 LocationExit 的 `edge_key` 存在于当前 Location 的出边；
+- Definition 中每条 outgoing edge 的 `edge_key` 都能在所属 Location Scene 中找到对应 LocationExit；
 - LocationEntry 的 `entry_id` 非空且在该 Scene 中唯一；
-- 实际切换所需 `to_entry` 能在目标 Scene 中找到。
+- 每条 outgoing edge 的 `to_entry` 都能在对应目标 Location Scene 中找到。
+
+WorldDefinition 在静态 Definition 校验和索引建立后，会实例化全部 Location Scene 进行一次完整 Scene Graph 一致性校验。运行中实际加载 GridScene 时仍会重复验证该 Scene 自身的身份、Entry 和 Exit，场景切换前也继续确认本次目标 Entry。
 
 错误信息会结合具体情况输出 `location_id`、`edge_key`、`to_location`、`to_entry` 和 Scene 路径。未知查询和错误定义不会静默产生可用图数据。
 
@@ -141,7 +144,10 @@ Location Scene 实例化后继续校验：
 - 重复 location ID、重复局部 edge key、无效 Scene 路径、未知 `to_location` 和空 `to_entry` 均在 Definition 校验阶段被发现；
 - 请求 Location 与实际 Scene 的 `location_id` 不一致时被拒绝；
 - Scene 中 LocationExit 引用未定义 edge key 时被拒绝；
+- Definition 临时增加一个 Scene 中不存在对应 LocationExit 的 edge key 时被拒绝，错误包含 `location_id` 与 `edge_key`；
 - 非空但不存在的 `to_entry` 在目标 Scene 实例化后被拒绝。
+
+当前四条正常 outgoing edge 均确认同时具有所属 Scene 的 LocationExit，以及目标 Scene 中真实存在的 LocationEntry。
 
 使用玩家实际走入 LocationExit 验证四个方向：
 

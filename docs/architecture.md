@@ -94,7 +94,7 @@ WorldDefinition 查询目标 scene_path
 卸载当前 Location，进入目标 Location 的实际落点
 ```
 
-目标 Scene 会在当前 Location 卸载前完成身份、出口和目标 Entry 验证，错误定义不会用半完成的切换替换当前场景。WorldDefinition 初始化校验 Location ID、Scene 资源、局部 edge key、目标 Location 和非空 Entry 标识；Scene 实例化后继续校验 Scene 身份、Scene 来源、LocationExit 引用、Entry 唯一性及实际目标 Entry。错误信息携带相应的 Location、edge、目标 Location 和 Entry，便于定位静态世界定义。
+目标 Scene 会在当前 Location 卸载前完成身份、出口和目标 Entry 验证，错误定义不会用半完成的切换替换当前场景。WorldDefinition 初始化校验 Location ID、Scene 资源、局部 edge key、目标 Location 和非空 Entry 标识，并加载全部 Location Scene 做静态图与实际场景的一致性验证。Scene 实例化后双向检查 LocationExit 与 outgoing edge：Scene 中每个 Exit 必须引用已定义边，Definition 中每条边也必须有实际 Exit；同时检查 Scene 身份、Scene 来源、Entry 唯一性，以及每条边的 `to_entry` 在目标 Location Scene 中真实存在。错误信息携带相应的 Location、edge、目标 Location 和 Entry，便于定位静态世界定义。
 
 Location Graph 当前只表达静态空间拓扑。NPC 路线、日程、离屏模拟、旅行时间、距离、道路封锁、天气影响、事件改路和世界地图 UI 尚未实现；未来系统可以查询该图，但不应把这些未确定职责提前塞入边定义。
 
