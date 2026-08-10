@@ -3,6 +3,7 @@ extends Node
 
 # Authoritative world facts that survive Location Scene lifecycles.
 var _object_states: Dictionary[StringName, WorldObjectState] = {}
+var _character_states: Dictionary[StringName, CharacterState] = {}
 var _world_time_state: WorldTimeState
 
 # Runtime registration and development diagnostics. These are not world facts.
@@ -54,6 +55,9 @@ func unregister_location(location: GridScene) -> void:
 func register_world_object(world_object: WorldObject) -> bool:
 	if not is_instance_valid(world_object) or world_object.object_id.is_empty():
 		push_error("Every WorldObject requires a non-empty stable object_id.")
+		return false
+	if not UuidValidator.is_valid_v4(world_object.object_id):
+		push_error("WorldObject object_id '%s' is not a valid UUID v4." % world_object.object_id)
 		return false
 	if not is_instance_valid(world_object.location) or not world_object.location.world_identity_registered:
 		push_error("WorldObject '%s' requires a valid registered Location." % world_object.object_id)
@@ -129,6 +133,36 @@ func register_object_state(object_id: StringName, state: WorldObjectState) -> bo
 
 func has_object_state(object_id: StringName) -> bool:
 	return _object_states.has(object_id)
+
+
+func get_character_state(character_id: StringName) -> CharacterState:
+	return _character_states.get(character_id) as CharacterState
+
+
+func register_character_state(state: CharacterState) -> bool:
+	if state == null or not UuidValidator.is_valid_v4(state.character_id):
+		var invalid_id := state.character_id if state != null else &""
+		push_error("CharacterState character_id '%s' is not a valid UUID v4." % invalid_id)
+		return false
+	if _character_states.has(state.character_id):
+		if _character_states[state.character_id] == state:
+			return true
+		push_error("Character '%s' already has a different registered CharacterState." % state.character_id)
+		return false
+
+	_character_states[state.character_id] = state
+	return true
+
+
+func has_character_state(character_id: StringName) -> bool:
+	return _character_states.has(character_id)
+
+
+func get_character_states() -> Array[CharacterState]:
+	var states: Array[CharacterState] = []
+	for state in _character_states.values():
+		states.append(state as CharacterState)
+	return states
 
 
 func get_world_time_state() -> WorldTimeState:

@@ -7,9 +7,9 @@ static func evaluate(action: WorldAction) -> ActionRuleDecision:
 		return ActionRuleDecision.reject("行为发起者已经不存在。", &"actor_invalid")
 	if not is_instance_valid(action.target):
 		return ActionRuleDecision.reject("行为目标已经不存在。", &"target_invalid")
-	if not is_instance_valid(action.actor.current_location) or not is_instance_valid(action.target.location):
+	if action.actor.current_location_id.is_empty() or not is_instance_valid(action.target.location):
 		return ActionRuleDecision.reject("行为发起者或目标不属于有效地点。", &"location_missing")
-	if action.actor.current_location != action.target.location:
+	if action.actor.current_location_id != action.target.location.location_id:
 		return ActionRuleDecision.reject("行为发起者与目标不在同一个地点。", &"target_not_in_same_location")
 
 	var target_cells := action.target.get_occupied_grid_cells()

@@ -1,34 +1,36 @@
-@abstract
 class_name Character
-extends CharacterBody2D
+extends RefCounted
 
-enum Facing {
-	UP,
-	DOWN,
-	LEFT,
-	RIGHT,
-}
+var definition: CharacterDefinition
+var state: CharacterState
 
-var current_location: GridScene
-var facing := Facing.DOWN
-
-var world_position: Vector2:
+var character_id: StringName:
 	get:
-		return global_position
+		return definition.character_id
+
+var current_location_id: StringName:
+	get:
+		return state.current_location_id
+
+var local_position: Vector2:
+	get:
+		return state.local_position
+
+var facing: CharacterState.Facing:
+	get:
+		return state.facing
 
 var current_cell: Vector2i:
 	get:
-		if current_location == null:
-			return Vector2i.ZERO
-		var local_position := current_location.to_local(global_position)
 		return Vector2i(
-			floori(local_position.x / GridScene.CELL_SIZE),
-			floori(local_position.y / GridScene.CELL_SIZE)
+			floori(state.local_position.x / GridScene.CELL_SIZE),
+			floori(state.local_position.y / GridScene.CELL_SIZE)
 		)
 
 
-func enter_location(location: GridScene) -> void:
-	current_location = location
+func _init(p_definition: CharacterDefinition, p_state: CharacterState) -> void:
+	definition = p_definition
+	state = p_state
 
 
 func get_front_cell() -> Vector2i:
@@ -37,15 +39,11 @@ func get_front_cell() -> Vector2i:
 
 func get_facing_cell_offset() -> Vector2i:
 	match facing:
-		Facing.UP:
+		CharacterState.Facing.UP:
 			return Vector2i.UP
-		Facing.LEFT:
+		CharacterState.Facing.LEFT:
 			return Vector2i.LEFT
-		Facing.RIGHT:
+		CharacterState.Facing.RIGHT:
 			return Vector2i.RIGHT
 		_:
 			return Vector2i.DOWN
-
-
-func get_facing_vector() -> Vector2:
-	return Vector2(get_facing_cell_offset())

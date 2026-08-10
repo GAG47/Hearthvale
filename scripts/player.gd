@@ -1,5 +1,5 @@
 class_name PlayerCharacter
-extends Character
+extends CharacterPresentation
 
 signal action_completed(result: ActionResult)
 
@@ -19,6 +19,7 @@ func _physics_process(_delta: float) -> void:
 		_update_facing(input_direction)
 
 	move_and_slide()
+	sync_state_from_presentation()
 
 
 func stop() -> void:
@@ -34,19 +35,20 @@ func set_camera_bounds(bounds: Rect2) -> void:
 
 
 func request_interaction() -> ActionResult:
+	sync_state_from_presentation()
 	var target := InteractionTargetSelector.select_target(self)
 	if target == null:
 		var no_target_result := ActionResult.failed(&"interact", &"", "前方没有可交互的对象。")
 		action_completed.emit(no_target_result)
 		return no_target_result
 
-	var action_id := target.get_primary_action(self)
+	var action_id := target.get_primary_action(character)
 	if action_id.is_empty():
 		var no_action_result := ActionResult.failed(&"interact", target.object_id, "%s 当前没有可用行为。" % target.display_name)
 		action_completed.emit(no_action_result)
 		return no_action_result
 
-	var action := WorldAction.new(action_id, self, target)
+	var action := WorldAction.new(action_id, character, target)
 	var result := action.execute()
 	action_completed.emit(result)
 	return result
@@ -74,9 +76,9 @@ func _get_input_direction() -> Vector2:
 func _update_facing(direction: Vector2) -> void:
 	var next_facing := facing
 	if absf(direction.x) > absf(direction.y):
-		next_facing = Facing.RIGHT if direction.x > 0.0 else Facing.LEFT
+		next_facing = CharacterState.Facing.RIGHT if direction.x > 0.0 else CharacterState.Facing.LEFT
 	else:
-		next_facing = Facing.DOWN if direction.y > 0.0 else Facing.UP
+		next_facing = CharacterState.Facing.DOWN if direction.y > 0.0 else CharacterState.Facing.UP
 
 	if next_facing != facing:
 		facing = next_facing

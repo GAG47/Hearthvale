@@ -106,7 +106,7 @@ TileMapLayer / TileSet 负责描述“这里是什么空间”，包括地面、
 
 当前 WorldObject 的共同职责是：
 
-- 通过稳定的 `object_id` 表达对象身份；
+- 通过创建后永久不变的 UUID v4 `object_id` 表达对象身份；
 - 明确解析自己所属的 Location；
 - 按 Location 的 32×32 px 格子记录锚点和一个或多个占用格；
 - 明确是否阻挡移动，并让阻挡碰撞与空间占位一致；
@@ -126,15 +126,15 @@ Scene、Location 与 World State 表达不同职责：
 - Godot Scene 是该 Location 当前被加载后承担显示、碰撞、交互和场景行为的运行时表现；
 - World State 是独立于 Location Scene 生命周期持续存在的动态世界事实。
 
-世界身份使用 `location_id` 和 `object_id` 等稳定逻辑 ID。Location 的 `.tscn` 路径由 WorldDefinition 统一关联并用于加载场景，同时可用于开发期定义诊断；它不作为 World State 的事实键或世界身份。
+世界身份使用稳定逻辑 ID。Location 作为静态世界图节点，继续使用明确的 `location_id`；Character 与 WorldObject 作为持续世界实体，分别使用 UUID v4 `character_id` 和 `object_id`。Location 的 `.tscn` 路径由 WorldDefinition 统一关联并用于加载场景，同时可用于开发期定义诊断；它不作为 World State 的事实键或世界身份。
 
-`object_id` 是纯粹、全世界唯一的实体身份，不编码类型、Location、用途或当前状态。当前固定对象采用人工分配的 `obj_000001` 形式；实体以后移动时继续使用原 ID，实体真正删除后旧 ID 不用于代表另一个新实体。当前没有动态实体创建和删除需求，因此不实现自动 ID 生成器。
+实体 UUID 是纯粹、全世界唯一的永久身份，不编码名称、类型、Location、职业、用途、生成顺序或当前状态。预设实体和以后运行时创建的实体遵循同一 UUID v4 规则：创建时生成一次，此后不变；实体真正删除后旧 UUID 不用于代表另一个新实体。UUID Generator 只生成 UUID，不保存或查询实体，也不判断实体类型；UUID 格式验证是独立职责。Character 与 WorldObject 仍由各自的领域结构管理，不建立万能的全局 Entity Registry。
 
 Definition 与 World State 也保持分离。当前固定对象的 Definition 由场景和对象配置描述类型、稳定 ID、独立的 `initial_location_id`、初始格子位置、占位、阻挡、初始状态及静态表现；World State 只保存运行过程中已经变化、并且在 Scene 卸载后仍需成立的事实。TileMap、碰撞形状、Sprite 和完整 SceneTree 不复制到 World State。
 
 当前运行时 WorldState 是一个随本次游戏运行周期持续存在的 Autoload，也是跨 Scene 动态事实的权威。对象级事实仍通过通用的 `get_object_state(object_id)`、`register_object_state(object_id, state)` 和状态存在性查询访问；WorldState 不理解 Chest、Bed、Sign 等业务对象类型。具体 WorldObject 负责创建、校验和解释自己的具体 State：Chest 查询通用状态，不存在时按自身 Definition 创建并登记 ChestState，存在时由 Chest 确认类型并绑定。目前唯一真实动态对象状态是 ChestState 的 CLOSED / OPEN。Sign 内容属于静态定义，Bed 自身没有需要持续保存的动态事实，三个 Location 也没有可消费的动态状态，因此不为它们建立空 State。
 
-WorldState 中的 `object_id → WorldObjectState` 和独立的 WorldTimeState 是真正的世界事实；已遇到的固定 Definition、当前活动 Location、当前活动 WorldObject 和场景来源仅用于登记与开发期错误检查，不表达世界发生了什么，也不会混入具体 State。
+WorldState 中的 `object_id → WorldObjectState`、`character_id → CharacterState` 和独立的 WorldTimeState 是真正的世界事实；已遇到的固定 WorldObject Definition、当前活动 Location、当前活动 WorldObject 和场景来源仅用于登记与开发期错误检查，不表达世界发生了什么，也不会混入具体 State。
 
 Scene Node 被释放不代表对应世界事实被删除。Chest Node 加载时按 `object_id` 绑定已有 ChestState，Action 成功后修改这份状态并更新表现；酒馆卸载后 ChestState 继续存在，新 Chest Node 会重新绑定同一事实。固定对象 Definition 登记记录初始 Location 和对象类型，只用于发现两个场景定义误用同一 ID，不表示 `object_id` 永久属于某个 Location。
 
@@ -154,26 +154,32 @@ WorldState 持有 WorldTimeState，使它与其他运行时世界事实一样跨
 
 睡眠仍沿用正式 Action 链：公共空间规则和 Bed 自身规则通过后，Bed 请求 WorldTime 推进到下一天 08:00；日期进位与跨月、跨年计算由时间服务负责。Bed 不保存另一份日期，不直接写 WorldTimeState，也没有因此产生 BedState。HUD 属于 Presentation，只订阅时间变化并读取派生值进行显示，不拥有或修改世界时间。
 
-## Character 的当前空间职责
+## Character Definition、State、Registry 与表现
 
-Character 是所有能够在世界中行动的角色的抽象基础。当前只包含已经确定的共同空间信息：所在 Location、连续世界位置、由位置计算出的当前格子，以及四方向 facing。PlayerCharacter 继承 Character，并继续独立负责玩家输入、连续移动、碰撞和 Camera；抽象 Character 不因此包含背包、属性、AI、日程、关系或战斗数据。
+Character 是独立于 Godot Scene Node 的持续世界实体。当前逻辑 Character 只关联同一 `character_id` 下的 CharacterDefinition 与 CharacterState，不承担场景表现职责。
 
-当前格子由 Character 在所属 Location 中的连续坐标换算得到，角色移动本身仍是连续移动。facing 相邻格只用于当前普通近距离世界对象交互的目标选择和公共空间合法性，不表示所有 Action 永远具有相同朝向规则。
+CharacterDefinition 回答“这个角色是什么”，当前仅保存 UUID v4 `character_id`、`display_name` 和 `presentation_ref`。CharacterState 回答“这个角色在当前世界状态下是什么样”，当前仅保存同一个 `character_id`、`current_location_id`、Location 内的连续 `local_position` 和四方向 `facing`。Definition 不保存当前位置，State 不复制名称或表现引用；角色初始位置属于初始 CharacterState，不是永久 Definition。
+
+Character Registry 是当前世界中 Character 的权威集合，以 UUID 为主键，支持按 ID 获取与存在性查询、稳定遍历以及按当前 Location 查询。它登记 CharacterDefinition，并把 CharacterState 交给 WorldState 持有。Registry 不是单独的 UUID 列表，也不管理 WorldObject 或 Location；UUID Generator 不承担 Registry 职责。
+
+Location 加载时，游戏从 Registry 查询 `CharacterState.current_location_id` 等于该 Location 的角色，读取其 CharacterDefinition.presentation_ref 创建 CharacterPresentation，并按 CharacterState 恢复局部位置和朝向。Location 卸载前，Presentation 把当前局部位置同步回同一 CharacterState；随后 Node 可以释放，而 Character、Definition 和 State 继续存在。再次加载时会创建新的表现 Node 并绑定相同逻辑角色与状态。当前玩家和一个无行为逻辑的预设居民使用这条相同流程；没有 NPC 日程、决策、自动移动或离屏模拟。
+
+Character 从 CharacterState 的连续局部位置可靠推导当前格子，并提供 facing 相邻格给现有空间规则，不重复保存格子状态。CharacterPresentation 承担已加载 Location 中的表现适配和状态同步；PlayerCharacter 是 CharacterPresentation 的具体形式，继续负责玩家输入、目标选择、连续移动、碰撞和 Camera。WorldAction 的 Actor 是逻辑 Character，不是临时 Presentation Node。
 
 ## 当前交互与行为关系
 
-玩家按下统一交互输入时，InteractionTargetSelector 先查询 Character facing 方向的相邻格，再查询 Character 当前格。查询直接使用当前 Location 的 WorldObject 格子索引，不遍历 SceneTree。每个格子只选择一个支持行为的对象；同格多个候选按稳定 `object_id` 排序，保证结果简单且确定。这一过程只负责确定玩家意图的目标，不让各个对象分别监听输入，也不是 Action 合法性的唯一防线。
+玩家按下统一交互输入时，InteractionTargetSelector 先查询 CharacterPresentation facing 方向的相邻格，再查询其当前格。查询直接使用当前 Location 的 WorldObject 格子索引，不遍历 SceneTree。每个格子只选择一个支持行为的对象；同格多个候选按稳定 `object_id` 排序，保证结果简单且确定。这一过程只负责确定玩家意图的目标，不让各个对象分别监听输入，也不是 Action 合法性的唯一防线。
 
 选中目标后的当前基础关系是：
 
 ```text
-Character 提供 current Location / current cell / facing
+CharacterPresentation 绑定 Character、同步状态并接收玩家输入
   ↓
 Location / GridScene 维护自身格子中的 WorldObject
   ↓
-InteractionTargetSelector 选择 Actor 想操作的目标
+InteractionTargetSelector 根据当前 Presentation 选择 Actor 想操作的目标
   ↓
-WorldAction 表达 Actor、行为身份和目标
+WorldAction 表达逻辑 Character Actor、行为身份和目标
   ↓
 公共空间规则验证同一 Location 与当前格 / facing 相邻格
   ↓
@@ -218,7 +224,7 @@ Presentation 负责把玩家输入转化为可供游戏处理的意图，并把�
 
 Presentation 可以维护表现所需的临时状态，但不能把画面上看似发生的事情直接当作已经成立的世界事实。逻辑世界也不应依赖某个特定界面或验证场景才能成立。
 
-当前 Chest 已按稳定 `object_id` 绑定运行时 ChestState。除此之外，未来其他 Scene 与逻辑世界的绑定、状态同步及具体 Godot 实现只在真实需求出现时决定。
+当前 Chest Scene 按稳定 `object_id` 绑定运行时 ChestState；角色表现按 `character_id` 绑定 CharacterDefinition 与 CharacterState。两者都允许 Scene Node 随 Location 加载和卸载，而权威动态状态继续存在。其他 Scene 与逻辑世界的绑定只在出现真实需求时决定。
 
 ## 暂不规定的实现事项
 

@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 WorldDefinition="*res://scripts/world_definition/world_definition.gd"
 WorldState="*res://scripts/world_state/world_state.gd"
+CharacterRegistry="*res://scripts/characters/character_registry.gd"
 WorldTime="*res://scripts/world_time/world_time.gd"
 
 [display]

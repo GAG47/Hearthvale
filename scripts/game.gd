@@ -1,13 +1,10 @@
 extends Node2D
 
-const INITIAL_LOCATION_ID := &"tavern"
-const INITIAL_ENTRY := &"start"
-
 var current_location: GridScene
 var transition_in_progress := false
+var player: PlayerCharacter
 
 @onready var world_root: Node2D = $WorldRoot
-@onready var player: PlayerCharacter = $Player
 @onready var location_label: Label = $HUD/TopBar/LocationLabel
 @onready var date_label: Label = $HUD/TimePanel/TimeLayout/DateLabel
 @onready var weekday_season_label: Label = $HUD/TimePanel/TimeLayout/WeekdaySeasonLabel
@@ -17,10 +14,10 @@ var transition_in_progress := false
 
 var world_time: WorldTimeRuntime
 var world_definition: WorldDefinitionRuntime
+var character_registry: CharacterRegistryRuntime
 
 
 func _ready() -> void:
-	player.action_completed.connect(_on_player_action_completed)
 	action_result_timer.timeout.connect(_on_action_result_timer_timeout)
 	world_time = get_node_or_null("/root/WorldTime") as WorldTimeRuntime
 	if world_time == null:
@@ -32,11 +29,25 @@ func _ready() -> void:
 	if world_definition == null:
 		push_error("WorldDefinition Autoload is required before loading Game.")
 		return
-	_replace_location(INITIAL_LOCATION_ID, INITIAL_ENTRY)
+	character_registry = get_node_or_null("/root/CharacterRegistry") as CharacterRegistryRuntime
+	if character_registry == null:
+		push_error("CharacterRegistry Autoload is required before loading Game.")
+		return
+	var controlled_character := character_registry.get_character(
+		CharacterRegistryRuntime.PLAYER_CHARACTER_ID
+	)
+	if controlled_character == null:
+		return
+	_replace_location(controlled_character.state.current_location_id)
 
 
 func request_location_change(edge_key: StringName) -> void:
-	if transition_in_progress or current_location == null or edge_key.is_empty():
+	if (
+		transition_in_progress
+		or current_location == null
+		or not is_instance_valid(player)
+		or edge_key.is_empty()
+	):
 		return
 	var from_location_id := current_location.location_id
 	var edge := world_definition.get_edge(from_location_id, edge_key)
@@ -53,8 +64,9 @@ func _perform_location_change(
 	from_location_id: StringName,
 	edge: LocationEdgeDefinition
 ) -> void:
-	var changed := _replace_location(edge.to_location, edge.to_entry, from_location_id, edge)
-	player.set_physics_process(true)
+	var changed := _replace_location(edge.to_location, from_location_id, edge)
+	if is_instance_valid(player):
+		player.set_physics_process(true)
 
 	if not changed:
 		push_error(
@@ -68,7 +80,6 @@ func _perform_location_change(
 
 func _replace_location(
 	location_id: StringName,
-	entry_id: StringName,
 	from_location_id: StringName = &"",
 	edge: LocationEdgeDefinition = null
 ) -> bool:
@@ -98,20 +109,22 @@ func _replace_location(
 	var entry: LocationEntry
 	if edge != null:
 		entry = world_definition.get_target_entry(next_location, from_location_id, edge)
-	else:
-		entry = next_location.get_location_entry(entry_id)
-		if entry == null:
-			push_error(
-				"Initial location_id '%s' Scene '%s' has no LocationEntry entry_id '%s'."
-				% [location_id, scene_path, entry_id]
-			)
-	if entry == null:
+	if edge != null and entry == null:
 		next_location.free()
 		return false
+
+	var moving_character: Character
+	if is_instance_valid(player):
+		moving_character = player.character
 
 	if current_location != null:
 		world_root.remove_child(current_location)
 		current_location.queue_free()
+		player = null
+
+	if edge != null and moving_character != null:
+		moving_character.state.current_location_id = location_id
+		moving_character.state.local_position = entry.position
 
 	current_location = next_location
 	world_root.add_child(current_location)
@@ -121,12 +134,59 @@ func _replace_location(
 		current_location = null
 		return false
 
-	player.global_position = entry.global_position
-	player.enter_location(current_location)
+	if not _spawn_character_presentations():
+		return false
+	if not is_instance_valid(player):
+		push_error(
+			"Location '%s' loaded without the controlled PlayerCharacter presentation."
+			% location_id
+		)
+		return false
+
 	player.set_camera_bounds(current_location.get_world_rect())
 	location_label.text = definition.display_name
 	action_result_label.text = ""
 	return true
+
+
+func _spawn_character_presentations() -> bool:
+	var valid := true
+	for world_character in character_registry.get_characters_in_location(current_location.location_id):
+		var packed_scene := load(world_character.definition.presentation_ref) as PackedScene
+		if packed_scene == null:
+			push_error(
+				"Character '%s' presentation_ref '%s' could not be loaded."
+				% [world_character.character_id, world_character.definition.presentation_ref]
+			)
+			valid = false
+			continue
+
+		var presentation := packed_scene.instantiate() as CharacterPresentation
+		if presentation == null:
+			push_error(
+				"Character '%s' presentation_ref '%s' is not a CharacterPresentation."
+				% [world_character.character_id, world_character.definition.presentation_ref]
+			)
+			valid = false
+			continue
+		if not presentation.bind_character(world_character, current_location):
+			presentation.free()
+			valid = false
+			continue
+
+		presentation.name = "Character_%s" % String(world_character.character_id).substr(0, 8)
+		current_location.add_child(presentation)
+		if presentation is PlayerCharacter:
+			if is_instance_valid(player):
+				push_error(
+					"Location '%s' contains more than one PlayerCharacter presentation."
+					% current_location.location_id
+				)
+				valid = false
+			else:
+				player = presentation as PlayerCharacter
+				player.action_completed.connect(_on_player_action_completed)
+	return valid
 
 
 func _on_player_action_completed(result: ActionResult) -> void:

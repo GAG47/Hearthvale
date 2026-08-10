@@ -76,16 +76,16 @@ text = "厨房"
 [node name="WorldObjects" type="Node2D" parent="."]
 
 [node name="StorageChest" parent="WorldObjects" instance=ExtResource("4_chest")]
-object_id = &"obj_000001"
+object_id = &"5543caf7-2a10-4a40-84de-3a39ffdf670e"
 initial_location_id = &"tavern"
 anchor_cell = Vector2i(14, 6)
 
 [node name="NoticeBoard" parent="WorldObjects" instance=ExtResource("5_sign")]
-object_id = &"obj_000002"
+object_id = &"1d67bbf9-edc2-4264-a861-8bd3e3e61e15"
 initial_location_id = &"tavern"
 anchor_cell = Vector2i(13, 7)
 
 [node name="GuestBed" parent="WorldObjects" instance=ExtResource("6_bed")]
-object_id = &"obj_000003"
+object_id = &"a6ae5842-8c6d-4df2-9b80-a271b5496716"
 initial_location_id = &"tavern"
 anchor_cell = Vector2i(20, 3)
