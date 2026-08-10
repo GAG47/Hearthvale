@@ -5,14 +5,32 @@ extends Area2D
 	set(value):
 		cell_rect = value
 		_update_collision()
-@export_file("*.tscn") var target_scene_path := ""
-@export var target_entry := &""
+@export var edge_key := &""
+
+var location: GridScene
+var world_definition: WorldDefinitionRuntime
 
 
 func _ready() -> void:
 	_update_collision()
-	if not Engine.is_editor_hint():
-		body_entered.connect(_on_body_entered)
+	if Engine.is_editor_hint():
+		return
+
+	location = _find_location()
+	if location == null:
+		push_error("LocationExit edge_key '%s' must belong to a GridScene." % edge_key)
+		return
+	world_definition = get_node_or_null("/root/WorldDefinition") as WorldDefinitionRuntime
+	if world_definition == null:
+		push_error(
+			"LocationExit '%s/%s' requires the WorldDefinition Autoload."
+			% [location.location_id, edge_key]
+		)
+		return
+	if world_definition.get_edge(location.location_id, edge_key) == null:
+		return
+	body_entered.connect(_on_body_entered)
+
 
 func _on_body_entered(body: Node2D) -> void:
 	if not body.is_in_group("player"):
@@ -20,7 +38,16 @@ func _on_body_entered(body: Node2D) -> void:
 
 	var game := get_tree().get_first_node_in_group("game")
 	if game != null and game.has_method("request_location_change"):
-		game.request_location_change(target_scene_path, target_entry)
+		game.request_location_change(edge_key)
+
+
+func _find_location() -> GridScene:
+	var current := get_parent()
+	while current != null:
+		if current is GridScene:
+			return current as GridScene
+		current = current.get_parent()
+	return null
 
 
 func _update_collision() -> void:

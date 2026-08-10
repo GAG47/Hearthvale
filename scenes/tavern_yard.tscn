@@ -1,12 +1,12 @@
-[gd_scene format=4]
+[gd_scene load_steps=5 format=4]
 
 [ext_resource type="Script" path="res://scripts/grid_scene.gd" id="1_rk08o"]
 [ext_resource type="TileSet" path="res://data/world_tileset.tres" id="2_uelwi"]
 [ext_resource type="Script" path="res://scripts/location_exit.gd" id="3_w21as"]
+[ext_resource type="Script" path="res://scripts/location_entry.gd" id="4_entry"]
 
 [node name="TavernYard" type="Node2D" unique_id=1460247309]
 script = ExtResource("1_rk08o")
-display_name = "酒馆后院"
 location_id = &"tavern_yard"
 grid_size = Vector2i(24, 18)
 
@@ -26,13 +26,14 @@ tile_set = ExtResource("2_uelwi")
 collision_layer = 0
 script = ExtResource("3_w21as")
 cell_rect = Rect2i(11, 0, 2, 1)
-target_scene_path = "res://scenes/tavern.tscn"
-target_entry = &"back_door"
+edge_key = &"tavern_door"
 
 [node name="EntryPoints" type="Node2D" parent="." unique_id=753148780]
 
 [node name="tavern_entrance" type="Marker2D" parent="EntryPoints" unique_id=467835853]
 position = Vector2(384, 80)
+script = ExtResource("4_entry")
+entry_id = &"tavern_entrance"
 
 [node name="YardLabel" type="Label" parent="." unique_id=1731644317]
 z_index = 2

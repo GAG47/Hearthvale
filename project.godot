@@ -17,6 +17,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+WorldDefinition="*res://scripts/world_definition/world_definition.gd"
 WorldState="*res://scripts/world_state/world_state.gd"
 WorldTime="*res://scripts/world_time/world_time.gd"
 

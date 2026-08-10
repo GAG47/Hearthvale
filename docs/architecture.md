@@ -52,9 +52,51 @@ Presentation 呈现世界状态与结果
 
 场景层把一个世界节点表现为 2D 格子场景。格子是场景结构的最小单位，用于组织地面、建筑、障碍和出口，但不是角色移动的离散步长。角色在格子构成的空间中连续移动，并由碰撞限制可通行范围。
 
-一个节点连接在概念上包含两个必要信息：目标节点，以及进入目标节点时对应的位置。连接本身不负责旅行时间、路径搜索或更大范围的地图模拟。
+一个节点连接在概念上包含两个必要信息：目标节点，以及进入目标节点时对应的位置。连接是有向的；两个地点之间的双向通行由两条边分别表达，不从其中一条自动推断另一条。连接本身不负责旅行时间、路径搜索或更大范围的地图模拟。
 
-具体场景如何保存这些信息，以及 Scene 与逻辑世界未来如何绑定，仍由实际需求决定。
+## World Definition 与 Location Graph
+
+WorldDefinition 是当前静态世界结构的统一来源，与保存运行时变化事实的 WorldState 分离。它持有全世界的 LocationDefinition 目录，因此即使对应 Location Scene 没有实例化，系统仍可以查询该地点及其直接连接。
+
+每个 LocationDefinition 当前只包含已经有消费者的信息：
+
+- 稳定 `location_id`；
+- 正常可读的 `display_name`；
+- 承载该地点的 `scene_path`；
+- 从该地点出发的 `outgoing_edges`。
+
+Location 是有向图节点，每个 LocationDefinition 管理自己的出边。每条边以仅在所属 Location 内唯一的 `edge_key` 识别，并只保存 `to_location` 与 `to_entry`。边不重复保存 `from_location`，也不预先包含旅行分钟、距离、成本或动态道路状态。
+
+当前三个节点与四条有向边是：
+
+```text
+town_street --tavern_door--> tavern --back_door--> tavern_yard
+town_street <--front_door--- tavern <--tavern_door-- tavern_yard
+```
+
+GridScene 继续声明自己的 `location_id` 并负责具体格子空间、入口坐标和出口触发位置。LocationEntry 以稳定 `entry_id` 标识场景内落点；LocationExit 只保存 `edge_key`，不保存目标 Scene 路径或目标 Entry。地点显示名与 Scene 映射来自 LocationDefinition，不在每个出口中重复。
+
+玩家触发出口后的基础流程是：
+
+```text
+当前 GridScene.location_id + LocationExit.edge_key
+  ↓
+WorldDefinition 查询有向边
+  ↓
+取得 to_location + to_entry
+  ↓
+WorldDefinition 查询目标 scene_path
+  ↓
+实例化并验证目标 GridScene.location_id
+  ↓
+按 entry_id 定位目标 LocationEntry
+  ↓
+卸载当前 Location，进入目标 Location 的实际落点
+```
+
+目标 Scene 会在当前 Location 卸载前完成身份、出口和目标 Entry 验证，错误定义不会用半完成的切换替换当前场景。WorldDefinition 初始化校验 Location ID、Scene 资源、局部 edge key、目标 Location 和非空 Entry 标识；Scene 实例化后继续校验 Scene 身份、Scene 来源、LocationExit 引用、Entry 唯一性及实际目标 Entry。错误信息携带相应的 Location、edge、目标 Location 和 Entry，便于定位静态世界定义。
+
+Location Graph 当前只表达静态空间拓扑。NPC 路线、日程、离屏模拟、旅行时间、距离、道路封锁、天气影响、事件改路和世界地图 UI 尚未实现；未来系统可以查询该图，但不应把这些未确定职责提前塞入边定义。
 
 ## 地图结构与世界对象
 
@@ -84,7 +126,7 @@ Scene、Location 与 World State 表达不同职责：
 - Godot Scene 是该 Location 当前被加载后承担显示、碰撞、交互和场景行为的运行时表现；
 - World State 是独立于 Location Scene 生命周期持续存在的动态世界事实。
 
-世界身份使用 `location_id` 和 `object_id` 等稳定逻辑 ID。`.tscn` 路径只用于加载场景和开发期重复 ID 来源诊断，不作为 World State 的事实键或世界身份。
+世界身份使用 `location_id` 和 `object_id` 等稳定逻辑 ID。Location 的 `.tscn` 路径由 WorldDefinition 统一关联并用于加载场景，同时可用于开发期定义诊断；它不作为 World State 的事实键或世界身份。
 
 `object_id` 是纯粹、全世界唯一的实体身份，不编码类型、Location、用途或当前状态。当前固定对象采用人工分配的 `obj_000001` 形式；实体以后移动时继续使用原 ID，实体真正删除后旧 ID 不用于代表另一个新实体。当前没有动态实体创建和删除需求，因此不实现自动 ID 生成器。
 

@@ -1,15 +1,15 @@
-[gd_scene format=4]
+[gd_scene load_steps=8 format=4]
 
 [ext_resource type="Script" path="res://scripts/grid_scene.gd" id="1_8dirj"]
 [ext_resource type="TileSet" path="res://data/world_tileset.tres" id="2_gwbas"]
 [ext_resource type="Script" path="res://scripts/location_exit.gd" id="3_yyr65"]
+[ext_resource type="Script" path="res://scripts/location_entry.gd" id="7_entry"]
 [ext_resource type="PackedScene" path="res://scenes/world_objects/chest.tscn" id="4_chest"]
 [ext_resource type="PackedScene" path="res://scenes/world_objects/sign.tscn" id="5_sign"]
 [ext_resource type="PackedScene" path="res://scenes/world_objects/bed.tscn" id="6_bed"]
 
 [node name="Tavern" type="Node2D" unique_id=1256793428]
 script = ExtResource("1_8dirj")
-display_name = "酒馆"
 location_id = &"tavern"
 
 [node name="Ground" type="TileMapLayer" parent="." unique_id=914729337]
@@ -28,26 +28,30 @@ tile_set = ExtResource("2_gwbas")
 collision_layer = 0
 script = ExtResource("3_yyr65")
 cell_rect = Rect2i(11, 0, 2, 1)
-target_scene_path = "res://scenes/town_street.tscn"
-target_entry = &"tavern_entrance"
+edge_key = &"front_door"
 
 [node name="BackDoorExit" type="Area2D" parent="." unique_id=1119563920]
 collision_layer = 0
 script = ExtResource("3_yyr65")
 cell_rect = Rect2i(17, 15, 2, 1)
-target_scene_path = "res://scenes/tavern_yard.tscn"
-target_entry = &"tavern_entrance"
+edge_key = &"back_door"
 
 [node name="EntryPoints" type="Node2D" parent="." unique_id=188562042]
 
 [node name="start" type="Marker2D" parent="EntryPoints" unique_id=1932957022]
 position = Vector2(384, 256)
+script = ExtResource("7_entry")
+entry_id = &"start"
 
 [node name="front_door" type="Marker2D" parent="EntryPoints" unique_id=248965611]
 position = Vector2(384, 80)
+script = ExtResource("7_entry")
+entry_id = &"front_door"
 
 [node name="back_door" type="Marker2D" parent="EntryPoints" unique_id=373727254]
 position = Vector2(576, 432)
+script = ExtResource("7_entry")
+entry_id = &"back_door"
 
 [node name="HallLabel" type="Label" parent="." unique_id=60444414]
 z_index = 2

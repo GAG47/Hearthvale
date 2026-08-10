@@ -1,6 +1,6 @@
 extends Node2D
 
-const INITIAL_SCENE_PATH := "res://scenes/tavern.tscn"
+const INITIAL_LOCATION_ID := &"tavern"
 const INITIAL_ENTRY := &"start"
 
 var current_location: GridScene
@@ -16,6 +16,7 @@ var transition_in_progress := false
 @onready var action_result_timer: Timer = $HUD/ActionResultTimer
 
 var world_time: WorldTimeRuntime
+var world_definition: WorldDefinitionRuntime
 
 
 func _ready() -> void:
@@ -27,37 +28,85 @@ func _ready() -> void:
 	else:
 		world_time.time_changed.connect(_on_world_time_changed)
 		_refresh_time_display()
-	_replace_location(INITIAL_SCENE_PATH, INITIAL_ENTRY)
+	world_definition = get_node_or_null("/root/WorldDefinition") as WorldDefinitionRuntime
+	if world_definition == null:
+		push_error("WorldDefinition Autoload is required before loading Game.")
+		return
+	_replace_location(INITIAL_LOCATION_ID, INITIAL_ENTRY)
 
 
-func request_location_change(scene_path: String, entry_name: StringName) -> void:
-	if transition_in_progress or scene_path.is_empty() or entry_name.is_empty():
+func request_location_change(edge_key: StringName) -> void:
+	if transition_in_progress or current_location == null or edge_key.is_empty():
+		return
+	var from_location_id := current_location.location_id
+	var edge := world_definition.get_edge(from_location_id, edge_key)
+	if edge == null:
 		return
 
 	transition_in_progress = true
 	player.stop()
 	player.set_physics_process(false)
-	_perform_location_change.call_deferred(scene_path, entry_name)
+	_perform_location_change.call_deferred(from_location_id, edge)
 
 
-func _perform_location_change(scene_path: String, entry_name: StringName) -> void:
-	var changed := _replace_location(scene_path, entry_name)
+func _perform_location_change(
+	from_location_id: StringName,
+	edge: LocationEdgeDefinition
+) -> void:
+	var changed := _replace_location(edge.to_location, edge.to_entry, from_location_id, edge)
 	player.set_physics_process(true)
 
 	if not changed:
-		push_error("Could not enter location '%s' at '%s'." % [scene_path, entry_name])
+		push_error(
+			"Could not follow Location edge '%s/%s' to location_id '%s' at to_entry '%s'."
+			% [from_location_id, edge.edge_key, edge.to_location, edge.to_entry]
+		)
 
 	await get_tree().physics_frame
 	transition_in_progress = false
 
 
-func _replace_location(scene_path: String, entry_name: StringName) -> bool:
+func _replace_location(
+	location_id: StringName,
+	entry_id: StringName,
+	from_location_id: StringName = &"",
+	edge: LocationEdgeDefinition = null
+) -> bool:
+	var definition := world_definition.get_location(location_id)
+	if definition == null:
+		return false
+	var scene_path := world_definition.get_scene_path(location_id)
 	var packed_scene := load(scene_path) as PackedScene
 	if packed_scene == null:
+		push_error(
+			"Location '%s' scene_path '%s' could not be loaded as a PackedScene."
+			% [location_id, scene_path]
+		)
 		return false
 
 	var next_location := packed_scene.instantiate() as GridScene
 	if next_location == null:
+		push_error(
+			"Location '%s' scene_path '%s' did not instantiate as GridScene."
+			% [location_id, scene_path]
+		)
+		return false
+	if not world_definition.validate_loaded_location(next_location, location_id):
+		next_location.free()
+		return false
+
+	var entry: LocationEntry
+	if edge != null:
+		entry = world_definition.get_target_entry(next_location, from_location_id, edge)
+	else:
+		entry = next_location.get_location_entry(entry_id)
+		if entry == null:
+			push_error(
+				"Initial location_id '%s' Scene '%s' has no LocationEntry entry_id '%s'."
+				% [location_id, scene_path, entry_id]
+			)
+	if entry == null:
+		next_location.free()
 		return false
 
 	if current_location != null:
@@ -66,9 +115,7 @@ func _replace_location(scene_path: String, entry_name: StringName) -> bool:
 
 	current_location = next_location
 	world_root.add_child(current_location)
-
-	var entry := current_location.get_node_or_null("EntryPoints/%s" % entry_name) as Marker2D
-	if entry == null:
+	if not current_location.world_identity_registered:
 		world_root.remove_child(current_location)
 		current_location.queue_free()
 		current_location = null
@@ -77,7 +124,7 @@ func _replace_location(scene_path: String, entry_name: StringName) -> bool:
 	player.global_position = entry.global_position
 	player.enter_location(current_location)
 	player.set_camera_bounds(current_location.get_world_rect())
-	location_label.text = current_location.display_name
+	location_label.text = definition.display_name
 	action_result_label.text = ""
 	return true
 
