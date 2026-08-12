@@ -4,6 +4,6 @@
 	"visuals": {
 		"up": "res://assets/characters/player_up.svg",
 		"down": "res://assets/characters/player_down.svg",
-		"left": "res://assets/characters/player_left.svg",
-		"right": "res://assets/characters/player_right.svg"
+		"left": "res://assets/characters/player_left.svg"
 	}
+}

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cvg1aetybxsak"
-path="res://.godot/imported/martha.svg-e368aa584c40b622462f7ee0bb0bfc62.ctex"
+uid="uid://d2hmdj5hngc5d"
+path="res://.godot/imported/martha_up.svg-e68eb115a4a0b0196d4418430238f1b6.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/characters/martha.svg"
-dest_files=["res://.godot/imported/martha.svg-e368aa584c40b622462f7ee0bb0bfc62.ctex"]
+source_file="res://assets/characters/martha_up.svg"
+dest_files=["res://.godot/imported/martha_up.svg-e68eb115a4a0b0196d4418430238f1b6.ctex"]
 
 [params]
 

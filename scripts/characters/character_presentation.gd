@@ -1,8 +1,11 @@
 class_name CharacterPresentation
 extends CharacterBody2D
 
+const VISUAL_DIRECTIONS: Array[String] = ["up", "down", "left", "right"]
+
 var character: Character
 var current_location: GridScene
+var _visual_textures: Dictionary[String, Texture2D] = {}
 
 var character_id: StringName:
 	get:
@@ -55,29 +58,14 @@ func bind_character(p_character: Character, location: GridScene) -> bool:
 	if sprite == null:
 		push_error("CharacterPresentation requires a Sprite2D child.")
 		return false
-	var direction_indicator := get_node_or_null("DirectionIndicator") as Polygon2D
-	if direction_indicator == null:
-		push_error("CharacterPresentation requires a DirectionIndicator child.")
-		return false
-	var visual_ref := p_character.definition.visual_ref
-	if not ResourceLoader.exists(visual_ref):
-		push_error(
-			"Character '%s' visual_ref '%s' does not exist."
-			% [p_character.character_id, visual_ref]
-		)
-		return false
-	var visual_resource := ResourceLoader.load(visual_ref)
-	if not visual_resource is Texture2D:
-		push_error(
-			"Character '%s' visual_ref '%s' did not load as a Texture2D."
-			% [p_character.character_id, visual_ref]
-		)
+	var loaded_visual_textures := _load_visual_textures(p_character)
+	if loaded_visual_textures.size() != VISUAL_DIRECTIONS.size():
 		return false
 
 	character = p_character
 	current_location = location
+	_visual_textures = loaded_visual_textures
 	position = character.state.local_position
-	sprite.texture = visual_resource
 	_update_facing_visual()
 	return true
 
@@ -110,12 +98,56 @@ func get_facing_vector() -> Vector2:
 
 
 func _update_facing_visual() -> void:
-	var direction_indicator := get_node_or_null("DirectionIndicator") as Polygon2D
-	if direction_indicator == null:
+	var sprite := get_node_or_null("Sprite2D") as Sprite2D
+	if sprite == null or character == null:
 		return
-	var facing_vector := get_facing_vector()
-	direction_indicator.position = facing_vector * 12.0
-	direction_indicator.rotation = facing_vector.angle() - Vector2.DOWN.angle()
+	var direction := _get_facing_direction()
+	if not _visual_textures.has(direction):
+		push_error(
+			"Character '%s' has no loaded visual for direction '%s'."
+			% [character.character_id, direction]
+		)
+		return
+	sprite.texture = _visual_textures[direction]
+
+
+func _load_visual_textures(p_character: Character) -> Dictionary[String, Texture2D]:
+	var textures: Dictionary[String, Texture2D] = {}
+	for direction: String in VISUAL_DIRECTIONS:
+		if not p_character.definition.visuals.has(direction):
+			push_error(
+				"Character '%s' visuals is missing direction '%s'."
+				% [p_character.character_id, direction]
+			)
+			return textures
+		var visual_path: String = p_character.definition.visuals[direction]
+		if not ResourceLoader.exists(visual_path):
+			push_error(
+				"Character '%s' visuals.%s '%s' does not exist."
+				% [p_character.character_id, direction, visual_path]
+			)
+			return textures
+		var visual_resource := ResourceLoader.load(visual_path)
+		if not visual_resource is Texture2D:
+			push_error(
+				"Character '%s' visuals.%s '%s' did not load as a Texture2D."
+				% [p_character.character_id, direction, visual_path]
+			)
+			return textures
+		textures[direction] = visual_resource
+	return textures
+
+
+func _get_facing_direction() -> String:
+	match facing:
+		CharacterState.Facing.UP:
+			return "up"
+		CharacterState.Facing.LEFT:
+			return "left"
+		CharacterState.Facing.RIGHT:
+			return "right"
+		_:
+			return "down"
 
 
 func _exit_tree() -> void:

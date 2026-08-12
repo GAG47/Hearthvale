@@ -2,4 +2,5 @@
   <ellipse cx="16" cy="23" rx="12" ry="5" fill="#121212" fill-opacity="0.3"/>
   <circle cx="16" cy="15" r="11" fill="#315a79"/>
   <circle cx="16" cy="15" r="8" fill="#4f86a6"/>
+  <path d="M16 28 11 20h10z" fill="#f3ddb2"/>
 </svg>

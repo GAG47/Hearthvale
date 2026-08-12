@@ -1,5 +1,10 @@
 {
 	"character_id": 42,
 	"display_name": "玩家",
-	"visual_ref": "res://assets/characters/player.svg"
+	"visuals": {
+		"up": "res://assets/characters/player_up.svg",
+		"down": "res://assets/characters/player_down.svg",
+		"left": "res://assets/characters/player_left.svg",
+		"right": "res://assets/characters/player_right.svg"
+	}
 }

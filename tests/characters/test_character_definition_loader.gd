@@ -5,6 +5,7 @@ const LOADER := preload("res://scripts/characters/character_definition_loader.gd
 const PLAYER_PATH := "res://data/characters/player.json"
 const MARTHA_PATH := "res://data/characters/martha.json"
 const FIXTURE_DIRECTORY := "res://tests/characters/fixtures/"
+const VISUAL_DIRECTIONS: Array[String] = ["up", "down", "left", "right"]
 
 var _checks := 0
 var _failures := 0
@@ -17,13 +18,23 @@ func _init() -> void:
 		PLAYER_PATH,
 		&"5e05b833-0645-4c13-8713-4c8767a7efe3",
 		"玩家",
-		"res://assets/characters/player.svg"
+		{
+			"up": "res://assets/characters/player_up.svg",
+			"down": "res://assets/characters/player_down.svg",
+			"left": "res://assets/characters/player_left.svg",
+			"right": "res://assets/characters/player_right.svg",
+		}
 	)
 	_test_valid_definition(
 		MARTHA_PATH,
 		&"90da2d88-d049-4519-9e5c-e35136ff6a7d",
 		"Martha",
-		"res://assets/characters/martha.svg"
+		{
+			"up": "res://assets/characters/martha_up.svg",
+			"down": "res://assets/characters/martha_down.svg",
+			"left": "res://assets/characters/martha_left.svg",
+			"right": "res://assets/characters/martha_right.svg",
+		}
 	)
 
 	_test_invalid_definition("res://tests/characters/fixtures/does_not_exist.json")
@@ -37,12 +48,17 @@ func _init() -> void:
 		"display_name_wrong_type.json",
 		"empty_display_name.json",
 		"whitespace_display_name.json",
-		"missing_visual_ref.json",
-		"visual_ref_wrong_type.json",
-		"empty_visual_ref.json",
-		"whitespace_visual_ref.json",
-		"missing_visual_resource.json",
-		"visual_ref_not_texture.json",
+		"missing_visuals.json",
+		"visuals_wrong_type.json",
+		"missing_visual_up.json",
+		"missing_visual_down.json",
+		"missing_visual_left.json",
+		"missing_visual_right.json",
+		"visual_up_wrong_type.json",
+		"visual_down_empty.json",
+		"visual_left_whitespace.json",
+		"visual_right_missing_resource.json",
+		"visual_right_not_texture.json",
 	]:
 		_test_invalid_definition(FIXTURE_DIRECTORY + fixture_name)
 
@@ -71,7 +87,7 @@ func _test_valid_definition(
 	path: String,
 	expected_character_id: StringName,
 	expected_display_name: String,
-	expected_visual_ref: String
+	expected_visuals: Dictionary
 ) -> void:
 	var definition := LOADER.load_from_file(path)
 	_expect(definition != null, "%s should load successfully." % path)
@@ -87,14 +103,25 @@ func _test_valid_definition(
 		"%s should preserve display_name." % path
 	)
 	_expect(
-		definition.visual_ref == expected_visual_ref,
-		"%s should preserve visual_ref." % path
+		definition.visuals.size() == VISUAL_DIRECTIONS.size(),
+		"%s should contain exactly four directional visuals." % path
 	)
-	var visual_resource := ResourceLoader.load(definition.visual_ref)
-	_expect(
-		visual_resource is Texture2D,
-		"%s visual_ref should load as Texture2D." % path
-	)
+	for direction: String in VISUAL_DIRECTIONS:
+		_expect(
+			definition.visuals.has(direction),
+			"%s should preserve visuals.%s." % [path, direction]
+		)
+		if not definition.visuals.has(direction):
+			continue
+		_expect(
+			definition.visuals[direction] == expected_visuals[direction],
+			"%s should preserve visuals.%s path." % [path, direction]
+		)
+		var visual_resource := ResourceLoader.load(definition.visuals[direction])
+		_expect(
+			visual_resource is Texture2D,
+			"%s visuals.%s should load as Texture2D." % [path, direction]
+		)
 
 
 func _test_invalid_definition(path: String) -> void:

@@ -9,7 +9,7 @@ Hearthvale 是一款中世纪西幻 RPG / Living World 游戏。玩家作为世�
 
 ## 当前状态
 
-世界与空间、静态 Location Graph、世界对象与交互、运行时 World State、统一世界时间以及持续角色实体基础已经建立。Character 与 WorldObject 的永久实体身份统一使用 UUID v4；CharacterDefinition 通过统一 JSON Loader 进入运行时，Definition、State、逻辑 Character、Scene Presentation 和玩家控制权相互分离。Location 加载时统一创建 CharacterPresentation，并按 CharacterDefinition 的 `visual_ref` 绑定 Texture2D 和显示四方向指示；PlayerController 在物理帧中移动与跟随角色，并在切换后重新绑定同一个逻辑 Character。当前工程可以直接运行，既有移动、地点切换、对象交互、储物箱状态持续和睡眠推进时间均保持正常。
+世界与空间、静态 Location Graph、世界对象与交互、运行时 World State、统一世界时间以及持续角色实体基础已经建立。Character 与 WorldObject 的永久实体身份统一使用 UUID v4；CharacterDefinition 通过统一 JSON Loader 进入运行时，Definition、State、逻辑 Character、Scene Presentation 和玩家控制权相互分离。Location 加载时统一创建 CharacterPresentation，并按 CharacterDefinition 的 `visuals.up/down/left/right` 和 CharacterState.facing 选择四向静态 Texture2D；PlayerController 在物理帧中移动与跟随角色，并在切换后重新绑定同一个逻辑 Character。当前工程可以直接运行，既有移动、地点切换、对象交互、储物箱状态持续和睡眠推进时间均保持正常。
 
 ## 目录
 

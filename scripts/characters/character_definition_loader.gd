@@ -1,6 +1,8 @@
 class_name CharacterDefinitionLoader
 extends RefCounted
 
+const VISUAL_DIRECTIONS: Array[String] = ["up", "down", "left", "right"]
+
 
 static func load_from_file(path: String) -> CharacterDefinition:
 	var file := FileAccess.open(path, FileAccess.READ)
@@ -65,39 +67,68 @@ static func load_from_file(path: String) -> CharacterDefinition:
 		push_error("CharacterDefinitionLoader '%s' field 'display_name' must not be empty." % path)
 		return null
 
-	if not data.has("visual_ref"):
-		push_error("CharacterDefinitionLoader '%s' is missing 'visual_ref'." % path)
+	if not data.has("visuals"):
+		push_error("CharacterDefinitionLoader '%s' is missing 'visuals'." % path)
 		return null
-	var raw_visual_ref: Variant = data["visual_ref"]
-	if not raw_visual_ref is String:
+	var raw_visuals: Variant = data["visuals"]
+	if not raw_visuals is Dictionary:
 		push_error(
-			"CharacterDefinitionLoader '%s' field 'visual_ref' must be a String." % path
+			"CharacterDefinitionLoader '%s' field 'visuals' must be a Dictionary." % path
 		)
 		return null
-	var visual_ref: String = raw_visual_ref
-	if visual_ref.strip_edges().is_empty():
+	var visuals_data: Dictionary = raw_visuals
+	var visuals: Dictionary[String, String] = {}
+	for direction: String in VISUAL_DIRECTIONS:
+		var visual_path := _validate_visual_path(visuals_data, direction, path)
+		if visual_path.is_empty():
+			return null
+		visuals[direction] = visual_path
+
+	return CharacterDefinition.new(character_id, display_name, visuals)
+
+
+static func _validate_visual_path(
+	visuals_data: Dictionary,
+	direction: String,
+	definition_path: String
+) -> String:
+	if not visuals_data.has(direction):
 		push_error(
-			"CharacterDefinitionLoader '%s' field 'visual_ref' must not be empty." % path
+			"CharacterDefinitionLoader '%s' field 'visuals' is missing '%s'."
+			% [definition_path, direction]
 		)
-		return null
-	if not ResourceLoader.exists(visual_ref):
+		return ""
+	var raw_visual_path: Variant = visuals_data[direction]
+	if not raw_visual_path is String:
 		push_error(
-			"CharacterDefinitionLoader '%s' field 'visual_ref' points to a missing resource: '%s'."
-			% [path, visual_ref]
+			"CharacterDefinitionLoader '%s' field 'visuals.%s' must be a String."
+			% [definition_path, direction]
 		)
-		return null
-	var visual_resource := ResourceLoader.load(visual_ref)
+		return ""
+	var visual_path: String = raw_visual_path
+	if visual_path.strip_edges().is_empty():
+		push_error(
+			"CharacterDefinitionLoader '%s' field 'visuals.%s' must not be empty."
+			% [definition_path, direction]
+		)
+		return ""
+	if not ResourceLoader.exists(visual_path):
+		push_error(
+			"CharacterDefinitionLoader '%s' field 'visuals.%s' points to a missing resource: '%s'."
+			% [definition_path, direction, visual_path]
+		)
+		return ""
+	var visual_resource := ResourceLoader.load(visual_path)
 	if visual_resource == null:
 		push_error(
-			"CharacterDefinitionLoader '%s' field 'visual_ref' could not be loaded: '%s'."
-			% [path, visual_ref]
+			"CharacterDefinitionLoader '%s' field 'visuals.%s' could not be loaded: '%s'."
+			% [definition_path, direction, visual_path]
 		)
-		return null
+		return ""
 	if not visual_resource is Texture2D:
 		push_error(
-			"CharacterDefinitionLoader '%s' field 'visual_ref' must reference a Texture2D: '%s'."
-			% [path, visual_ref]
+			"CharacterDefinitionLoader '%s' field 'visuals.%s' must reference a Texture2D: '%s'."
+			% [definition_path, direction, visual_path]
 		)
-		return null
-
-	return CharacterDefinition.new(character_id, display_name, visual_ref)
+		return ""
+	return visual_path

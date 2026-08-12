@@ -65,12 +65,17 @@ func _run_tests() -> void:
 	_expect(
 		player.definition.character_id == player_definition.character_id
 		and player.definition.display_name == player_definition.display_name
-		and player.definition.visual_ref == player_definition.visual_ref,
+		and player.definition.visuals == player_definition.visuals,
 		"The runtime Player Definition must preserve all player.json fields."
 	)
 	_expect(
-		player.definition.visual_ref == "res://assets/characters/player.svg",
-		"The Player Definition must use its visual_ref Texture."
+		player.definition.visuals == {
+			"up": "res://assets/characters/player_up.svg",
+			"down": "res://assets/characters/player_down.svg",
+			"left": "res://assets/characters/player_left.svg",
+			"right": "res://assets/characters/player_right.svg",
+		},
+		"The Player Definition must preserve all four directional visuals."
 	)
 	_expect(player.state.current_location_id == &"tavern", "Player must start in Tavern.")
 	_expect(
@@ -115,10 +120,6 @@ func _run_tests() -> void:
 		"Player Presentation collision must be preserved."
 	)
 	_expect(
-		presentation.get_node_or_null("DirectionIndicator") is Polygon2D,
-		"The shared CharacterPresentation must contain a DirectionIndicator."
-	)
-	_expect(
 		presentation.collision_layer == 1 and presentation.collision_mask == 1,
 		"Player Presentation collision layer and mask must be preserved."
 	)
@@ -127,8 +128,8 @@ func _run_tests() -> void:
 		"Camera must not remain in Player Presentation."
 	)
 	_expect(
-		_get_visual_texture_path(presentation) == player_definition.visual_ref,
-		"Player Sprite2D.texture must come from player.json visual_ref."
+		_get_visual_texture_path(presentation) == player_definition.visuals["down"],
+		"Player must initially use player.json visuals.down."
 	)
 	_expect(not FileAccess.file_exists("res://scripts/player.gd"), "Legacy Player script must be removed.")
 
@@ -149,10 +150,18 @@ func _run_tests() -> void:
 			"Camera smoothing speed must remain unchanged."
 		)
 
-	_expect_facing_indicator(presentation, CharacterState.Facing.UP, Vector2.UP)
-	_expect_facing_indicator(presentation, CharacterState.Facing.DOWN, Vector2.DOWN)
-	_expect_facing_indicator(presentation, CharacterState.Facing.LEFT, Vector2.LEFT)
-	_expect_facing_indicator(presentation, CharacterState.Facing.RIGHT, Vector2.RIGHT)
+	await _expect_input_facing_visual(
+		presentation, &"ui_up", CharacterState.Facing.UP, "up"
+	)
+	await _expect_input_facing_visual(
+		presentation, &"ui_down", CharacterState.Facing.DOWN, "down"
+	)
+	await _expect_input_facing_visual(
+		presentation, &"ui_left", CharacterState.Facing.LEFT, "left"
+	)
+	await _expect_input_facing_visual(
+		presentation, &"ui_right", CharacterState.Facing.RIGHT, "right"
+	)
 	presentation.facing = CharacterState.Facing.DOWN
 
 	var initial_position := presentation.position
@@ -216,14 +225,9 @@ func _run_tests() -> void:
 		"Location change must recreate the shared CharacterPresentation Scene."
 	)
 	_expect(
-		_get_visual_texture_path(yard_presentation) == player_definition.visual_ref,
-		"Location change must restore Player visual_ref Texture."
-	)
-	_expect(
-		_get_direction_indicator_direction(yard_presentation).is_equal_approx(
-			yard_presentation.get_facing_vector()
-		),
-		"Location change must restore the four-direction facing indicator."
+		_get_visual_texture_path(yard_presentation)
+		== _get_visual_path_for_facing(player_definition, yard_presentation.facing),
+		"Location change must restore the Texture matching CharacterState.facing."
 	)
 	_expect(
 		player.state.local_position == Vector2(384.0, 80.0),
@@ -333,27 +337,38 @@ func _get_visual_texture_path(presentation: CharacterPresentation) -> String:
 	return sprite.texture.resource_path
 
 
-func _expect_facing_indicator(
+func _expect_input_facing_visual(
 	presentation: CharacterPresentation,
+	input_action: StringName,
 	expected_facing: CharacterState.Facing,
-	expected_direction: Vector2
+	expected_direction: String
 ) -> void:
-	presentation.facing = expected_facing
+	Input.action_press(input_action)
+	await physics_frame
+	Input.action_release(input_action)
 	_expect(
-		_get_direction_indicator_direction(presentation).is_equal_approx(expected_direction),
-		"DirectionIndicator must point %s when facing is %s."
-		% [expected_direction, expected_facing]
+		presentation.facing == expected_facing
+		and _get_visual_texture_path(presentation)
+		== presentation.character.definition.visuals[expected_direction],
+		"Input '%s' must set facing %s and immediately select visuals.%s."
+		% [input_action, expected_facing, expected_direction]
 	)
+	await physics_frame
 
 
-func _get_direction_indicator_direction(presentation: CharacterPresentation) -> Vector2:
-	var indicator := presentation.get_node_or_null("DirectionIndicator") as Polygon2D
-	if indicator == null or indicator.polygon.size() < 3:
-		return Vector2.ZERO
-	var indicator_tip := indicator.transform * indicator.polygon[2]
-	if indicator_tip.is_zero_approx():
-		return Vector2.ZERO
-	return indicator_tip.normalized()
+func _get_visual_path_for_facing(
+	definition: CharacterDefinition,
+	facing: CharacterState.Facing
+) -> String:
+	match facing:
+		CharacterState.Facing.UP:
+			return definition.visuals["up"]
+		CharacterState.Facing.LEFT:
+			return definition.visuals["left"]
+		CharacterState.Facing.RIGHT:
+			return definition.visuals["right"]
+		_:
+			return definition.visuals["down"]
 
 
 func _on_action_completed(result: ActionResult) -> void:

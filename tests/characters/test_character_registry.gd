@@ -42,7 +42,7 @@ func _run_tests() -> void:
 	)
 
 	var mismatched := Character.new(
-		CharacterDefinition.new(FIRST_ID, "Mismatch", "res://missing-visual.svg"),
+		CharacterDefinition.new(FIRST_ID, "Mismatch", _create_test_visuals()),
 		CharacterState.new(SECOND_ID, &"nowhere", Vector2.ZERO)
 	)
 	_expect(
@@ -51,7 +51,7 @@ func _run_tests() -> void:
 	)
 
 	var invalid_definition_id := Character.new(
-		CharacterDefinition.new(&"not-a-uuid", "Invalid", "res://missing-visual.svg"),
+		CharacterDefinition.new(&"not-a-uuid", "Invalid", _create_test_visuals()),
 		CharacterState.new(&"not-a-uuid", &"nowhere", Vector2.ZERO)
 	)
 	_expect(
@@ -60,7 +60,7 @@ func _run_tests() -> void:
 	)
 
 	var invalid_state_id := Character.new(
-		CharacterDefinition.new(SECOND_ID, "Invalid State", "res://missing-visual.svg"),
+		CharacterDefinition.new(SECOND_ID, "Invalid State", _create_test_visuals()),
 		CharacterState.new(&"not-a-uuid", &"nowhere", Vector2.ZERO)
 	)
 	_expect(
@@ -94,10 +94,19 @@ func _create_character(character_id: StringName, location_id: StringName) -> Cha
 		CharacterDefinition.new(
 			character_id,
 			"Test Character",
-			"res://missing-visual.svg"
+			_create_test_visuals()
 		),
 		CharacterState.new(character_id, location_id, Vector2(32.0, 64.0))
 	)
+
+
+func _create_test_visuals() -> Dictionary[String, String]:
+	return {
+		"up": "res://missing-visual-up.svg",
+		"down": "res://missing-visual-down.svg",
+		"left": "res://missing-visual-left.svg",
+		"right": "res://missing-visual-right.svg",
+	}
 
 
 func _disable_project_autoloads() -> void:
