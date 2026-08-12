@@ -24,6 +24,7 @@ script = ExtResource("1_game")
 script = ExtResource("2_player_controller")
 
 [node name="Camera2D" type="Camera2D" parent="PlayerController"]
+process_callback = 0
 position_smoothing_enabled = true
 position_smoothing_speed = 8.0
 

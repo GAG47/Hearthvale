@@ -164,7 +164,7 @@ Character Registry 是当前世界中 Character 的权威集合，以 UUID 为�
 
 Location 加载时，游戏从 Registry 查询 `CharacterState.current_location_id` 等于该 Location 的角色，为每个角色实例化同一个 CharacterPresentation Scene，并按 CharacterState 恢复局部位置和朝向。CharacterPresentation 读取 `CharacterDefinition.visual_ref`，加载 Texture2D 后设置共享结构中的 Sprite2D。Location 卸载前，Presentation 把当前局部位置同步回同一 CharacterState；随后 Node 可以释放，而 Character、Definition 和 State 继续存在。再次加载时会创建新的表现 Node 并绑定相同逻辑角色、状态和视觉纹理。当前 Game 临时从 `player.json` 加载 Player Definition，以既有初始值创建并登记 Player State 和 Character；Martha Definition 数据仍然有效，但在通用 NPC 初始化流程出现前不创建 State、Character 或 Presentation。
 
-Character 从 CharacterState 的连续局部位置可靠推导当前格子，并提供 facing 相邻格给现有空间规则，不重复保存格子状态。所有当前普通角色共用包含 Sprite2D 和 CollisionShape2D 的 CharacterPresentation Scene；脚本只承担已加载 Location 中的视觉绑定、空间表现、碰撞、状态恢复与同步，不定义具体角色外观。PlayerController 独立持有当前受控 Character 和它在已加载 Location 中的 CharacterPresentation，负责输入、连续移动、交互 Action 请求、结果信号和 Camera；Location 切换后重新绑定同一个 Character 的新 Presentation。Character 与 CharacterPresentation 都不保存 Player 标记，Player 只表示当前控制权。WorldAction 的 Actor 是逻辑 Character，不是 Controller 或临时 Presentation Node。
+Character 从 CharacterState 的连续局部位置可靠推导当前格子，并提供 facing 相邻格给现有空间规则，不重复保存格子状态。所有当前普通角色共用包含 Sprite2D、四方向 DirectionIndicator 和 CollisionShape2D 的 CharacterPresentation Scene；脚本只承担已加载 Location 中的视觉绑定、朝向呈现、空间表现、碰撞、状态恢复与同步，不定义具体角色外观。PlayerController 独立持有当前受控 Character 和它在已加载 Location 中的 CharacterPresentation，负责输入、连续移动、交互 Action 请求、结果信号和 Camera；角色与 Camera 跟随均在物理帧更新，并通过 2D 物理插值平滑渲染。Location 切换后重新绑定同一个 Character 的新 Presentation。Character 与 CharacterPresentation 都不保存 Player 标记，Player 只表示当前控制权。WorldAction 的 Actor 是逻辑 Character，不是 Controller 或临时 Presentation Node。
 
 ## 当前交互与行为关系
 

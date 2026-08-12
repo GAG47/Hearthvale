@@ -14,6 +14,7 @@ var facing: CharacterState.Facing:
 	set(value):
 		if character != null:
 			character.state.facing = value
+			_update_facing_visual()
 
 var world_position: Vector2:
 	get:
@@ -54,6 +55,10 @@ func bind_character(p_character: Character, location: GridScene) -> bool:
 	if sprite == null:
 		push_error("CharacterPresentation requires a Sprite2D child.")
 		return false
+	var direction_indicator := get_node_or_null("DirectionIndicator") as Polygon2D
+	if direction_indicator == null:
+		push_error("CharacterPresentation requires a DirectionIndicator child.")
+		return false
 	var visual_ref := p_character.definition.visual_ref
 	if not ResourceLoader.exists(visual_ref):
 		push_error(
@@ -73,6 +78,7 @@ func bind_character(p_character: Character, location: GridScene) -> bool:
 	current_location = location
 	position = character.state.local_position
 	sprite.texture = visual_resource
+	_update_facing_visual()
 	return true
 
 
@@ -101,6 +107,15 @@ func get_facing_cell_offset() -> Vector2i:
 
 func get_facing_vector() -> Vector2:
 	return Vector2(get_facing_cell_offset())
+
+
+func _update_facing_visual() -> void:
+	var direction_indicator := get_node_or_null("DirectionIndicator") as Polygon2D
+	if direction_indicator == null:
+		return
+	var facing_vector := get_facing_vector()
+	direction_indicator.position = facing_vector * 12.0
+	direction_indicator.rotation = facing_vector.angle() - Vector2.DOWN.angle()
 
 
 func _exit_tree() -> void:

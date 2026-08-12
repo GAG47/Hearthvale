@@ -115,6 +115,10 @@ func _run_tests() -> void:
 		"Player Presentation collision must be preserved."
 	)
 	_expect(
+		presentation.get_node_or_null("DirectionIndicator") is Polygon2D,
+		"The shared CharacterPresentation must contain a DirectionIndicator."
+	)
+	_expect(
 		presentation.collision_layer == 1 and presentation.collision_mask == 1,
 		"Player Presentation collision layer and mask must be preserved."
 	)
@@ -130,12 +134,26 @@ func _run_tests() -> void:
 
 	var camera := controller.get_node_or_null("Camera2D") as Camera2D
 	_expect(camera != null, "PlayerController must own Camera2D.")
+	_expect(
+		ProjectSettings.get_setting("physics/common/physics_interpolation", false),
+		"2D physics interpolation must be enabled for smooth rendered movement."
+	)
 	if camera != null:
+		_expect(
+			camera.process_callback == Camera2D.CAMERA2D_PROCESS_PHYSICS,
+			"Camera2D must update on physics frames with Player movement."
+		)
 		_expect(camera.position_smoothing_enabled, "Camera smoothing must remain enabled.")
 		_expect(
 			is_equal_approx(camera.position_smoothing_speed, 8.0),
 			"Camera smoothing speed must remain unchanged."
 		)
+
+	_expect_facing_indicator(presentation, CharacterState.Facing.UP, Vector2.UP)
+	_expect_facing_indicator(presentation, CharacterState.Facing.DOWN, Vector2.DOWN)
+	_expect_facing_indicator(presentation, CharacterState.Facing.LEFT, Vector2.LEFT)
+	_expect_facing_indicator(presentation, CharacterState.Facing.RIGHT, Vector2.RIGHT)
+	presentation.facing = CharacterState.Facing.DOWN
 
 	var initial_position := presentation.position
 	Input.action_press(&"ui_right")
@@ -200,6 +218,12 @@ func _run_tests() -> void:
 	_expect(
 		_get_visual_texture_path(yard_presentation) == player_definition.visual_ref,
 		"Location change must restore Player visual_ref Texture."
+	)
+	_expect(
+		_get_direction_indicator_direction(yard_presentation).is_equal_approx(
+			yard_presentation.get_facing_vector()
+		),
+		"Location change must restore the four-direction facing indicator."
 	)
 	_expect(
 		player.state.local_position == Vector2(384.0, 80.0),
@@ -307,6 +331,29 @@ func _get_visual_texture_path(presentation: CharacterPresentation) -> String:
 	if sprite == null or sprite.texture == null:
 		return ""
 	return sprite.texture.resource_path
+
+
+func _expect_facing_indicator(
+	presentation: CharacterPresentation,
+	expected_facing: CharacterState.Facing,
+	expected_direction: Vector2
+) -> void:
+	presentation.facing = expected_facing
+	_expect(
+		_get_direction_indicator_direction(presentation).is_equal_approx(expected_direction),
+		"DirectionIndicator must point %s when facing is %s."
+		% [expected_direction, expected_facing]
+	)
+
+
+func _get_direction_indicator_direction(presentation: CharacterPresentation) -> Vector2:
+	var indicator := presentation.get_node_or_null("DirectionIndicator") as Polygon2D
+	if indicator == null or indicator.polygon.size() < 3:
+		return Vector2.ZERO
+	var indicator_tip := indicator.transform * indicator.polygon[2]
+	if indicator_tip.is_zero_approx():
+		return Vector2.ZERO
+	return indicator_tip.normalized()
 
 
 func _on_action_completed(result: ActionResult) -> void:

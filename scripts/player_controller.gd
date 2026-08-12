@@ -11,10 +11,6 @@ var controlled_character: Character
 var controlled_presentation: CharacterPresentation
 
 
-func _process(_delta: float) -> void:
-	_sync_camera_position()
-
-
 func _physics_process(_delta: float) -> void:
 	if controlled_character == null or not is_instance_valid(controlled_presentation):
 		return
@@ -29,6 +25,7 @@ func _physics_process(_delta: float) -> void:
 
 	controlled_presentation.move_and_slide()
 	controlled_presentation.sync_state_from_presentation()
+	_sync_camera_position()
 
 
 func take_control(character: Character, presentation: CharacterPresentation) -> bool:
@@ -144,4 +141,5 @@ func _sync_camera_position(reset_smoothing := false) -> void:
 		return
 	global_position = controlled_presentation.global_position
 	if reset_smoothing:
+		reset_physics_interpolation()
 		camera.reset_smoothing()
