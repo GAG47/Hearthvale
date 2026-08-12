@@ -100,11 +100,38 @@ Location Graph 当前只表达静态空间拓扑。NPC 路线、日程、离屏�
 
 ## 地图结构与 Entity
 
-Location 内的地图结构与逻辑实体表达不同的事实。TileMapLayer / TileSet 描述地面、墙体、道路和建筑边界；需要稳定身份、动态状态或独立行为的角色与家具则进入 Entity 体系，不把状态塞进瓦片或临时 Scene Node。
+Location 内的地图结构与逻辑实体表达不同的事实。TileMapLayer / TileSet 描述地面、墙体、道路和建筑边界；世界规则需要赋予独立身份、持续动态状态并单独引用的对象进入 Entity 体系，不把状态塞进瓦片或临时 Scene Node。当前已经实现的 Entity 大类是 Actor 与 Furniture，但这不是封闭列表。
 
-Entity 是很薄的 RefCounted 逻辑基类，只持有 EntityState，提供 `entity_id`、当前位置与 Location 访问，以及默认“不支持”的 Action 目标协议。当前两个具体分支是 Actor 与 Furniture：Actor 表达行动主体，Furniture 表达床、储物箱和告示牌等环境实体。Entity 不负责 Sprite、碰撞、输入、AI 或具体 Action 规则。
+Entity 是拥有独立身份、独立动态状态，并需要被世界规则单独引用的逻辑对象。判断一个内容是否需要成为 Entity，不看它是否出现在 Scene 中、拥有 Sprite 或碰撞、能够交互，而看世界规则是否需要独立识别、持续追踪并引用它。地板、墙面装饰、草、阴影、粒子和其他纯视觉装饰不会仅因出现在 Scene 中就成为 Entity。
 
-EntityState 统一保存所有实体共同的 `entity_id`、`current_location_id` 与 `local_position`。ActorState 增加 `facing`；FurnitureState 通过 `behavior_states` 组合各个 Behavior 的实例动态状态。当前只有 OpenableState 保存 `is_open`，Sleepable 与 Inspectable 没有动态事实，因此不建立空 State。WorldState 与 Runtime Entity 持有同一个 State 对象，不复制两份事实。
+所有 Entity 遵循相同的基础规则：
+
+- 使用全世界唯一、创建后不变的 UUID v4 `entity_id`；
+- 持有独立 EntityState，记录该实例已经成立的动态世界事实；
+- 可以在没有 Presentation 的情况下继续存在；
+- Location Scene 卸载不能删除对应的逻辑 Entity 或 State；
+- 需要显示时，创建适合该类 Entity 的 Presentation，并绑定原有 Entity 与 State。
+
+Entity 是很薄的 RefCounted 逻辑基类，只持有 EntityState，提供身份、当前位置与 Location 访问，以及默认“不支持”的 Action 目标协议。Actor 表达行动主体，Furniture 表达当前家具和环境实体；只有真实需求证明另一类实体具有根本性的基础结构、生命周期或基础规则差异时，才建立新的 Entity 大类。本文不提前规定未来一定存在的具体 Entity 类型或对应代码结构。
+
+### Entity 的继承、组合与数据边界
+
+Entity 体系中的结构按以下含义区分：
+
+- Entity 大类表达根本结构、生命周期或基础规则差异；
+- Definition 描述具体内容“是什么”；
+- Behavior / Component 描述“能做什么”以及能力如何运行；
+- BehaviorState / ComponentState 保存某项可组合能力在具体实例上的动态状态；
+- EntityState 保存该 Entity 本身共有的动态世界事实；
+- Presentation 只是 Entity 在当前加载 Scene 中的表现。
+
+同一个 Entity 大类内部，不应通过不断增加具体内容子类表达能力差异。Furniture 不因为出现 Bed、Chest 或 Table 就分别建立大量逻辑类型类；这类差异优先由 Definition 与真实存在的 Behavior 组合表达。
+
+如果一项可组合能力拥有独立动态状态，其 State 也应随能力组合，不应把 `is_open`、`occupied_actor`、`inventory`、`crafting_progress` 等专属字段不断加入公共父级 State。没有独立动态状态的 Behavior / Component，不需要为了形式完整而建立空 State。当前 FurnitureState 通过 `behavior_states` 组合能力状态；只有 OpenableState 保存 `is_open`，Sleepable 与 Inspectable 没有动态事实，因此没有对应空 State。
+
+Entity 统一规范不意味着所有 Entity 必须拥有同一种 Definition、完全相同的 Behavior 或同一种 Presentation，也不要求建立万能 EntityDefinition、万能 EntityPresentation 或完整 ECS。具体结构仍由真实需求、真实消费者和真实状态决定，不为形式对称增加抽象。
+
+WorldState 与 Runtime Entity 持有同一个 EntityState 对象，不复制两份事实。Presentation 永远只是 Entity 在当前 Scene 中的表现，不能反过来成为逻辑身份、权威状态或规则结果的唯一来源。
 
 EntityRegistry 以 UUID v4 `entity_id` 统一管理当前 Runtime Entity，提供注册、按 ID 查询、稳定遍历与按 Location 查询。登记只检查 Entity 的共同条件：Entity 与 EntityState 存在、UUID 合法且双方 ID 一致；Registry 不认识 Actor、Furniture 或其他具体子类。它不加载 Definition，不创建 Entity、State 或 Presentation，也不执行 Action。Location 加载及临时世界内容初始化仍由当前 Game 流程完成。
 
@@ -118,11 +145,11 @@ Scene、Location 与 World State 表达不同职责：
 - Godot Scene 是该 Location 当前被加载后承担显示、碰撞、交互和场景行为的运行时表现；
 - World State 是独立于 Location Scene 生命周期持续存在的动态世界事实。
 
-世界身份使用稳定逻辑 ID。Location 继续使用 `location_id`；Actor 与 Furniture 统一使用全世界唯一的 UUID v4 `entity_id`。UUID 不编码名称、类型、Location、职业、用途、生成顺序或状态，创建后不变；UUID Generator 只生成 UUID，格式验证是独立职责。
+世界身份使用稳定逻辑 ID。Location 继续使用 `location_id`；所有 Entity 使用全世界唯一的 UUID v4 `entity_id`。UUID 不编码名称、类型、Location、职业、用途、生成顺序或状态，创建后不变；UUID Generator 只生成 UUID，格式验证是独立职责。
 
 Definition 与 State 保持分离。ActorDefinition 描述角色名称和四向视觉；FurnitureDefinition 描述家具种类、静态视觉、占位、阻挡与 Behavior 配置。具体实例的 Location、位置、朝向或开启状态只进入相应 EntityState。TileMap、CollisionShape、Sprite 和 SceneTree 都不复制到 WorldState。
 
-WorldState 是随当前游戏运行持续存在的 Autoload，以 `entity_id → EntityState` 统一保存 ActorState 与 FurnitureState，并继续独立保存 WorldTimeState。它不加载 Definition、不创建 Entity，也不解释家具行为。Scene Node 被释放不代表逻辑实体或世界事实删除：Location 重载会创建新的 Presentation，绑定 EntityRegistry 中同一 Entity 及 WorldState 中同一 State。
+WorldState 是随当前游戏运行持续存在的 Autoload，以 `entity_id → EntityState` 统一保存 Entity 的动态状态，当前实际类型包括 ActorState 与 FurnitureState，并继续独立保存 WorldTimeState。它不加载 Definition、不创建 Entity，也不解释家具行为。Scene Node 被释放不代表逻辑实体或世界事实删除：Location 重载会创建新的 Presentation，绑定 EntityRegistry 中同一 Entity 及 WorldState 中同一 State。
 
 Location 的格子索引仍是当前已加载 Scene 的局部查询结构，不是 World State。当前运行时 WorldState 也不是磁盘存档；未来 Save / Load 应序列化这份世界事实结构，而不是建立另一套权威。当前不实现文件格式、版本迁移或存档槽。
 
@@ -206,9 +233,9 @@ AI 的输出即使被接受，也必须通过与该行为相适应的规则和�
 
 ## Presentation 与逻辑世界
 
-PlayerController 负责把玩家输入转化为可供游戏处理的意图；ActorPresentation、FurniturePresentation 与其他 Presentation 负责把世界状态和行为结果呈现为 Godot 场景、画面、UI、声音及反馈。
+PlayerController 负责把玩家输入转化为可供游戏处理的意图；Presentation 负责把 Entity、世界状态和行为结果呈现为 Godot 场景、画面、UI、声音及反馈。当前已经实现 ActorPresentation 与 FurniturePresentation，但不同 Entity 大类不必强制使用同一种 Presentation 基类或节点结构。
 
-Presentation 可以维护表现所需的临时状态，但不能把画面上看似发生的事情直接当作已经成立的世界事实。逻辑世界也不应依赖某个特定界面或验证场景才能成立。
+Presentation 可以维护表现所需的临时状态，但永远只是 Entity 在当前加载 Scene 中的表现，不能把画面上看似发生的事情直接当作已经成立的世界事实。逻辑世界也不应依赖某个特定界面或验证场景才能成立。
 
 ActorPresentation 与 FurniturePresentation 都按稳定 `entity_id` 绑定 EntityRegistry 中的逻辑 Entity，并从 WorldState 持有的同一 EntityState 恢复表现。两者都允许 Scene Node 随 Location 加载和卸载，而权威动态状态继续存在。其他 Scene 与逻辑世界的绑定只在出现真实需求时决定。
 

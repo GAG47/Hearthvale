@@ -90,7 +90,7 @@ Game 在加载时读取 WorldTime，并订阅统一 `time_changed` 信号刷新�
 - `scripts/world_time/world_time_state.gd`；
 - `scripts/world_time/world_calendar.gd`；
 - `scripts/world_time/world_time.gd`；
-- `docs/v4_development_log.md`。
+- `docs/v4_world_time_calendar_development_log.md`。
 
 修改：
 

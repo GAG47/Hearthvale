@@ -122,7 +122,7 @@ WorldDefinition 在静态 Definition 校验和索引建立后，会实例化全�
 - `scripts/world_definition/location_edge_definition.gd`；
 - `scripts/world_definition/world_definition.gd`；
 - `scripts/location_entry.gd`；
-- `docs/v5_development_log.md`。
+- `docs/v5_world_definition_location_graph_development_log.md`。
 
 修改：
 
