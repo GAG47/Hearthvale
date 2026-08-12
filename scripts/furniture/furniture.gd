@@ -4,6 +4,7 @@ extends Entity
 signal state_changed
 
 const BEHAVIOR_ORDER: Array[String] = ["sleepable", "openable", "inspectable"]
+const OPENABLE_BEHAVIOR_ID := &"openable"
 
 var definition: FurnitureDefinition
 var behaviors: Array[FurnitureBehavior] = []
@@ -57,10 +58,15 @@ func apply_action(action: WorldAction) -> ActionResult:
 
 
 func get_visual_ref() -> String:
-	if furniture_state.is_open and definition.behaviors.has("openable"):
+	var openable_state := get_openable_state()
+	if openable_state != null and openable_state.is_open:
 		var config: Dictionary = definition.behaviors["openable"]
 		return config["open_visual_ref"] as String
 	return definition.visual_ref
+
+
+func get_openable_state() -> OpenableState:
+	return furniture_state.behavior_states.get(OPENABLE_BEHAVIOR_ID) as OpenableState
 
 
 func get_occupied_grid_cells() -> Array[Vector2i]:
@@ -84,6 +90,15 @@ func _create_behaviors() -> void:
 			"sleepable":
 				behaviors.append(SleepableBehavior.new())
 			"openable":
+				if furniture_state.behavior_states.has(OPENABLE_BEHAVIOR_ID):
+					if not furniture_state.behavior_states[OPENABLE_BEHAVIOR_ID] is OpenableState:
+						push_error(
+							"Furniture '%s' behavior state '%s' must be OpenableState."
+							% [entity_id, OPENABLE_BEHAVIOR_ID]
+						)
+						continue
+				else:
+					furniture_state.behavior_states[OPENABLE_BEHAVIOR_ID] = OpenableState.new()
 				behaviors.append(OpenableBehavior.new())
 			"inspectable":
 				var config: Dictionary = definition.behaviors[behavior_id]

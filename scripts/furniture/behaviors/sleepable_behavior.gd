@@ -15,10 +15,14 @@ func get_supported_actions(_furniture: Furniture, _actor: Actor) -> Array[String
 
 
 func check_action(action: WorldAction) -> ActionRuleDecision:
-	if not action.target is Furniture:
-		return ActionRuleDecision.reject("行为目标不是这张床。")
+	var furniture := action.target as Furniture
+	if furniture == null:
+		return ActionRuleDecision.reject("行为目标不是有效家具。")
 	if action.action_id != ACTION_SLEEP:
-		return ActionRuleDecision.reject("床不提供“%s”行为。" % action.action_id)
+		return ActionRuleDecision.reject(
+			"%s 不提供“%s”行为。"
+			% [furniture.definition.display_name, action.action_id]
+		)
 	if _get_world_time() == null:
 		return ActionRuleDecision.reject("世界时间系统当前不可用。", &"world_time_unavailable")
 	return ActionRuleDecision.permit()

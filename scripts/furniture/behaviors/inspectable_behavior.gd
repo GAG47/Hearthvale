@@ -19,10 +19,14 @@ func get_supported_actions(_furniture: Furniture, _actor: Actor) -> Array[String
 
 
 func check_action(action: WorldAction) -> ActionRuleDecision:
-	if not action.target is Furniture:
-		return ActionRuleDecision.reject("行为目标不是这块告示牌。")
+	var furniture := action.target as Furniture
+	if furniture == null:
+		return ActionRuleDecision.reject("行为目标不是有效家具。")
 	if action.action_id != ACTION_INSPECT:
-		return ActionRuleDecision.reject("告示牌不提供“%s”行为。" % action.action_id)
+		return ActionRuleDecision.reject(
+			"%s 不提供“%s”行为。"
+			% [furniture.definition.display_name, action.action_id]
+		)
 	return ActionRuleDecision.permit()
 
 

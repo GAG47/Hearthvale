@@ -52,34 +52,13 @@ func _validate_entity(entity: Entity) -> bool:
 		return false
 	if not UuidValidator.is_valid_v4(entity.entity_id):
 		push_error(
-			"EntityState entity_id '%s' is not a valid UUID v4." % entity.entity_id
+			"Entity entity_id '%s' is not a valid UUID v4." % entity.entity_id
 		)
 		return false
-	if entity is Actor:
-		var actor := entity as Actor
-		if actor.definition == null or not actor.state is ActorState:
-			push_error("Actor registration requires ActorDefinition and ActorState.")
-			return false
-		if not UuidValidator.is_valid_v4(actor.definition.entity_id):
-			push_error(
-				"ActorDefinition entity_id '%s' is not a valid UUID v4."
-				% actor.definition.entity_id
-			)
-			return false
-		if actor.definition.entity_id != actor.entity_id:
-			push_error(
-				"ActorDefinition ID '%s' does not match ActorState ID '%s'."
-				% [actor.definition.entity_id, actor.entity_id]
-			)
-			return false
-	elif entity is Furniture:
-		var furniture := entity as Furniture
-		if furniture.definition == null or not furniture.state is FurnitureState:
-			push_error("Furniture registration requires FurnitureDefinition and FurnitureState.")
-			return false
-	else:
+	if entity.state.entity_id != entity.entity_id:
 		push_error(
-			"Entity '%s' must be an Actor or Furniture." % entity.entity_id
+			"Entity ID '%s' does not match EntityState ID '%s'."
+			% [entity.entity_id, entity.state.entity_id]
 		)
 		return false
 	return true

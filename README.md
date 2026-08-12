@@ -41,3 +41,4 @@ scripts/  游戏脚本
 - [V5 开发日志](docs/v5_development_log.md)
 - [V6 开发日志](docs/v6_development_log.md)
 - [V7.4 开发日志](docs/v7_4_development_log.md)
+- [V7.4.1 开发日志](docs/v7_4_1_development_log.md)

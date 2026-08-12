@@ -86,8 +86,7 @@ func request_interaction() -> ActionResult:
 		action_completed.emit(no_target_result)
 		return no_target_result
 
-	var furniture := target as Furniture
-	var action_id := furniture.get_primary_action(controlled_actor) if furniture != null else &""
+	var action_id := target.get_primary_action(controlled_actor)
 	if action_id.is_empty():
 		var no_action_result := ActionResult.failed(
 			&"interact",

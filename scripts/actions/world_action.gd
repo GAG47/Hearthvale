@@ -23,17 +23,8 @@ func execute() -> ActionResult:
 			spatial_decision.failure_code
 		)
 
-	var furniture := target as Furniture
-	if furniture == null:
-		return ActionResult.failed(
-			action_id,
-			target.entity_id,
-			"目标实体当前不支持该行为。",
-			&"target_action_unsupported"
-		)
-
-	var decision := furniture.check_action(self)
+	var decision := target.check_action(self)
 	if not decision.allowed:
 		return ActionResult.failed(action_id, target.entity_id, decision.reason, decision.failure_code)
 
-	return furniture.apply_action(self)
+	return target.apply_action(self)

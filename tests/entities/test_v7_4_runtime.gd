@@ -10,6 +10,7 @@ const FURNITURE_PRESENTATION_SCENE_PATH := (
 const CHEST_ENTITY_ID := &"5543caf7-2a10-4a40-84de-3a39ffdf670e"
 const SIGN_ENTITY_ID := &"1d67bbf9-edc2-4264-a861-8bd3e3e61e15"
 const BED_ENTITY_ID := &"a6ae5842-8c6d-4df2-9b80-a271b5496716"
+const SECOND_CHEST_ENTITY_ID := &"44444444-4444-4444-8444-444444444444"
 
 var _checks := 0
 var _failures := 0
@@ -117,6 +118,31 @@ func _run_tests() -> void:
 	_expect(chest.get_primary_action(player) == &"open", "Closed Chest must initially offer open.")
 	_expect(sign.get_primary_action(player) == &"inspect", "Sign must offer inspect.")
 	_expect(bed.get_primary_action(player) == &"sleep", "Bed must offer sleep.")
+	var chest_openable_state := chest.get_openable_state()
+	_expect(chest_openable_state != null, "Openable Furniture must own an OpenableState.")
+	_expect(
+		chest.furniture_state.behavior_states.size() == 1
+		and chest.furniture_state.behavior_states[&"openable"] == chest_openable_state,
+		"FurnitureState must compose OpenableState under behavior_states.openable."
+	)
+	_expect(
+		sign.furniture_state.behavior_states.is_empty()
+		and bed.furniture_state.behavior_states.is_empty(),
+		"Stateless Behaviors must not create empty BehaviorState objects."
+	)
+	_expect(
+		not _object_has_property(chest.furniture_state, &"is_open"),
+		"FurnitureState must not expose the old direct is_open field."
+	)
+	var second_chest := Furniture.new(
+		chest.definition,
+		FurnitureState.new(SECOND_CHEST_ENTITY_ID, &"tavern", Vector2.ZERO)
+	)
+	var second_openable_state := second_chest.get_openable_state()
+	_expect(
+		second_openable_state != null and second_openable_state != chest_openable_state,
+		"Each Furniture instance must own an independent OpenableState."
+	)
 
 	var presentation := controller.controlled_presentation
 	_expect(controller.controlled_actor == player, "PlayerController must control Player Actor.")
@@ -200,7 +226,14 @@ func _run_tests() -> void:
 	_test_interactions(controller, presentation, game, chest)
 	var chest_state := chest.furniture_state
 	var old_chest_presentation := _find_furniture_presentation(tavern, CHEST_ENTITY_ID)
-	_expect(chest_state.is_open, "Chest FurnitureState must retain its opened state.")
+	_expect(
+		chest_openable_state != null and chest_openable_state.is_open,
+		"Chest OpenableState must retain its opened state."
+	)
+	_expect(
+		second_openable_state != null and not second_openable_state.is_open,
+		"Opening one Furniture instance must not modify another OpenableState."
+	)
 	_expect(
 		_get_furniture_visual_path(old_chest_presentation) == "res://assets/furniture/chest_open.svg",
 		"OpenableBehavior state changes must refresh FurniturePresentation."
@@ -242,7 +275,10 @@ func _run_tests() -> void:
 	_expect(not is_instance_valid(old_chest_presentation), "Old Chest FurniturePresentation must be released.")
 	_expect(registry.get_entity(CHEST_ENTITY_ID) == chest, "Chest Entity must survive Location unload.")
 	_expect(world_state.get_entity_state(CHEST_ENTITY_ID) == chest_state, "Chest State must survive Location unload without copying.")
-	_expect(chest_state.is_open, "Chest opened state must survive Location unload.")
+	_expect(
+		chest_openable_state != null and chest_openable_state.is_open,
+		"Chest OpenableState must survive Location unload."
+	)
 
 	var yard_position := yard_presentation.position
 	Input.action_press(&"ui_down")
@@ -259,7 +295,13 @@ func _run_tests() -> void:
 	_expect(player.current_location_id == &"tavern", "Player ActorState must return to Tavern.")
 	_expect(is_instance_valid(returned_chest_presentation), "Tavern reload must recreate Chest Presentation.")
 	_expect(returned_chest_presentation.furniture == chest, "Recreated Presentation must bind the same Chest Entity.")
-	_expect(chest.furniture_state == chest_state and chest_state.is_open, "Recreated Chest must retain the same open State.")
+	_expect(
+		chest.furniture_state == chest_state
+		and chest.get_openable_state() == chest_openable_state
+		and chest_openable_state != null
+		and chest_openable_state.is_open,
+		"Recreated Chest must retain the same FurnitureState and OpenableState."
+	)
 	_expect(
 		_get_furniture_visual_path(returned_chest_presentation) == "res://assets/furniture/chest_open.svg",
 		"Recreated Chest Presentation must restore the open visual from FurnitureState."
@@ -308,11 +350,14 @@ func _test_interactions(
 	_place_actor(presentation, Vector2i(13, 6), ActorState.Facing.RIGHT)
 	var open_result := controller.request_interaction()
 	_expect(open_result.success and open_result.action_id == &"open", "Chest open must use OpenableBehavior.")
-	_expect(open_result.message == "箱子打开了。", "Chest open result must remain unchanged.")
-	_expect(chest.furniture_state.is_open, "Chest open must change FurnitureState, not Behavior config.")
+	_expect(open_result.message == "储物箱打开了。", "Open feedback must use display_name.")
+	_expect(
+		chest.get_openable_state() != null and chest.get_openable_state().is_open,
+		"Chest open must change OpenableState, not FurnitureState fields or Behavior config."
+	)
 	var close_result := controller.request_interaction()
 	_expect(close_result.success and close_result.action_id == &"close", "Opened Chest must offer close.")
-	_expect(close_result.message == "箱子关闭了。", "Chest close result must remain unchanged.")
+	_expect(close_result.message == "储物箱关闭了。", "Close feedback must use display_name.")
 	var reopen_result := controller.request_interaction()
 	_expect(reopen_result.success and reopen_result.action_id == &"open", "Closed Chest must offer open again.")
 
@@ -426,6 +471,13 @@ func _wait_for_transition(game: Node) -> void:
 			return
 
 
+func _object_has_property(object: Object, property_name: StringName) -> bool:
+	for property in object.get_property_list():
+		if property["name"] == property_name:
+			return true
+	return false
+
+
 func _on_action_completed(result: ActionResult) -> void:
 	_last_action_result = result
 
@@ -440,9 +492,12 @@ func _expect(condition: bool, message: String) -> void:
 
 func _finish() -> void:
 	if _failures == 0:
-		print("V7.4 unified Entity runtime: %d checks passed." % _checks)
+		print("V7.4.1 Entity architecture cleanup: %d checks passed." % _checks)
 		quit(0)
 		return
 
-	push_error("V7.4 unified Entity runtime: %d of %d checks failed." % [_failures, _checks])
+	push_error(
+		"V7.4.1 Entity architecture cleanup: %d of %d checks failed."
+		% [_failures, _checks]
+	)
 	quit(1)

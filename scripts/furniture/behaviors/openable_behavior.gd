@@ -10,32 +10,59 @@ func handles_action(action_id: StringName) -> bool:
 
 
 func get_supported_actions(furniture: Furniture, _actor: Actor) -> Array[StringName]:
-	return [ACTION_CLOSE if furniture.furniture_state.is_open else ACTION_OPEN]
+	var openable_state := furniture.get_openable_state()
+	if openable_state == null:
+		return []
+	return [ACTION_CLOSE if openable_state.is_open else ACTION_OPEN]
 
 
 func check_action(action: WorldAction) -> ActionRuleDecision:
 	var furniture := action.target as Furniture
 	if furniture == null:
-		return ActionRuleDecision.reject("行为目标不是这个储物箱。")
+		return ActionRuleDecision.reject("行为目标不是有效家具。")
+	var openable_state := furniture.get_openable_state()
+	if openable_state == null:
+		return ActionRuleDecision.reject(
+			"%s 没有有效的 OpenableState。" % furniture.definition.display_name,
+			&"behavior_state_unavailable"
+		)
+	var display_name := furniture.definition.display_name
 	match action.action_id:
 		ACTION_OPEN:
-			return ActionRuleDecision.permit() if not furniture.furniture_state.is_open else ActionRuleDecision.reject("箱子已经打开。")
+			return ActionRuleDecision.permit() if not openable_state.is_open else ActionRuleDecision.reject("%s 已经打开。" % display_name)
 		ACTION_CLOSE:
-			return ActionRuleDecision.permit() if furniture.furniture_state.is_open else ActionRuleDecision.reject("箱子已经关闭。")
+			return ActionRuleDecision.permit() if openable_state.is_open else ActionRuleDecision.reject("%s 已经关闭。" % display_name)
 		_:
-			return ActionRuleDecision.reject("储物箱不提供“%s”行为。" % action.action_id)
+			return ActionRuleDecision.reject("%s 不提供“%s”行为。" % [display_name, action.action_id])
 
 
 func apply_action(action: WorldAction) -> ActionResult:
 	var furniture := action.target as Furniture
 	if furniture == null:
-		return ActionResult.failed(action.action_id, &"", "行为目标不是这个储物箱。")
+		return ActionResult.failed(action.action_id, &"", "行为目标不是有效家具。")
+	var openable_state := furniture.get_openable_state()
+	if openable_state == null:
+		return ActionResult.failed(
+			action.action_id,
+			furniture.entity_id,
+			"%s 没有有效的 OpenableState。" % furniture.definition.display_name,
+			&"behavior_state_unavailable"
+		)
+	var display_name := furniture.definition.display_name
 	match action.action_id:
 		ACTION_OPEN:
-			furniture.furniture_state.is_open = true
-			return ActionResult.succeeded(action.action_id, furniture.entity_id, "箱子打开了。")
+			openable_state.is_open = true
+			return ActionResult.succeeded(
+				action.action_id, furniture.entity_id, "%s打开了。" % display_name
+			)
 		ACTION_CLOSE:
-			furniture.furniture_state.is_open = false
-			return ActionResult.succeeded(action.action_id, furniture.entity_id, "箱子关闭了。")
+			openable_state.is_open = false
+			return ActionResult.succeeded(
+				action.action_id, furniture.entity_id, "%s关闭了。" % display_name
+			)
 		_:
-			return ActionResult.failed(action.action_id, furniture.entity_id, "储物箱无法执行该行为。")
+			return ActionResult.failed(
+				action.action_id,
+				furniture.entity_id,
+				"%s 无法执行该行为。" % display_name
+			)

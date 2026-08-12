@@ -102,11 +102,11 @@ Location Graph 当前只表达静态空间拓扑。NPC 路线、日程、离屏�
 
 Location 内的地图结构与逻辑实体表达不同的事实。TileMapLayer / TileSet 描述地面、墙体、道路和建筑边界；需要稳定身份、动态状态或独立行为的角色与家具则进入 Entity 体系，不把状态塞进瓦片或临时 Scene Node。
 
-Entity 是很薄的 RefCounted 逻辑基类，只持有 EntityState，并提供 `entity_id`、当前位置与 Location 访问。当前两个具体分支是 Actor 与 Furniture：Actor 表达行动主体，Furniture 表达床、储物箱和告示牌等环境实体。Entity 不负责 Sprite、碰撞、输入、AI 或具体 Action 规则。
+Entity 是很薄的 RefCounted 逻辑基类，只持有 EntityState，提供 `entity_id`、当前位置与 Location 访问，以及默认“不支持”的 Action 目标协议。当前两个具体分支是 Actor 与 Furniture：Actor 表达行动主体，Furniture 表达床、储物箱和告示牌等环境实体。Entity 不负责 Sprite、碰撞、输入、AI 或具体 Action 规则。
 
-EntityState 统一保存所有实体共同的 `entity_id`、`current_location_id` 与 `local_position`。ActorState 增加 `facing`；FurnitureState 当前增加储物箱需要的 `is_open`。WorldState 与 Runtime Entity 持有同一个 State 对象，不复制两份事实。
+EntityState 统一保存所有实体共同的 `entity_id`、`current_location_id` 与 `local_position`。ActorState 增加 `facing`；FurnitureState 通过 `behavior_states` 组合各个 Behavior 的实例动态状态。当前只有 OpenableState 保存 `is_open`，Sleepable 与 Inspectable 没有动态事实，因此不建立空 State。WorldState 与 Runtime Entity 持有同一个 State 对象，不复制两份事实。
 
-EntityRegistry 以 UUID v4 `entity_id` 统一管理当前 Runtime Entity，提供注册、按 ID 查询、稳定遍历与按 Location 查询。它不加载 Definition，不创建 Entity、State 或 Presentation，也不执行 Action。Location 加载及临时世界内容初始化仍由当前 Game 流程完成。
+EntityRegistry 以 UUID v4 `entity_id` 统一管理当前 Runtime Entity，提供注册、按 ID 查询、稳定遍历与按 Location 查询。登记只检查 Entity 的共同条件：Entity 与 EntityState 存在、UUID 合法且双方 ID 一致；Registry 不认识 Actor、Furniture 或其他具体子类。它不加载 Definition，不创建 Entity、State 或 Presentation，也不执行 Action。Location 加载及临时世界内容初始化仍由当前 Game 流程完成。
 
 每个 GridScene 只维护当前已加载 FurniturePresentation 的格子索引。FurniturePresentation 根据绑定 Furniture 的占用范围登记到每个格子，离开场景时注销。这个索引用于 Scene 空间命中，不是 EntityRegistry 或 WorldState；Selector 命中 Presentation 后必须返回其逻辑 Furniture。
 
@@ -142,9 +142,9 @@ WorldState 持有 WorldTimeState，使它与其他运行时世界事实一样跨
 
 Actor extends Entity，并关联 ActorDefinition 与 ActorState。ActorDefinition 当前只保存 UUID v4 `entity_id`、`display_name` 和 `visuals.up/down/left/right` 四张静态 Texture2D 路径；ActorState 在公共 EntityState 上增加四方向 `facing`。Location 加载时统一创建 ActorPresentation，从 State 恢复位置和朝向并选择对应纹理；卸载前把 Scene 中的连续位置同步回同一个 State。
 
-Furniture extends Entity，并关联可共享的 FurnitureDefinition、实例独享的 FurnitureState 和一组轻量 Behavior。`simple_bed`、`wooden_chest`、`sign` 都是 JSON Definition，不存在 Bed、Chest、Sign 逻辑子类。SleepableBehavior、OpenableBehavior、InspectableBehavior 分别封装当前睡眠、开关与查看规则；`is_open` 属于 FurnitureState，开启视觉路径属于 Definition 配置，Behavior 对象不保存具体家具实例状态。
+Furniture extends Entity，并关联可共享的 FurnitureDefinition、实例独享的 FurnitureState 和一组轻量 Behavior。`simple_bed`、`wooden_chest`、`sign` 都是 JSON Definition，不存在 Bed、Chest、Sign 逻辑子类。SleepableBehavior、OpenableBehavior、InspectableBehavior 分别封装当前睡眠、开关与查看规则；`is_open` 属于 `FurnitureState.behavior_states.openable` 中的 OpenableState，开启视觉路径属于 Definition 配置，Behavior 对象不保存具体家具实例状态。Behavior 的通用反馈从 FurnitureDefinition.display_name 取得名称，不假设能力只能属于某一种具体家具。
 
-所有家具共用 FurniturePresentation Scene。它只绑定已有 Furniture，按 Definition / State 设置视觉、位置、占位碰撞，并把自身登记到当前 GridScene 的空间索引；它不生成 UUID，不创建或注册 Entity / State，也不判断 Action。箱子状态变化后 Presentation 只负责刷新视觉。离开酒馆会释放这些 Node，重新进入时创建的新 Presentation 会绑定原 Furniture 与原 FurnitureState，因此直接恢复开启状态。
+所有家具共用 FurniturePresentation Scene。它只绑定已有 Furniture，按 Definition / State 设置视觉、位置、占位碰撞，并把自身登记到当前 GridScene 的空间索引；它不生成 UUID，不创建或注册 Entity / State，也不判断 Action。OpenableState 变化后 Presentation 只负责刷新视觉。离开酒馆会释放这些 Node，重新进入时创建的新 Presentation 会绑定原 Furniture、原 FurnitureState 与其中同一个 OpenableState，因此直接恢复开启状态。
 
 PlayerController 独立持有当前受控 Actor 和它在已加载 Location 中的 ActorPresentation，继续负责输入、连续移动、交互意图、结果信号和 Camera。角色与 Camera 跟随在物理帧更新，并使用 2D 物理插值平滑渲染；Location 切换后 Controller 绑定同一 Actor 的新 Presentation。Actor 与 ActorPresentation 不保存 Player 类型标记，Player 只表示当前控制权。Martha ActorDefinition 数据仍可加载，但在通用 NPC 初始化出现前不创建 Runtime Entity、State 或 Presentation。
 
@@ -167,7 +167,9 @@ WorldAction 表达逻辑 Actor、行为身份和 Entity 目标
   ↓
 公共空间规则验证同一 Location 与当前格 / facing 相邻格
   ↓
-Furniture 把具体规则委派给对应 Behavior
+Entity 的 Action 目标协议进行检查与执行
+  ↓
+Furniture override 协议并把具体规则委派给对应 Behavior
   ↓
 执行并修改 EntityState / WorldTimeState
   ↓
@@ -178,9 +180,9 @@ ActionResult（success / failure、消息与失败代码）
 Presentation 显示结果
 ```
 
-公共空间规则属于 WorldAction 执行链，依赖逻辑 EntityState 验证 Actor 与 Entity 目标有效、属于同一个 Location，并且目标占据 Actor 当前格或 facing 相邻格；通过后才进入 Furniture Behavior 的规则和执行。Scene / Physics 只参与目标命中，Action 不操作 FurniturePresentation。即使未来 NPC、AI 或其他系统绕过玩家 Selector 直接创建 WorldAction，非法空间行为也不能修改目标状态。
+公共空间规则属于 WorldAction 执行链，依赖逻辑 EntityState 验证 Actor 与 Entity 目标有效、属于同一个 Location，并且目标占据 Actor 当前格或 facing 相邻格；通过后，WorldAction 只调用 Entity 的 `check_action()` 与 `apply_action()`。Entity 默认拒绝，Furniture override 后委派 Behavior；WorldAction 不认识 Furniture 或任何其他目标子类。Scene / Physics 只参与目标命中，Action 不操作 FurniturePresentation。即使未来 NPC、AI 或其他系统绕过玩家 Selector 直接创建 WorldAction，非法空间行为也不能修改目标状态。
 
-行为合法性判断与执行保持分离。PlayerController 只产生玩家意图并发出结果，不直接修改家具状态，也不直接更新交互结果 UI。空间拒绝同样返回正式 ActionResult 和明确失败代码。合法 open / close 修改权威 FurnitureState，Presentation 只根据同一状态更新视觉。正式结果不只服务玩家画面；未来 NPC 或 AI 发起行为时，也应能得到相同的成功、失败和原因信息。
+行为合法性判断与执行保持分离。PlayerController 只从目标 Entity 请求 primary action、产生玩家意图并发出结果，不强转具体目标，也不直接修改家具状态或更新交互结果 UI。空间拒绝同样返回正式 ActionResult 和明确失败代码。合法 open / close 修改权威 OpenableState，Presentation 只根据同一状态更新视觉。正式结果不只服务玩家画面；未来 NPC 或 AI 发起行为时，也应能得到相同的成功、失败和原因信息。
 
 ## 世界事实的权威边界
 

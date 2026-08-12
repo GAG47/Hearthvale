@@ -1,9 +1,12 @@
 extends SceneTree
 
 const REGISTRY_SCRIPT := preload("res://scripts/entities/entity_registry.gd")
+const TEST_ACTION_ENTITY := preload("res://tests/entities/helpers/test_action_entity.gd")
 
 const ACTOR_ID := &"11111111-1111-4111-8111-111111111111"
 const FURNITURE_ID := &"00000000-0000-4000-8000-000000000001"
+const GENERIC_ENTITY_ID := &"22222222-2222-4222-8222-222222222222"
+const OTHER_ENTITY_ID := &"33333333-3333-4333-8333-333333333333"
 
 var _checks := 0
 var _failures := 0
@@ -27,22 +30,26 @@ func _run_tests() -> void:
 	_expect(registry.get_entity(ACTOR_ID) == actor, "get_entity must return the same Actor.")
 	_expect(not registry.register_entity(actor), "A duplicate entity_id must be rejected.")
 
-	var mismatched_actor := Actor.new(
-		ActorDefinition.new(ACTOR_ID, "Mismatch", _create_test_visuals()),
-		ActorState.new(FURNITURE_ID, &"tavern", Vector2.ZERO)
+	var mismatched_state := ActorState.new(
+		GENERIC_ENTITY_ID, &"tavern", Vector2(64.0, 32.0), ActorState.Facing.RIGHT
 	)
+	var mismatched_entity := TEST_ACTION_ENTITY.new(mismatched_state)
+	mismatched_state.entity_id = OTHER_ENTITY_ID
 	_expect(
-		not registry.register_entity(mismatched_actor),
-		"ActorDefinition and ActorState entity IDs must match."
+		not registry.register_entity(mismatched_entity),
+		"Entity and EntityState IDs must match."
 	)
 
-	var invalid_actor := Actor.new(
-		ActorDefinition.new(&"not-a-uuid", "Invalid", _create_test_visuals()),
+	var invalid_entity := TEST_ACTION_ENTITY.new(
 		ActorState.new(&"not-a-uuid", &"tavern", Vector2.ZERO)
 	)
 	_expect(
-		not registry.register_entity(invalid_actor),
-		"An invalid Actor entity UUID must be rejected."
+		not registry.register_entity(invalid_entity),
+		"An invalid Entity UUID must be rejected."
+	)
+	_expect(
+		not registry.register_entity(TEST_ACTION_ENTITY.new(null)),
+		"An Entity without EntityState must be rejected."
 	)
 
 	var furniture := _create_furniture(FURNITURE_ID, &"tavern")
@@ -50,14 +57,67 @@ func _run_tests() -> void:
 	_expect(registry.register_entity(furniture), "A valid Furniture must register.")
 	_expect(registry.get_entity(FURNITURE_ID) == furniture, "Registry must return Furniture.")
 
-	var entities := registry.get_entities()
-	_expect(entities.size() == 2, "get_entities must include Actor and Furniture.")
+	var generic_entity := TEST_ACTION_ENTITY.new(
+		ActorState.new(
+			GENERIC_ENTITY_ID,
+			&"tavern",
+			Vector2(64.0, 32.0),
+			ActorState.Facing.RIGHT
+		)
+	)
 	_expect(
-		entities.size() == 2 and entities[0] == furniture and entities[1] == actor,
+		registry.register_entity(generic_entity),
+		"EntityRegistry must accept an otherwise unknown valid Entity subtype."
+	)
+	var action_result := WorldAction.new(&"test_action", actor, generic_entity).execute()
+	_expect(
+		action_result.success and action_result.target_id == GENERIC_ENTITY_ID,
+		"WorldAction must execute the generic Entity Action protocol."
+	)
+	var unsupported_result := WorldAction.new(&"talk", actor, actor).execute()
+	_expect(
+		not unsupported_result.success
+		and unsupported_result.failure_code == &"target_action_unsupported",
+		"Entity's default Action protocol must reject unsupported actions."
+	)
+	var named_furniture := Furniture.new(
+		FurnitureDefinition.new(
+			&"test_openable",
+			"测试柜",
+			"res://assets/furniture/chest_closed.svg",
+			{
+				"openable": {
+					"open_visual_ref": "res://assets/furniture/chest_open.svg",
+				},
+			},
+			Vector2i.ONE,
+			true
+		),
+		FurnitureState.new(OTHER_ENTITY_ID, &"tavern", Vector2(80.0, 48.0))
+	)
+	var open_result := WorldAction.new(&"open", actor, named_furniture).execute()
+	_expect(
+		open_result.success and open_result.message == "测试柜打开了。",
+		"OpenableBehavior feedback must derive from FurnitureDefinition.display_name."
+	)
+	_expect(
+		named_furniture.get_openable_state() != null
+		and named_furniture.get_openable_state().is_open,
+		"OpenableBehavior must write the instance's OpenableState."
+	)
+
+	var entities := registry.get_entities()
+	_expect(entities.size() == 3, "get_entities must include every Entity subtype.")
+	_expect(
+		entities.size() == 3
+		and entities.has(furniture)
+		and entities.has(actor)
+		and entities.has(generic_entity)
+		and entities == registry.get_entities(),
 		"get_entities must return stable entity_id order."
 	)
 	var tavern_entities := registry.get_entities_in_location(&"tavern")
-	_expect(tavern_entities.size() == 2, "Location queries must include both Entity subtypes.")
+	_expect(tavern_entities.size() == 3, "Location queries must include every Entity subtype.")
 	_expect(
 		registry.get_entities_in_location(&"unknown").is_empty(),
 		"An unknown Location query must return no Entities."
@@ -68,7 +128,12 @@ func _run_tests() -> void:
 func _create_actor(entity_id: StringName, location_id: StringName) -> Actor:
 	return Actor.new(
 		ActorDefinition.new(entity_id, "Test Actor", _create_test_visuals()),
-		ActorState.new(entity_id, location_id, Vector2(32.0, 64.0))
+		ActorState.new(
+			entity_id,
+			location_id,
+			Vector2(32.0, 32.0),
+			ActorState.Facing.RIGHT
+		)
 	)
 
 
