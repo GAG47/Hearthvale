@@ -3,6 +3,9 @@ extends SceneTree
 const MAIN_SCENE := preload("res://scenes/main.tscn")
 const PLAYER_DEFINITION_PATH := "res://data/characters/player.json"
 const MARTHA_DEFINITION_PATH := "res://data/characters/martha.json"
+const CHARACTER_PRESENTATION_SCENE_PATH := (
+	"res://scenes/characters/character_presentation.tscn"
+)
 
 var _checks := 0
 var _failures := 0
@@ -62,8 +65,12 @@ func _run_tests() -> void:
 	_expect(
 		player.definition.character_id == player_definition.character_id
 		and player.definition.display_name == player_definition.display_name
-		and player.definition.presentation_ref == player_definition.presentation_ref,
+		and player.definition.visual_ref == player_definition.visual_ref,
 		"The runtime Player Definition must preserve all player.json fields."
+	)
+	_expect(
+		player.definition.visual_ref == "res://assets/characters/player.svg",
+		"The Player Definition must use its visual_ref Texture."
 	)
 	_expect(player.state.current_location_id == &"tavern", "Player must start in Tavern.")
 	_expect(
@@ -92,6 +99,10 @@ func _run_tests() -> void:
 
 	_expect(presentation.character == player, "Player Presentation must bind Player Character.")
 	_expect(presentation is CharacterPresentation, "Player must use CharacterPresentation.")
+	_expect(
+		presentation.scene_file_path == CHARACTER_PRESENTATION_SCENE_PATH,
+		"Player must use the shared CharacterPresentation Scene."
+	)
 	var presentation_script := presentation.get_script() as Script
 	_expect(
 		presentation_script != null
@@ -111,6 +122,11 @@ func _run_tests() -> void:
 		presentation.get_node_or_null("Camera2D") == null,
 		"Camera must not remain in Player Presentation."
 	)
+	_expect(
+		_get_visual_texture_path(presentation) == player_definition.visual_ref,
+		"Player Sprite2D.texture must come from player.json visual_ref."
+	)
+	_expect(not FileAccess.file_exists("res://scripts/player.gd"), "Legacy Player script must be removed.")
 
 	var camera := controller.get_node_or_null("Camera2D") as Camera2D
 	_expect(camera != null, "PlayerController must own Camera2D.")
@@ -177,6 +193,14 @@ func _run_tests() -> void:
 	)
 	_expect(not is_instance_valid(old_presentation), "Old Player Presentation must be released.")
 	_expect(yard_presentation.is_in_group(&"player"), "New Presentation must receive control group.")
+	_expect(
+		yard_presentation.scene_file_path == CHARACTER_PRESENTATION_SCENE_PATH,
+		"Location change must recreate the shared CharacterPresentation Scene."
+	)
+	_expect(
+		_get_visual_texture_path(yard_presentation) == player_definition.visual_ref,
+		"Location change must restore Player visual_ref Texture."
+	)
 	_expect(
 		player.state.local_position == Vector2(384.0, 80.0),
 		"New Presentation must restore the target Location entry position."
@@ -276,6 +300,13 @@ func _get_character_presentations(location: GridScene) -> Array[CharacterPresent
 		if child is CharacterPresentation:
 			presentations.append(child as CharacterPresentation)
 	return presentations
+
+
+func _get_visual_texture_path(presentation: CharacterPresentation) -> String:
+	var sprite := presentation.get_node_or_null("Sprite2D") as Sprite2D
+	if sprite == null or sprite.texture == null:
+		return ""
+	return sprite.texture.resource_path
 
 
 func _on_action_completed(result: ActionResult) -> void:

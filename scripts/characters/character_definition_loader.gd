@@ -65,26 +65,39 @@ static func load_from_file(path: String) -> CharacterDefinition:
 		push_error("CharacterDefinitionLoader '%s' field 'display_name' must not be empty." % path)
 		return null
 
-	if not data.has("presentation_ref"):
-		push_error("CharacterDefinitionLoader '%s' is missing 'presentation_ref'." % path)
+	if not data.has("visual_ref"):
+		push_error("CharacterDefinitionLoader '%s' is missing 'visual_ref'." % path)
 		return null
-	var raw_presentation_ref: Variant = data["presentation_ref"]
-	if not raw_presentation_ref is String:
+	var raw_visual_ref: Variant = data["visual_ref"]
+	if not raw_visual_ref is String:
 		push_error(
-			"CharacterDefinitionLoader '%s' field 'presentation_ref' must be a String." % path
+			"CharacterDefinitionLoader '%s' field 'visual_ref' must be a String." % path
 		)
 		return null
-	var presentation_ref: String = raw_presentation_ref
-	if presentation_ref.is_empty():
+	var visual_ref: String = raw_visual_ref
+	if visual_ref.strip_edges().is_empty():
 		push_error(
-			"CharacterDefinitionLoader '%s' field 'presentation_ref' must not be empty." % path
+			"CharacterDefinitionLoader '%s' field 'visual_ref' must not be empty." % path
 		)
 		return null
-	if not ResourceLoader.exists(presentation_ref):
+	if not ResourceLoader.exists(visual_ref):
 		push_error(
-			"CharacterDefinitionLoader '%s' field 'presentation_ref' points to a missing resource: '%s'."
-			% [path, presentation_ref]
+			"CharacterDefinitionLoader '%s' field 'visual_ref' points to a missing resource: '%s'."
+			% [path, visual_ref]
+		)
+		return null
+	var visual_resource := ResourceLoader.load(visual_ref)
+	if visual_resource == null:
+		push_error(
+			"CharacterDefinitionLoader '%s' field 'visual_ref' could not be loaded: '%s'."
+			% [path, visual_ref]
+		)
+		return null
+	if not visual_resource is Texture2D:
+		push_error(
+			"CharacterDefinitionLoader '%s' field 'visual_ref' must reference a Texture2D: '%s'."
+			% [path, visual_ref]
 		)
 		return null
 
-	return CharacterDefinition.new(character_id, display_name, presentation_ref)
+	return CharacterDefinition.new(character_id, display_name, visual_ref)

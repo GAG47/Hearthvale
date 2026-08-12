@@ -14,7 +14,6 @@ var facing: CharacterState.Facing:
 	set(value):
 		if character != null:
 			character.state.facing = value
-		queue_redraw()
 
 var world_position: Vector2:
 	get:
@@ -49,13 +48,31 @@ func bind_character(p_character: Character, location: GridScene) -> bool:
 				p_character.state.current_location_id,
 				location.location_id,
 			]
+			)
+		return false
+	var sprite := get_node_or_null("Sprite2D") as Sprite2D
+	if sprite == null:
+		push_error("CharacterPresentation requires a Sprite2D child.")
+		return false
+	var visual_ref := p_character.definition.visual_ref
+	if not ResourceLoader.exists(visual_ref):
+		push_error(
+			"Character '%s' visual_ref '%s' does not exist."
+			% [p_character.character_id, visual_ref]
+		)
+		return false
+	var visual_resource := ResourceLoader.load(visual_ref)
+	if not visual_resource is Texture2D:
+		push_error(
+			"Character '%s' visual_ref '%s' did not load as a Texture2D."
+			% [p_character.character_id, visual_ref]
 		)
 		return false
 
 	character = p_character
 	current_location = location
 	position = character.state.local_position
-	queue_redraw()
+	sprite.texture = visual_resource
 	return true
 
 
@@ -84,23 +101,6 @@ func get_facing_cell_offset() -> Vector2i:
 
 func get_facing_vector() -> Vector2:
 	return Vector2(get_facing_cell_offset())
-
-
-func _draw() -> void:
-	draw_circle(Vector2(0.0, 7.0), 11.0, Color(0.08, 0.07, 0.07, 0.30))
-	draw_circle(Vector2.ZERO, 11.0, Color("#315a79"))
-	draw_circle(Vector2.ZERO, 8.0, Color("#4f86a6"))
-
-	var facing_vector := get_facing_vector()
-	var side := facing_vector.orthogonal()
-	draw_colored_polygon(
-		PackedVector2Array([
-			facing_vector * 13.0,
-			facing_vector * 4.0 + side * 5.0,
-			facing_vector * 4.0 - side * 5.0,
-		]),
-		Color("#f3ddb2")
-	)
 
 
 func _exit_tree() -> void:

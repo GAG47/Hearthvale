@@ -4,6 +4,9 @@ const PLAYER_DEFINITION_PATH := "res://data/characters/player.json"
 const PLAYER_INITIAL_LOCATION_ID := &"tavern"
 const PLAYER_INITIAL_LOCAL_POSITION := Vector2(384.0, 256.0)
 const PLAYER_INITIAL_FACING := CharacterState.Facing.DOWN
+const CHARACTER_PRESENTATION_SCENE := preload(
+	"res://scenes/characters/character_presentation.tscn"
+)
 
 var current_location: GridScene
 var transition_in_progress := false
@@ -193,20 +196,10 @@ func _replace_location(
 func _spawn_character_presentations() -> bool:
 	var valid := true
 	for world_character in character_registry.get_characters_in_location(current_location.location_id):
-		var packed_scene := load(world_character.definition.presentation_ref) as PackedScene
-		if packed_scene == null:
-			push_error(
-				"Character '%s' presentation_ref '%s' could not be loaded."
-				% [world_character.character_id, world_character.definition.presentation_ref]
-			)
-			valid = false
-			continue
-
-		var presentation := packed_scene.instantiate() as CharacterPresentation
+		var presentation := CHARACTER_PRESENTATION_SCENE.instantiate() as CharacterPresentation
 		if presentation == null:
 			push_error(
-				"Character '%s' presentation_ref '%s' is not a CharacterPresentation."
-				% [world_character.character_id, world_character.definition.presentation_ref]
+				"The shared CharacterPresentation Scene did not instantiate as CharacterPresentation."
 			)
 			valid = false
 			continue

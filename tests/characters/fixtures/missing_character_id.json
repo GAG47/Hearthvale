@@ -1,4 +1,4 @@
 {
 	"display_name": "玩家",
-	"presentation_ref": "res://scenes/player.tscn"
+	"visual_ref": "res://assets/characters/player.svg"
 }

@@ -1,0 +1,18 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/character_presentation.gd" id="1_presentation"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_character"]
+radius = 10.0
+height = 22.0
+
+[node name="CharacterPresentation" type="CharacterBody2D"]
+z_index = 20
+collision_layer = 1
+collision_mask = 1
+script = ExtResource("1_presentation")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CapsuleShape2D_character")

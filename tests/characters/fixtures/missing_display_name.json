@@ -1,4 +1,4 @@
 {
 	"character_id": "5e05b833-0645-4c13-8713-4c8767a7efe3",
-	"presentation_ref": "res://scenes/player.tscn"
+	"visual_ref": "res://assets/characters/player.svg"
 }

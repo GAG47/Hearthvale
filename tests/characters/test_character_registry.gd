@@ -42,7 +42,7 @@ func _run_tests() -> void:
 	)
 
 	var mismatched := Character.new(
-		CharacterDefinition.new(FIRST_ID, "Mismatch", "res://missing-presentation.tscn"),
+		CharacterDefinition.new(FIRST_ID, "Mismatch", "res://missing-visual.svg"),
 		CharacterState.new(SECOND_ID, &"nowhere", Vector2.ZERO)
 	)
 	_expect(
@@ -51,7 +51,7 @@ func _run_tests() -> void:
 	)
 
 	var invalid_definition_id := Character.new(
-		CharacterDefinition.new(&"not-a-uuid", "Invalid", "res://missing-presentation.tscn"),
+		CharacterDefinition.new(&"not-a-uuid", "Invalid", "res://missing-visual.svg"),
 		CharacterState.new(&"not-a-uuid", &"nowhere", Vector2.ZERO)
 	)
 	_expect(
@@ -60,7 +60,7 @@ func _run_tests() -> void:
 	)
 
 	var invalid_state_id := Character.new(
-		CharacterDefinition.new(SECOND_ID, "Invalid State", "res://missing-presentation.tscn"),
+		CharacterDefinition.new(SECOND_ID, "Invalid State", "res://missing-visual.svg"),
 		CharacterState.new(&"not-a-uuid", &"nowhere", Vector2.ZERO)
 	)
 	_expect(
@@ -94,7 +94,7 @@ func _create_character(character_id: StringName, location_id: StringName) -> Cha
 		CharacterDefinition.new(
 			character_id,
 			"Test Character",
-			"res://missing-presentation.tscn"
+			"res://missing-visual.svg"
 		),
 		CharacterState.new(character_id, location_id, Vector2(32.0, 64.0))
 	)

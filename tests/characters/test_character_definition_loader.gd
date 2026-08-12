@@ -17,13 +17,13 @@ func _init() -> void:
 		PLAYER_PATH,
 		&"5e05b833-0645-4c13-8713-4c8767a7efe3",
 		"玩家",
-		"res://scenes/player.tscn"
+		"res://assets/characters/player.svg"
 	)
 	_test_valid_definition(
 		MARTHA_PATH,
 		&"90da2d88-d049-4519-9e5c-e35136ff6a7d",
 		"Martha",
-		"res://scenes/characters/villager.tscn"
+		"res://assets/characters/martha.svg"
 	)
 
 	_test_invalid_definition("res://tests/characters/fixtures/does_not_exist.json")
@@ -37,10 +37,12 @@ func _init() -> void:
 		"display_name_wrong_type.json",
 		"empty_display_name.json",
 		"whitespace_display_name.json",
-		"missing_presentation_ref.json",
-		"presentation_ref_wrong_type.json",
-		"empty_presentation_ref.json",
-		"missing_presentation_resource.json",
+		"missing_visual_ref.json",
+		"visual_ref_wrong_type.json",
+		"empty_visual_ref.json",
+		"whitespace_visual_ref.json",
+		"missing_visual_resource.json",
+		"visual_ref_not_texture.json",
 	]:
 		_test_invalid_definition(FIXTURE_DIRECTORY + fixture_name)
 
@@ -69,7 +71,7 @@ func _test_valid_definition(
 	path: String,
 	expected_character_id: StringName,
 	expected_display_name: String,
-	expected_presentation_ref: String
+	expected_visual_ref: String
 ) -> void:
 	var definition := LOADER.load_from_file(path)
 	_expect(definition != null, "%s should load successfully." % path)
@@ -85,8 +87,13 @@ func _test_valid_definition(
 		"%s should preserve display_name." % path
 	)
 	_expect(
-		definition.presentation_ref == expected_presentation_ref,
-		"%s should preserve presentation_ref." % path
+		definition.visual_ref == expected_visual_ref,
+		"%s should preserve visual_ref." % path
+	)
+	var visual_resource := ResourceLoader.load(definition.visual_ref)
+	_expect(
+		visual_resource is Texture2D,
+		"%s visual_ref should load as Texture2D." % path
 	)
 
 
