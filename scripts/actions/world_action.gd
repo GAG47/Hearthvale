@@ -2,11 +2,11 @@ class_name WorldAction
 extends RefCounted
 
 var action_id: StringName
-var actor: Character
-var target: WorldObject
+var actor: Actor
+var target: Entity
 
 
-func _init(p_action_id: StringName, p_actor: Character, p_target: WorldObject) -> void:
+func _init(p_action_id: StringName, p_actor: Actor, p_target: Entity) -> void:
 	action_id = p_action_id
 	actor = p_actor
 	target = p_target
@@ -15,7 +15,7 @@ func _init(p_action_id: StringName, p_actor: Character, p_target: WorldObject) -
 func execute() -> ActionResult:
 	var spatial_decision := ActionSpatialRule.evaluate(self)
 	if not spatial_decision.allowed:
-		var target_id := target.object_id if is_instance_valid(target) else &""
+		var target_id := target.entity_id if target != null else &""
 		return ActionResult.failed(
 			action_id,
 			target_id,
@@ -23,8 +23,17 @@ func execute() -> ActionResult:
 			spatial_decision.failure_code
 		)
 
-	var decision := target.check_action(self)
-	if not decision.allowed:
-		return ActionResult.failed(action_id, target.object_id, decision.reason, decision.failure_code)
+	var furniture := target as Furniture
+	if furniture == null:
+		return ActionResult.failed(
+			action_id,
+			target.entity_id,
+			"目标实体当前不支持该行为。",
+			&"target_action_unsupported"
+		)
 
-	return target.apply_action(self)
+	var decision := furniture.check_action(self)
+	if not decision.allowed:
+		return ActionResult.failed(action_id, target.entity_id, decision.reason, decision.failure_code)
+
+	return furniture.apply_action(self)

@@ -2,17 +2,12 @@ class_name WorldStateRuntime
 extends Node
 
 # Authoritative world facts that survive Location Scene lifecycles.
-var _object_states: Dictionary[StringName, WorldObjectState] = {}
-var _character_states: Dictionary[StringName, CharacterState] = {}
+var _entity_states: Dictionary[StringName, EntityState] = {}
 var _world_time_state: WorldTimeState
 
-# Runtime registration and development diagnostics. These are not world facts.
-# Scene paths are retained only as development diagnostics for duplicate logical IDs.
-# They never address or key world facts.
+# Runtime Location registration and development diagnostics. These are not world facts.
 var _development_location_sources: Dictionary = {}
-var _fixed_object_definition_records: Dictionary = {}
 var _active_locations: Dictionary = {}
-var _active_world_objects: Dictionary = {}
 
 
 func register_location(location: GridScene) -> bool:
@@ -52,116 +47,35 @@ func unregister_location(location: GridScene) -> void:
 		_active_locations.erase(location.location_id)
 
 
-func register_world_object(world_object: WorldObject) -> bool:
-	if not is_instance_valid(world_object) or world_object.object_id.is_empty():
-		push_error("Every WorldObject requires a non-empty stable object_id.")
+func register_entity_state(state: EntityState) -> bool:
+	if state == null or not UuidValidator.is_valid_v4(state.entity_id):
+		var invalid_id := state.entity_id if state != null else &""
+		push_error("EntityState entity_id '%s' is not a valid UUID v4." % invalid_id)
 		return false
-	if not UuidValidator.is_valid_v4(world_object.object_id):
-		push_error("WorldObject object_id '%s' is not a valid UUID v4." % world_object.object_id)
-		return false
-	if not is_instance_valid(world_object.location) or not world_object.location.world_identity_registered:
-		push_error("WorldObject '%s' requires a valid registered Location." % world_object.object_id)
-		return false
-	if world_object.initial_location_id.is_empty():
-		push_error("Fixed WorldObject '%s' requires an initial_location_id in its Definition." % world_object.object_id)
-		return false
-	if world_object.initial_location_id != world_object.location.location_id:
-		push_error(
-			"Fixed WorldObject '%s' declares initial_location_id '%s' but actually belongs to Location '%s'."
-			% [
-				world_object.object_id,
-				world_object.initial_location_id,
-				world_object.location.location_id,
-			]
-		)
-		return false
-
-	var object_id := world_object.object_id
-	var initial_location_id := world_object.initial_location_id
-	var object_type := _get_world_object_type(world_object)
-	if _fixed_object_definition_records.has(object_id):
-		var definition: Dictionary = _fixed_object_definition_records[object_id]
-		if definition["initial_location_id"] != initial_location_id or definition["object_type"] != object_type:
-			push_error(
-				"Duplicate object_id '%s' conflicts with its existing definition (%s / %s)."
-				% [object_id, definition["initial_location_id"], definition["object_type"]]
-			)
-			return false
-	else:
-		_fixed_object_definition_records[object_id] = {
-			"initial_location_id": initial_location_id,
-			"object_type": object_type,
-		}
-
-	var active_world_object := _get_active_node(_active_world_objects, object_id)
-	if active_world_object != null and active_world_object != world_object:
-		push_error("Duplicate active object_id '%s'." % object_id)
-		return false
-
-	_active_world_objects[object_id] = weakref(world_object)
-	return true
-
-
-func unregister_world_object(world_object: WorldObject) -> void:
-	if not is_instance_valid(world_object):
-		return
-	var active_world_object := _get_active_node(_active_world_objects, world_object.object_id)
-	if active_world_object == world_object:
-		_active_world_objects.erase(world_object.object_id)
-
-
-func get_object_state(object_id: StringName) -> WorldObjectState:
-	return _object_states.get(object_id) as WorldObjectState
-
-
-func register_object_state(object_id: StringName, state: WorldObjectState) -> bool:
-	if object_id.is_empty() or state == null:
-		push_error("Object state registration requires a stable object_id and a valid WorldObjectState.")
-		return false
-	if not _fixed_object_definition_records.has(object_id):
-		push_error("Cannot register state for unknown WorldObject '%s'." % object_id)
-		return false
-	if _object_states.has(object_id):
-		if _object_states[object_id] == state:
+	if _entity_states.has(state.entity_id):
+		if _entity_states[state.entity_id] == state:
 			return true
-		push_error("WorldObject '%s' already has a different registered state." % object_id)
+		push_error("Entity '%s' already has a different registered EntityState." % state.entity_id)
 		return false
 
-	_object_states[object_id] = state
+	_entity_states[state.entity_id] = state
 	return true
 
 
-func has_object_state(object_id: StringName) -> bool:
-	return _object_states.has(object_id)
+func get_entity_state(entity_id: StringName) -> EntityState:
+	return _entity_states.get(entity_id) as EntityState
 
 
-func get_character_state(character_id: StringName) -> CharacterState:
-	return _character_states.get(character_id) as CharacterState
+func has_entity_state(entity_id: StringName) -> bool:
+	return _entity_states.has(entity_id)
 
 
-func register_character_state(state: CharacterState) -> bool:
-	if state == null or not UuidValidator.is_valid_v4(state.character_id):
-		var invalid_id := state.character_id if state != null else &""
-		push_error("CharacterState character_id '%s' is not a valid UUID v4." % invalid_id)
-		return false
-	if _character_states.has(state.character_id):
-		if _character_states[state.character_id] == state:
-			return true
-		push_error("Character '%s' already has a different registered CharacterState." % state.character_id)
-		return false
-
-	_character_states[state.character_id] = state
-	return true
-
-
-func has_character_state(character_id: StringName) -> bool:
-	return _character_states.has(character_id)
-
-
-func get_character_states() -> Array[CharacterState]:
-	var states: Array[CharacterState] = []
-	for state in _character_states.values():
-		states.append(state as CharacterState)
+func get_entity_states() -> Array[EntityState]:
+	var states: Array[EntityState] = []
+	var entity_ids := _entity_states.keys()
+	entity_ids.sort()
+	for entity_id in entity_ids:
+		states.append(_entity_states[entity_id])
 	return states
 
 
@@ -190,8 +104,3 @@ func _get_active_node(registry: Dictionary, stable_id: StringName) -> Node:
 	if reference == null:
 		return null
 	return reference.get_ref() as Node
-
-
-func _get_world_object_type(world_object: WorldObject) -> StringName:
-	var script := world_object.get_script() as Script
-	return script.get_global_name() if script != null else &""

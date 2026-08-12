@@ -7,12 +7,12 @@ signal action_completed(result: ActionResult)
 
 @onready var camera: Camera2D = $Camera2D
 
-var controlled_character: Character
-var controlled_presentation: CharacterPresentation
+var controlled_actor: Actor
+var controlled_presentation: ActorPresentation
 
 
 func _physics_process(_delta: float) -> void:
-	if controlled_character == null or not is_instance_valid(controlled_presentation):
+	if controlled_actor == null or not is_instance_valid(controlled_presentation):
 		return
 
 	if Input.is_action_just_pressed(&"interact"):
@@ -28,19 +28,19 @@ func _physics_process(_delta: float) -> void:
 	_sync_camera_position()
 
 
-func take_control(character: Character, presentation: CharacterPresentation) -> bool:
-	if character == null or not is_instance_valid(presentation):
-		push_error("PlayerController requires a Character and CharacterPresentation.")
+func take_control(actor: Actor, presentation: ActorPresentation) -> bool:
+	if actor == null or not is_instance_valid(presentation):
+		push_error("PlayerController requires an Actor and ActorPresentation.")
 		return false
-	if presentation.character != character:
+	if presentation.actor != actor:
 		push_error(
-			"PlayerController cannot bind Character '%s' to a Presentation for Character '%s'."
-			% [character.character_id, presentation.character_id]
+			"PlayerController cannot bind Actor '%s' to a Presentation for Actor '%s'."
+			% [actor.entity_id, presentation.entity_id]
 		)
 		return false
 
 	release_controlled_presentation()
-	controlled_character = character
+	controlled_actor = actor
 	controlled_presentation = presentation
 	controlled_presentation.add_to_group(&"player")
 	_sync_camera_position(true)
@@ -69,7 +69,7 @@ func set_camera_bounds(bounds: Rect2) -> void:
 
 
 func request_interaction() -> ActionResult:
-	if controlled_character == null or not is_instance_valid(controlled_presentation):
+	if controlled_actor == null or not is_instance_valid(controlled_presentation):
 		var unavailable_result := ActionResult.failed(
 			&"interact",
 			&"",
@@ -86,17 +86,18 @@ func request_interaction() -> ActionResult:
 		action_completed.emit(no_target_result)
 		return no_target_result
 
-	var action_id := target.get_primary_action(controlled_character)
+	var furniture := target as Furniture
+	var action_id := furniture.get_primary_action(controlled_actor) if furniture != null else &""
 	if action_id.is_empty():
 		var no_action_result := ActionResult.failed(
 			&"interact",
-			target.object_id,
-			"%s 当前没有可用行为。" % target.display_name
+			target.entity_id,
+			"目标实体当前没有可用行为。"
 		)
 		action_completed.emit(no_action_result)
 		return no_action_result
 
-	var action := WorldAction.new(action_id, controlled_character, target)
+	var action := WorldAction.new(action_id, controlled_actor, target)
 	var result := action.execute()
 	action_completed.emit(result)
 	return result
@@ -125,11 +126,11 @@ func _update_facing(direction: Vector2) -> void:
 	var next_facing := controlled_presentation.facing
 	if absf(direction.x) > absf(direction.y):
 		next_facing = (
-			CharacterState.Facing.RIGHT if direction.x > 0.0 else CharacterState.Facing.LEFT
+			ActorState.Facing.RIGHT if direction.x > 0.0 else ActorState.Facing.LEFT
 		)
 	else:
 		next_facing = (
-			CharacterState.Facing.DOWN if direction.y > 0.0 else CharacterState.Facing.UP
+			ActorState.Facing.DOWN if direction.y > 0.0 else ActorState.Facing.UP
 		)
 
 	if next_facing != controlled_presentation.facing:

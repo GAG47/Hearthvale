@@ -1,0 +1,8 @@
+{
+	"definition_id": "invalid",
+	"display_name": "Invalid",
+	"visual_ref": "res://assets/furniture/sign.svg",
+	"behaviors": {},
+	"occupied_cells": [0, 1],
+	"blocks_movement": true
+}

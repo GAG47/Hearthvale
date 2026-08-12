@@ -1,0 +1,8 @@
+{
+	"definition_id": "invalid",
+	"display_name": "Invalid",
+	"visual_ref": "res://scenes/main.tscn",
+	"behaviors": {},
+	"occupied_cells": [1, 1],
+	"blocks_movement": true
+}

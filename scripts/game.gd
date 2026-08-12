@@ -1,16 +1,39 @@
 extends Node2D
 
-const PLAYER_DEFINITION_PATH := "res://data/characters/player.json"
+const PLAYER_DEFINITION_PATH := "res://data/actors/player.json"
 const PLAYER_INITIAL_LOCATION_ID := &"tavern"
 const PLAYER_INITIAL_LOCAL_POSITION := Vector2(384.0, 256.0)
-const PLAYER_INITIAL_FACING := CharacterState.Facing.DOWN
-const CHARACTER_PRESENTATION_SCENE := preload(
-	"res://scenes/characters/character_presentation.tscn"
+const PLAYER_INITIAL_FACING := ActorState.Facing.DOWN
+const ACTOR_PRESENTATION_SCENE := preload(
+	"res://scenes/actors/actor_presentation.tscn"
 )
+const FURNITURE_PRESENTATION_SCENE := preload(
+	"res://scenes/furniture/furniture_presentation.tscn"
+)
+const FURNITURE_INSTANCES: Array[Dictionary] = [
+	{
+		"entity_id": &"5543caf7-2a10-4a40-84de-3a39ffdf670e",
+		"definition_path": "res://data/furniture/wooden_chest.json",
+		"location_id": &"tavern",
+		"local_position": Vector2(464.0, 208.0),
+	},
+	{
+		"entity_id": &"1d67bbf9-edc2-4264-a861-8bd3e3e61e15",
+		"definition_path": "res://data/furniture/sign.json",
+		"location_id": &"tavern",
+		"local_position": Vector2(432.0, 240.0),
+	},
+	{
+		"entity_id": &"a6ae5842-8c6d-4df2-9b80-a271b5496716",
+		"definition_path": "res://data/furniture/simple_bed.json",
+		"location_id": &"tavern",
+		"local_position": Vector2(656.0, 128.0),
+	},
+]
 
 var current_location: GridScene
 var transition_in_progress := false
-var controlled_character_id := &""
+var controlled_actor_id := &""
 
 @onready var world_root: Node2D = $WorldRoot
 @onready var player_controller: PlayerController = $PlayerController
@@ -24,7 +47,7 @@ var controlled_character_id := &""
 var world_time: WorldTimeRuntime
 var world_definition: WorldDefinitionRuntime
 var world_state: WorldStateRuntime
-var character_registry: CharacterRegistryRuntime
+var entity_registry: EntityRegistryRuntime
 
 
 func _ready() -> void:
@@ -46,15 +69,17 @@ func _ready() -> void:
 	if world_state == null:
 		push_error("WorldState Autoload is required before loading Game.")
 		return
-	character_registry = get_node_or_null("/root/CharacterRegistry") as CharacterRegistryRuntime
-	if character_registry == null:
-		push_error("CharacterRegistry Autoload is required before loading Game.")
+	entity_registry = get_node_or_null("/root/EntityRegistry") as EntityRegistryRuntime
+	if entity_registry == null:
+		push_error("EntityRegistry Autoload is required before loading Game.")
 		return
 
-	var controlled_character := _initialize_player_character()
-	if controlled_character == null:
+	if not _initialize_furniture_entities():
 		return
-	_replace_location(controlled_character.state.current_location_id)
+	var controlled_actor := _initialize_player_actor()
+	if controlled_actor == null:
+		return
+	_replace_location(controlled_actor.current_location_id)
 
 
 func request_location_change(edge_key: StringName) -> void:
@@ -76,35 +101,57 @@ func request_location_change(edge_key: StringName) -> void:
 	_perform_location_change.call_deferred(from_location_id, edge)
 
 
-func _initialize_player_character() -> Character:
-	var definition := CharacterDefinitionLoader.load_from_file(PLAYER_DEFINITION_PATH)
+func _initialize_player_actor() -> Actor:
+	var definition := ActorDefinitionLoader.load_from_file(PLAYER_DEFINITION_PATH)
 	if definition == null:
-		push_error("Game could not load the Player CharacterDefinition.")
+		push_error("Game could not load the Player ActorDefinition.")
 		return null
 
-	var state := CharacterState.new(
-		definition.character_id,
+	var state := ActorState.new(
+		definition.entity_id,
 		PLAYER_INITIAL_LOCATION_ID,
 		PLAYER_INITIAL_LOCAL_POSITION,
 		PLAYER_INITIAL_FACING
 	)
-	if not world_state.register_character_state(state):
+	if not world_state.register_entity_state(state):
 		push_error(
-			"Game could not register the Player CharacterState for character_id '%s'."
-			% definition.character_id
+			"Game could not register the Player ActorState for entity_id '%s'."
+			% definition.entity_id
 		)
 		return null
 
-	var character := Character.new(definition, state)
-	if not character_registry.register_character(character):
+	var actor := Actor.new(definition, state)
+	if not entity_registry.register_entity(actor):
 		push_error(
-			"Game could not register the Player Character for character_id '%s'."
-			% definition.character_id
+			"Game could not register the Player Actor for entity_id '%s'."
+			% definition.entity_id
 		)
 		return null
 
-	controlled_character_id = definition.character_id
-	return character
+	controlled_actor_id = definition.entity_id
+	return actor
+
+
+func _initialize_furniture_entities() -> bool:
+	for instance_data in FURNITURE_INSTANCES:
+		var definition_path: String = instance_data["definition_path"]
+		var definition := FurnitureDefinitionLoader.load_from_file(definition_path)
+		if definition == null:
+			push_error("Game could not load FurnitureDefinition '%s'." % definition_path)
+			return false
+		var state := FurnitureState.new(
+			instance_data["entity_id"],
+			instance_data["location_id"],
+			instance_data["local_position"]
+		)
+		if not world_state.register_entity_state(state):
+			push_error("Game could not register FurnitureState '%s'." % state.entity_id)
+			return false
+		var furniture := Furniture.new(definition, state)
+		if not entity_registry.register_entity(furniture):
+			push_error("Game could not register Furniture '%s'." % state.entity_id)
+			return false
+	return true
 
 
 func _perform_location_change(
@@ -160,15 +207,15 @@ func _replace_location(
 		next_location.free()
 		return false
 
-	var moving_character := player_controller.controlled_character
+	var moving_actor := player_controller.controlled_actor
 	if current_location != null:
 		player_controller.release_controlled_presentation()
 		world_root.remove_child(current_location)
 		current_location.queue_free()
 
-	if edge != null and moving_character != null:
-		moving_character.state.current_location_id = location_id
-		moving_character.state.local_position = entry.position
+	if edge != null and moving_actor != null:
+		moving_actor.state.current_location_id = location_id
+		moving_actor.state.local_position = entry.position
 
 	current_location = next_location
 	world_root.add_child(current_location)
@@ -178,11 +225,11 @@ func _replace_location(
 		current_location = null
 		return false
 
-	if not _spawn_character_presentations():
+	if not _spawn_entity_presentations():
 		return false
 	if not is_instance_valid(player_controller.controlled_presentation):
 		push_error(
-			"Location '%s' loaded without the controlled CharacterPresentation."
+			"Location '%s' loaded without the controlled ActorPresentation."
 			% location_id
 		)
 		return false
@@ -193,33 +240,50 @@ func _replace_location(
 	return true
 
 
-func _spawn_character_presentations() -> bool:
+func _spawn_entity_presentations() -> bool:
 	var valid := true
-	for world_character in character_registry.get_characters_in_location(current_location.location_id):
-		var presentation := CHARACTER_PRESENTATION_SCENE.instantiate() as CharacterPresentation
-		if presentation == null:
-			push_error(
-				"The shared CharacterPresentation Scene did not instantiate as CharacterPresentation."
-			)
-			valid = false
-			continue
-		if not presentation.bind_character(world_character, current_location):
-			presentation.free()
-			valid = false
-			continue
-
-		presentation.name = "Character_%s" % String(world_character.character_id).substr(0, 8)
-		current_location.add_child(presentation)
-		if world_character.character_id == controlled_character_id:
-			if is_instance_valid(player_controller.controlled_presentation):
-				push_error(
-					"Location '%s' contains more than one controlled CharacterPresentation."
-					% current_location.location_id
-				)
+	for entity in entity_registry.get_entities_in_location(current_location.location_id):
+		if entity is Actor:
+			if not _spawn_actor_presentation(entity as Actor):
 				valid = false
-			elif not player_controller.take_control(world_character, presentation):
+		elif entity is Furniture:
+			if not _spawn_furniture_presentation(entity as Furniture):
 				valid = false
 	return valid
+
+
+func _spawn_actor_presentation(actor: Actor) -> bool:
+	var presentation := ACTOR_PRESENTATION_SCENE.instantiate() as ActorPresentation
+	if presentation == null:
+		push_error("The shared ActorPresentation Scene did not instantiate correctly.")
+		return false
+	if not presentation.bind_actor(actor, current_location):
+		presentation.free()
+		return false
+	presentation.name = "Actor_%s" % String(actor.entity_id).substr(0, 8)
+	current_location.add_child(presentation)
+	if actor.entity_id == controlled_actor_id:
+		if is_instance_valid(player_controller.controlled_presentation):
+			push_error(
+				"Location '%s' contains more than one controlled ActorPresentation."
+				% current_location.location_id
+			)
+			return false
+		return player_controller.take_control(actor, presentation)
+	return true
+
+
+func _spawn_furniture_presentation(furniture: Furniture) -> bool:
+	var presentation := FURNITURE_PRESENTATION_SCENE.instantiate() as FurniturePresentation
+	if presentation == null:
+		push_error("The shared FurniturePresentation Scene did not instantiate correctly.")
+		return false
+	if not presentation.bind_furniture(furniture, current_location):
+		presentation.free()
+		return false
+	presentation.name = "Furniture_%s" % String(furniture.entity_id).substr(0, 8)
+	current_location.add_child(presentation)
+	return true
 
 
 func _on_player_action_completed(result: ActionResult) -> void:

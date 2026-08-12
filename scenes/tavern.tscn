@@ -1,12 +1,9 @@
-[gd_scene load_steps=8 format=4]
+[gd_scene load_steps=5 format=4]
 
 [ext_resource type="Script" path="res://scripts/location/grid_scene.gd" id="1_8dirj"]
 [ext_resource type="TileSet" path="res://data/world_tileset.tres" id="2_gwbas"]
 [ext_resource type="Script" path="res://scripts/location/location_exit.gd" id="3_yyr65"]
 [ext_resource type="Script" path="res://scripts/location/location_entry.gd" id="7_entry"]
-[ext_resource type="PackedScene" path="res://scenes/world_objects/chest.tscn" id="4_chest"]
-[ext_resource type="PackedScene" path="res://scenes/world_objects/sign.tscn" id="5_sign"]
-[ext_resource type="PackedScene" path="res://scenes/world_objects/bed.tscn" id="6_bed"]
 
 [node name="Tavern" type="Node2D" unique_id=1256793428]
 script = ExtResource("1_8dirj")
@@ -72,20 +69,3 @@ offset_bottom = 280.0
 theme_override_colors/font_color = Color(0.85, 0.78, 0.67, 0.7)
 theme_override_font_sizes/font_size = 16
 text = "厨房"
-
-[node name="WorldObjects" type="Node2D" parent="."]
-
-[node name="StorageChest" parent="WorldObjects" instance=ExtResource("4_chest")]
-object_id = &"5543caf7-2a10-4a40-84de-3a39ffdf670e"
-initial_location_id = &"tavern"
-anchor_cell = Vector2i(14, 6)
-
-[node name="NoticeBoard" parent="WorldObjects" instance=ExtResource("5_sign")]
-object_id = &"1d67bbf9-edc2-4264-a861-8bd3e3e61e15"
-initial_location_id = &"tavern"
-anchor_cell = Vector2i(13, 7)
-
-[node name="GuestBed" parent="WorldObjects" instance=ExtResource("6_bed")]
-object_id = &"a6ae5842-8c6d-4df2-9b80-a271b5496716"
-initial_location_id = &"tavern"
-anchor_cell = Vector2i(20, 3)

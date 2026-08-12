@@ -1,0 +1,12 @@
+{
+	"definition_id": "wooden_chest",
+	"display_name": "储物箱",
+	"visual_ref": "res://assets/furniture/chest_closed.svg",
+	"behaviors": {
+		"openable": {
+			"open_visual_ref": "res://assets/furniture/chest_open.svg"
+		}
+	},
+	"occupied_cells": [1, 1],
+	"blocks_movement": true
+}

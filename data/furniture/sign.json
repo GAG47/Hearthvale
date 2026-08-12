@@ -1,0 +1,12 @@
+{
+	"definition_id": "sign",
+	"display_name": "告示牌",
+	"visual_ref": "res://assets/furniture/sign.svg",
+	"behaviors": {
+		"inspectable": {
+			"text": "今日麦酒三铜币。"
+		}
+	},
+	"occupied_cells": [1, 1],
+	"blocks_movement": true
+}

@@ -1,0 +1,9 @@
+{
+	"entity_id": "5e05b833-0645-4c13-8713-4c8767a7efe3",
+	"display_name": "玩家",
+	"visuals": {
+		"up": "res://assets/actors/player_up.svg",
+		"down": "res://assets/actors/player_down.svg",
+		"right": "res://assets/actors/player_right.svg"
+	}
+}

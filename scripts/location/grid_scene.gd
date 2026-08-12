@@ -8,7 +8,7 @@ const CELL_SIZE := 32
 	set(value):
 		grid_size = value.max(Vector2i.ONE)
 
-var _world_objects_by_cell: Dictionary = {}
+var _furniture_presentations_by_cell: Dictionary = {}
 var world_identity_registered := false
 var world_state: WorldStateRuntime
 var world_definition: WorldDefinitionRuntime
@@ -57,34 +57,34 @@ func get_location_entry(entry_id: StringName) -> LocationEntry:
 	return null
 
 
-func register_world_object(world_object: WorldObject) -> void:
-	if not is_instance_valid(world_object):
+func register_furniture_presentation(presentation: FurniturePresentation) -> void:
+	if not is_instance_valid(presentation):
 		return
-	if world_object.location != self:
-		push_error("GridScene can only register WorldObjects that belong to this Location.")
+	if presentation.current_location != self:
+		push_error("GridScene can only register FurniturePresentations bound to this Location.")
 		return
 
-	for cell in world_object.get_occupied_grid_cells():
-		var objects: Array[WorldObject]
-		if _world_objects_by_cell.has(cell):
-			objects = _world_objects_by_cell[cell]
+	for cell in presentation.get_occupied_grid_cells():
+		var presentations: Array[FurniturePresentation]
+		if _furniture_presentations_by_cell.has(cell):
+			presentations = _furniture_presentations_by_cell[cell]
 		else:
-			objects = []
-			_world_objects_by_cell[cell] = objects
-		if not objects.has(world_object):
-			objects.append(world_object)
+			presentations = []
+			_furniture_presentations_by_cell[cell] = presentations
+		if not presentations.has(presentation):
+			presentations.append(presentation)
 
 
-func unregister_world_object(world_object: WorldObject) -> void:
-	for cell in _world_objects_by_cell.keys():
-		var objects: Array[WorldObject] = _world_objects_by_cell[cell]
-		objects.erase(world_object)
-		if objects.is_empty():
-			_world_objects_by_cell.erase(cell)
+func unregister_furniture_presentation(presentation: FurniturePresentation) -> void:
+	for cell in _furniture_presentations_by_cell.keys():
+		var presentations: Array[FurniturePresentation] = _furniture_presentations_by_cell[cell]
+		presentations.erase(presentation)
+		if presentations.is_empty():
+			_furniture_presentations_by_cell.erase(cell)
 
 
-func get_world_objects_at(cell: Vector2i) -> Array[WorldObject]:
-	if not _world_objects_by_cell.has(cell):
+func get_furniture_presentations_at(cell: Vector2i) -> Array[FurniturePresentation]:
+	if not _furniture_presentations_by_cell.has(cell):
 		return []
-	var objects: Array[WorldObject] = _world_objects_by_cell[cell]
-	return objects.duplicate()
+	var presentations: Array[FurniturePresentation] = _furniture_presentations_by_cell[cell]
+	return presentations.duplicate()

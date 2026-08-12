@@ -1,0 +1,21 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/furniture/furniture_presentation.gd" id="1_presentation"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_furniture"]
+resource_local_to_scene = true
+size = Vector2(28, 28)
+
+[node name="FurniturePresentation" type="Node2D"]
+z_index = 5
+script = ExtResource("1_presentation")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture_filter = 1
+
+[node name="BlockingBody" type="StaticBody2D" parent="."]
+collision_layer = 1
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BlockingBody"]
+shape = SubResource("RectangleShape2D_furniture")

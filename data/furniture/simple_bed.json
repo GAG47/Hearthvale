@@ -1,0 +1,10 @@
+{
+	"definition_id": "simple_bed",
+	"display_name": "床",
+	"visual_ref": "res://assets/furniture/bed.svg",
+	"behaviors": {
+		"sleepable": {}
+	},
+	"occupied_cells": [1, 2],
+	"blocks_movement": true
+}
