@@ -1,10 +1,16 @@
 extends Node2D
 
+const PLAYER_DEFINITION_PATH := "res://data/characters/player.json"
+const PLAYER_INITIAL_LOCATION_ID := &"tavern"
+const PLAYER_INITIAL_LOCAL_POSITION := Vector2(384.0, 256.0)
+const PLAYER_INITIAL_FACING := CharacterState.Facing.DOWN
+
 var current_location: GridScene
 var transition_in_progress := false
-var player: PlayerCharacter
+var controlled_character_id := &""
 
 @onready var world_root: Node2D = $WorldRoot
+@onready var player_controller: PlayerController = $PlayerController
 @onready var location_label: Label = $HUD/TopBar/LocationLabel
 @onready var date_label: Label = $HUD/TimePanel/TimeLayout/DateLabel
 @onready var weekday_season_label: Label = $HUD/TimePanel/TimeLayout/WeekdaySeasonLabel
@@ -14,28 +20,35 @@ var player: PlayerCharacter
 
 var world_time: WorldTimeRuntime
 var world_definition: WorldDefinitionRuntime
+var world_state: WorldStateRuntime
 var character_registry: CharacterRegistryRuntime
 
 
 func _ready() -> void:
 	action_result_timer.timeout.connect(_on_action_result_timer_timeout)
+	player_controller.action_completed.connect(_on_player_action_completed)
+
 	world_time = get_node_or_null("/root/WorldTime") as WorldTimeRuntime
 	if world_time == null:
 		push_error("WorldTime Autoload is required before loading Game.")
 	else:
 		world_time.time_changed.connect(_on_world_time_changed)
 		_refresh_time_display()
+
 	world_definition = get_node_or_null("/root/WorldDefinition") as WorldDefinitionRuntime
 	if world_definition == null:
 		push_error("WorldDefinition Autoload is required before loading Game.")
+		return
+	world_state = get_node_or_null("/root/WorldState") as WorldStateRuntime
+	if world_state == null:
+		push_error("WorldState Autoload is required before loading Game.")
 		return
 	character_registry = get_node_or_null("/root/CharacterRegistry") as CharacterRegistryRuntime
 	if character_registry == null:
 		push_error("CharacterRegistry Autoload is required before loading Game.")
 		return
-	var controlled_character := character_registry.get_character(
-		CharacterRegistryRuntime.PLAYER_CHARACTER_ID
-	)
+
+	var controlled_character := _initialize_player_character()
 	if controlled_character == null:
 		return
 	_replace_location(controlled_character.state.current_location_id)
@@ -45,7 +58,7 @@ func request_location_change(edge_key: StringName) -> void:
 	if (
 		transition_in_progress
 		or current_location == null
-		or not is_instance_valid(player)
+		or not is_instance_valid(player_controller.controlled_presentation)
 		or edge_key.is_empty()
 	):
 		return
@@ -55,9 +68,40 @@ func request_location_change(edge_key: StringName) -> void:
 		return
 
 	transition_in_progress = true
-	player.stop()
-	player.set_physics_process(false)
+	player_controller.stop()
+	player_controller.set_physics_process(false)
 	_perform_location_change.call_deferred(from_location_id, edge)
+
+
+func _initialize_player_character() -> Character:
+	var definition := CharacterDefinitionLoader.load_from_file(PLAYER_DEFINITION_PATH)
+	if definition == null:
+		push_error("Game could not load the Player CharacterDefinition.")
+		return null
+
+	var state := CharacterState.new(
+		definition.character_id,
+		PLAYER_INITIAL_LOCATION_ID,
+		PLAYER_INITIAL_LOCAL_POSITION,
+		PLAYER_INITIAL_FACING
+	)
+	if not world_state.register_character_state(state):
+		push_error(
+			"Game could not register the Player CharacterState for character_id '%s'."
+			% definition.character_id
+		)
+		return null
+
+	var character := Character.new(definition, state)
+	if not character_registry.register_character(character):
+		push_error(
+			"Game could not register the Player Character for character_id '%s'."
+			% definition.character_id
+		)
+		return null
+
+	controlled_character_id = definition.character_id
+	return character
 
 
 func _perform_location_change(
@@ -65,8 +109,8 @@ func _perform_location_change(
 	edge: LocationEdgeDefinition
 ) -> void:
 	var changed := _replace_location(edge.to_location, from_location_id, edge)
-	if is_instance_valid(player):
-		player.set_physics_process(true)
+	if is_instance_valid(player_controller.controlled_presentation):
+		player_controller.set_physics_process(true)
 
 	if not changed:
 		push_error(
@@ -113,14 +157,11 @@ func _replace_location(
 		next_location.free()
 		return false
 
-	var moving_character: Character
-	if is_instance_valid(player):
-		moving_character = player.character
-
+	var moving_character := player_controller.controlled_character
 	if current_location != null:
+		player_controller.release_controlled_presentation()
 		world_root.remove_child(current_location)
 		current_location.queue_free()
-		player = null
 
 	if edge != null and moving_character != null:
 		moving_character.state.current_location_id = location_id
@@ -136,14 +177,14 @@ func _replace_location(
 
 	if not _spawn_character_presentations():
 		return false
-	if not is_instance_valid(player):
+	if not is_instance_valid(player_controller.controlled_presentation):
 		push_error(
-			"Location '%s' loaded without the controlled PlayerCharacter presentation."
+			"Location '%s' loaded without the controlled CharacterPresentation."
 			% location_id
 		)
 		return false
 
-	player.set_camera_bounds(current_location.get_world_rect())
+	player_controller.set_camera_bounds(current_location.get_world_rect())
 	location_label.text = definition.display_name
 	action_result_label.text = ""
 	return true
@@ -176,16 +217,15 @@ func _spawn_character_presentations() -> bool:
 
 		presentation.name = "Character_%s" % String(world_character.character_id).substr(0, 8)
 		current_location.add_child(presentation)
-		if presentation is PlayerCharacter:
-			if is_instance_valid(player):
+		if world_character.character_id == controlled_character_id:
+			if is_instance_valid(player_controller.controlled_presentation):
 				push_error(
-					"Location '%s' contains more than one PlayerCharacter presentation."
+					"Location '%s' contains more than one controlled CharacterPresentation."
 					% current_location.location_id
 				)
 				valid = false
-			else:
-				player = presentation as PlayerCharacter
-				player.action_completed.connect(_on_player_action_completed)
+			elif not player_controller.take_control(world_character, presentation):
+				valid = false
 	return valid
 
 

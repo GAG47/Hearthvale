@@ -160,20 +160,22 @@ Character 是独立于 Godot Scene Node 的持续世界实体。当前逻辑 Cha
 
 CharacterDefinition 回答“这个角色是什么”，当前仅保存 UUID v4 `character_id`、`display_name` 和 `presentation_ref`。CharacterState 回答“这个角色在当前世界状态下是什么样”，当前仅保存同一个 `character_id`、`current_location_id`、Location 内的连续 `local_position` 和四方向 `facing`。Definition 不保存当前位置，State 不复制名称或表现引用；角色初始位置属于初始 CharacterState，不是永久 Definition。
 
-Character Registry 是当前世界中 Character 的权威集合，以 UUID 为主键，支持按 ID 获取与存在性查询、稳定遍历以及按当前 Location 查询。它登记 CharacterDefinition，并把 CharacterState 交给 WorldState 持有。Registry 不是单独的 UUID 列表，也不管理 WorldObject 或 Location；UUID Generator 不承担 Registry 职责。
+Character Registry 是当前世界中 Character 的权威集合，以 UUID 为主键，支持 Character 注册、按 ID 获取与存在性查询、稳定遍历以及按当前 Location 查询。它只维护 `character_id → Character` 索引并校验 Character 内部的 Definition / State 身份一致性；CharacterState 由启动入口显式交给 WorldState 持有。Registry 不创建角色、不判断谁受玩家控制，也不加载 Location 或 Presentation；UUID Generator 不承担 Registry 职责。
 
-Location 加载时，游戏从 Registry 查询 `CharacterState.current_location_id` 等于该 Location 的角色，读取其 CharacterDefinition.presentation_ref 创建 CharacterPresentation，并按 CharacterState 恢复局部位置和朝向。Location 卸载前，Presentation 把当前局部位置同步回同一 CharacterState；随后 Node 可以释放，而 Character、Definition 和 State 继续存在。再次加载时会创建新的表现 Node 并绑定相同逻辑角色与状态。当前玩家和一个无行为逻辑的预设居民使用这条相同流程；没有 NPC 日程、决策、自动移动或离屏模拟。
+Location 加载时，游戏从 Registry 查询 `CharacterState.current_location_id` 等于该 Location 的角色，读取其 `CharacterDefinition.presentation_ref` 创建 CharacterPresentation，并按 CharacterState 恢复局部位置和朝向。Location 卸载前，Presentation 把当前局部位置同步回同一 CharacterState；随后 Node 可以释放，而 Character、Definition 和 State 继续存在。再次加载时会创建新的表现 Node 并绑定相同逻辑角色与状态。当前 Game 临时从 `player.json` 加载 Player Definition，以既有初始值创建并登记 Player State 和 Character；Martha Definition 数据仍然有效，但在通用 NPC 初始化流程出现前不创建 State、Character 或 Presentation。
 
-Character 从 CharacterState 的连续局部位置可靠推导当前格子，并提供 facing 相邻格给现有空间规则，不重复保存格子状态。CharacterPresentation 承担已加载 Location 中的表现适配和状态同步；PlayerCharacter 是 CharacterPresentation 的具体形式，继续负责玩家输入、目标选择、连续移动、碰撞和 Camera。WorldAction 的 Actor 是逻辑 Character，不是临时 Presentation Node。
+Character 从 CharacterState 的连续局部位置可靠推导当前格子，并提供 facing 相邻格给现有空间规则，不重复保存格子状态。CharacterPresentation 只承担已加载 Location 中的空间表现、碰撞、状态恢复与同步。PlayerController 独立持有当前受控 Character 和它在已加载 Location 中的 CharacterPresentation，负责输入、连续移动、交互 Action 请求、结果信号和 Camera；Location 切换后重新绑定同一个 Character 的新 Presentation。Character 与 CharacterPresentation 都不保存 Player 标记，Player 只表示当前控制权。WorldAction 的 Actor 是逻辑 Character，不是 Controller 或临时 Presentation Node。
 
 ## 当前交互与行为关系
 
-玩家按下统一交互输入时，InteractionTargetSelector 先查询 CharacterPresentation facing 方向的相邻格，再查询其当前格。查询直接使用当前 Location 的 WorldObject 格子索引，不遍历 SceneTree。每个格子只选择一个支持行为的对象；同格多个候选按稳定 `object_id` 排序，保证结果简单且确定。这一过程只负责确定玩家意图的目标，不让各个对象分别监听输入，也不是 Action 合法性的唯一防线。
+玩家按下统一交互输入时，PlayerController 请求 InteractionTargetSelector 先查询当前受控 CharacterPresentation facing 方向的相邻格，再查询其当前格。查询直接使用当前 Location 的 WorldObject 格子索引，不遍历 SceneTree。每个格子只选择一个支持行为的对象；同格多个候选按稳定 `object_id` 排序，保证结果简单且确定。这一过程只负责确定玩家意图的目标，不让各个对象分别监听输入，也不是 Action 合法性的唯一防线。
 
 选中目标后的当前基础关系是：
 
 ```text
-CharacterPresentation 绑定 Character、同步状态并接收玩家输入
+PlayerController 把玩家输入转化为移动或交互意图
+  ↓
+CharacterPresentation 绑定 Character、执行当前 Scene 中的空间移动并同步状态
   ↓
 Location / GridScene 维护自身格子中的 WorldObject
   ↓
@@ -196,7 +198,7 @@ Presentation 显示结果
 
 公共空间规则属于 WorldAction 执行链，先验证 Actor 与目标有效、属于同一个 Location，并且目标占据 Actor 当前格或 facing 相邻格；通过后才进入具体 WorldObject 的行为规则和执行。即使 NPC、AI 或其他系统绕过玩家 Selector 直接创建 WorldAction，非法空间行为也不能修改目标状态。
 
-行为合法性判断与合法行为的执行保持分离。Player 只产生意图并接收结果，不直接修改箱子等对象的状态，也不直接更新交互结果 UI。空间拒绝同样返回正式 ActionResult 和明确失败代码。合法 Chest Action 修改权威 ChestState，Node 只根据同一状态更新视觉。正式结果不只服务玩家画面；未来 NPC 或 AI 发起行为时，也应能得到相同的成功、失败和原因信息。
+行为合法性判断与合法行为的执行保持分离。PlayerController 只产生玩家意图并发出结果，不直接修改箱子等对象的状态，也不直接更新交互结果 UI。空间拒绝同样返回正式 ActionResult 和明确失败代码。合法 Chest Action 修改权威 ChestState，Node 只根据同一状态更新视觉。正式结果不只服务玩家画面；未来 NPC 或 AI 发起行为时，也应能得到相同的成功、失败和原因信息。
 
 ## 世界事实的权威边界
 
@@ -220,7 +222,7 @@ AI 的输出即使被接受，也必须通过与该行为相适应的规则和�
 
 ## Presentation 与逻辑世界
 
-Presentation 负责把玩家输入转化为可供游戏处理的意图，并把世界状态和行为结果呈现为 Godot 场景、画面、UI、声音及反馈。
+PlayerController 负责把玩家输入转化为可供游戏处理的意图；CharacterPresentation 与其他 Presentation 负责把世界状态和行为结果呈现为 Godot 场景、画面、UI、声音及反馈。
 
 Presentation 可以维护表现所需的临时状态，但不能把画面上看似发生的事情直接当作已经成立的世界事实。逻辑世界也不应依赖某个特定界面或验证场景才能成立。
 

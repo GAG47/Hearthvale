@@ -1,4 +1,3 @@
-@abstract
 class_name CharacterPresentation
 extends CharacterBody2D
 
@@ -85,6 +84,23 @@ func get_facing_cell_offset() -> Vector2i:
 
 func get_facing_vector() -> Vector2:
 	return Vector2(get_facing_cell_offset())
+
+
+func _draw() -> void:
+	draw_circle(Vector2(0.0, 7.0), 11.0, Color(0.08, 0.07, 0.07, 0.30))
+	draw_circle(Vector2.ZERO, 11.0, Color("#315a79"))
+	draw_circle(Vector2.ZERO, 8.0, Color("#4f86a6"))
+
+	var facing_vector := get_facing_vector()
+	var side := facing_vector.orthogonal()
+	draw_colored_polygon(
+		PackedVector2Array([
+			facing_vector * 13.0,
+			facing_vector * 4.0 + side * 5.0,
+			facing_vector * 4.0 - side * 5.0,
+		]),
+		Color("#f3ddb2")
+	)
 
 
 func _exit_tree() -> void:
