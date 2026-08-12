@@ -1,0 +1,4 @@
+{
+	"display_name": "玩家",
+	"presentation_ref": "res://scenes/player.tscn"
+}
