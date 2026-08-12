@@ -1,9 +1,9 @@
 [gd_scene load_steps=5 format=4]
 
-[ext_resource type="Script" path="res://scripts/grid_scene.gd" id="1_rk08o"]
+[ext_resource type="Script" path="res://scripts/location/grid_scene.gd" id="1_rk08o"]
 [ext_resource type="TileSet" path="res://data/world_tileset.tres" id="2_uelwi"]
-[ext_resource type="Script" path="res://scripts/location_exit.gd" id="3_w21as"]
-[ext_resource type="Script" path="res://scripts/location_entry.gd" id="4_entry"]
+[ext_resource type="Script" path="res://scripts/location/location_exit.gd" id="3_w21as"]
+[ext_resource type="Script" path="res://scripts/location/location_entry.gd" id="4_entry"]
 
 [node name="TavernYard" type="Node2D" unique_id=1460247309]
 script = ExtResource("1_rk08o")

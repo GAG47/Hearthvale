@@ -1,9 +1,9 @@
 [gd_scene load_steps=5 format=4]
 
-[ext_resource type="Script" path="res://scripts/grid_scene.gd" id="1_m5bgc"]
+[ext_resource type="Script" path="res://scripts/location/grid_scene.gd" id="1_m5bgc"]
 [ext_resource type="TileSet" path="res://data/world_tileset.tres" id="2_eb842"]
-[ext_resource type="Script" path="res://scripts/location_exit.gd" id="3_pnaup"]
-[ext_resource type="Script" path="res://scripts/location_entry.gd" id="4_entry"]
+[ext_resource type="Script" path="res://scripts/location/location_exit.gd" id="3_pnaup"]
+[ext_resource type="Script" path="res://scripts/location/location_entry.gd" id="4_entry"]
 
 [node name="TownStreet" type="Node2D" unique_id=2145950684]
 script = ExtResource("1_m5bgc")

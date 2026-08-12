@@ -1,9 +1,9 @@
 [gd_scene load_steps=8 format=4]
 
-[ext_resource type="Script" path="res://scripts/grid_scene.gd" id="1_8dirj"]
+[ext_resource type="Script" path="res://scripts/location/grid_scene.gd" id="1_8dirj"]
 [ext_resource type="TileSet" path="res://data/world_tileset.tres" id="2_gwbas"]
-[ext_resource type="Script" path="res://scripts/location_exit.gd" id="3_yyr65"]
-[ext_resource type="Script" path="res://scripts/location_entry.gd" id="7_entry"]
+[ext_resource type="Script" path="res://scripts/location/location_exit.gd" id="3_yyr65"]
+[ext_resource type="Script" path="res://scripts/location/location_entry.gd" id="7_entry"]
 [ext_resource type="PackedScene" path="res://scenes/world_objects/chest.tscn" id="4_chest"]
 [ext_resource type="PackedScene" path="res://scenes/world_objects/sign.tscn" id="5_sign"]
 [ext_resource type="PackedScene" path="res://scenes/world_objects/bed.tscn" id="6_bed"]
