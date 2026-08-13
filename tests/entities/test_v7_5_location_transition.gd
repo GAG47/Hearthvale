@@ -44,13 +44,13 @@ func _run_tests() -> void:
 		return
 
 	var tavern := game.get("current_location") as GridScene
-	var tavern_presentation := controller.controlled_presentation
+	var tavern_representation := controller.controlled_representation
 	_expect(tavern != null and tavern.location_id == &"tavern", "Tavern must be current.")
 	_expect(
-		is_instance_valid(tavern_presentation),
-		"PlayerController must initially control Tavern ActorPresentation."
+		is_instance_valid(tavern_representation),
+		"PlayerController must initially control Tavern ActorRepresentation."
 	)
-	if tavern == null or not is_instance_valid(tavern_presentation):
+	if tavern == null or not is_instance_valid(tavern_representation):
 		game.queue_free()
 		await process_frame
 		_finish()
@@ -161,18 +161,18 @@ func _run_tests() -> void:
 		world_state,
 		player,
 		&"back_door",
-		"ActorPresentation visual preparation"
+		"ActorRepresentation visual preparation"
 	)
 	player.definition.visuals["right"] = original_right_visual
 
-	var playable_position := tavern_presentation.position
+	var playable_position := tavern_representation.position
 	Input.action_press(&"ui_left")
 	await physics_frame
 	await physics_frame
 	Input.action_release(&"ui_left")
 	await physics_frame
 	_expect(
-		tavern_presentation.position.x < playable_position.x,
+		tavern_representation.position.x < playable_position.x,
 		"The old Location must remain playable after Prepare failures."
 	)
 
@@ -182,10 +182,10 @@ func _run_tests() -> void:
 	_expect(openable_state != null, "Chest must keep its OpenableState.")
 	if openable_state != null:
 		openable_state.is_open = true
-	tavern_presentation.facing = ActorState.Facing.LEFT
-	tavern_presentation.sync_state_from_presentation()
+	tavern_representation.facing = ActorState.Facing.LEFT
+	tavern_representation.sync_state_from_representation()
 	var old_tavern := game.get("current_location") as GridScene
-	var old_tavern_presentation := controller.controlled_presentation
+	var old_tavern_representation := controller.controlled_representation
 	var yard_changed := _attempt_replace(
 		game,
 		&"tavern_yard",
@@ -195,28 +195,28 @@ func _run_tests() -> void:
 	_expect(yard_changed, "A fully prepared Tavern to Yard change must Commit.")
 	await process_frame
 	var yard := game.get("current_location") as GridScene
-	var yard_presentation := controller.controlled_presentation
+	var yard_representation := controller.controlled_representation
 	_expect(yard != null and yard.location_id == &"tavern_yard", "Commit must update current_location.")
 	_expect(player.current_location_id == &"tavern_yard", "Commit must migrate ActorState location.")
 	_expect(player.local_position == Vector2(384.0, 80.0), "Commit must use target Entry position.")
 	_expect(player.facing == ActorState.Facing.LEFT, "Commit must preserve ActorState facing.")
 	_expect(
-		is_instance_valid(yard_presentation)
-		and yard_presentation != old_tavern_presentation
+		is_instance_valid(yard_representation)
+		and yard_representation != old_tavern_representation
 		and controller.controlled_actor == player
-		and yard_presentation.actor == player,
-		"Commit must switch PlayerController to the prepared ActorPresentation."
+		and yard_representation.actor == player,
+		"Commit must switch PlayerController to the prepared ActorRepresentation."
 	)
 	_expect(not is_instance_valid(old_tavern), "Commit must release the old Location.")
-	_expect(not is_instance_valid(old_tavern_presentation), "Commit must release old Presentation.")
+	_expect(not is_instance_valid(old_tavern_representation), "Commit must release old Representation.")
 	_expect(
-		_get_actor_visual_path(yard_presentation) == player.definition.visuals["left"],
-		"Prepared ActorPresentation must preserve the four-direction visual."
+		_get_actor_visual_path(yard_representation) == player.definition.visuals["left"],
+		"Prepared ActorRepresentation must preserve the four-direction visual."
 	)
 	var camera := controller.get_node_or_null("Camera2D") as Camera2D
 	_expect(
-		controller.global_position == yard_presentation.global_position,
-		"Camera owner must follow the newly controlled ActorPresentation."
+		controller.global_position == yard_representation.global_position,
+		"Camera owner must follow the newly controlled ActorRepresentation."
 	)
 	_expect(
 		camera != null and camera.limit_right == 768 and camera.limit_bottom == 576,
@@ -234,13 +234,13 @@ func _run_tests() -> void:
 		"Leaving Tavern must preserve FurnitureState and BehaviorState objects."
 	)
 
-	var yard_start := yard_presentation.position
+	var yard_start := yard_representation.position
 	Input.action_press(&"ui_down")
 	await physics_frame
 	await physics_frame
 	Input.action_release(&"ui_down")
 	await physics_frame
-	_expect(yard_presentation.position.y > yard_start.y, "Movement must work after Commit.")
+	_expect(yard_representation.position.y > yard_start.y, "Movement must work after Commit.")
 
 	var tavern_edge := LocationEdgeDefinition.new(
 		&"tavern_door",
@@ -258,12 +258,12 @@ func _run_tests() -> void:
 		&"tavern",
 		&"tavern_yard",
 		tavern_edge,
-		"FurniturePresentation visual preparation"
+		"FurnitureRepresentation visual preparation"
 	)
 	openable_config["open_visual_ref"] = original_open_visual
 
 	var old_yard := game.get("current_location") as GridScene
-	var old_yard_presentation := controller.controlled_presentation
+	var old_yard_representation := controller.controlled_representation
 	var tavern_changed := _attempt_replace(
 		game,
 		&"tavern",
@@ -273,8 +273,8 @@ func _run_tests() -> void:
 	_expect(tavern_changed, "A fully prepared Yard to Tavern change must Commit.")
 	await process_frame
 	var returned_tavern := game.get("current_location") as GridScene
-	var returned_presentation := controller.controlled_presentation
-	var returned_chest_presentation := _find_furniture_presentation(
+	var returned_representation := controller.controlled_representation
+	var returned_chest_representation := _find_furniture_representation(
 		returned_tavern,
 		CHEST_ENTITY_ID
 	)
@@ -282,16 +282,16 @@ func _run_tests() -> void:
 	_expect(player.current_location_id == &"tavern", "Return Commit must migrate ActorState.")
 	_expect(player.local_position == Vector2(576.0, 432.0), "Return Commit must use back_door Entry.")
 	_expect(
-		is_instance_valid(returned_presentation)
-		and returned_presentation != old_yard_presentation,
-		"Return Commit must bind another prepared ActorPresentation."
+		is_instance_valid(returned_representation)
+		and returned_representation != old_yard_representation,
+		"Return Commit must bind another prepared ActorRepresentation."
 	)
 	_expect(not is_instance_valid(old_yard), "Return Commit must release Yard.")
-	_expect(not is_instance_valid(old_yard_presentation), "Return Commit must release Yard Presentation.")
+	_expect(not is_instance_valid(old_yard_representation), "Return Commit must release Yard Representation.")
 	_expect(
-		is_instance_valid(returned_chest_presentation)
-		and returned_chest_presentation.furniture == chest,
-		"Return Commit must activate prepared FurniturePresentation."
+		is_instance_valid(returned_chest_representation)
+		and returned_chest_representation.furniture == chest,
+		"Return Commit must activate prepared FurnitureRepresentation."
 	)
 	_expect(
 		chest.furniture_state == chest_state
@@ -301,21 +301,21 @@ func _run_tests() -> void:
 		"Returning to Tavern must keep the same opened OpenableState."
 	)
 	_expect(
-		_get_furniture_visual_path(returned_chest_presentation)
+		_get_furniture_visual_path(returned_chest_representation)
 		== "res://assets/furniture/chest_open.svg",
-		"Recreated Chest Presentation must restore the open visual."
+		"Recreated Chest Representation must restore the open visual."
 	)
 	_expect(
 		world_state.get_entity_states().size() == state_count,
 		"Location round trip must not reinitialize EntityState or BehaviorState."
 	)
-	returned_presentation.position = Vector2(432.0, 208.0)
-	returned_presentation.facing = ActorState.Facing.RIGHT
-	returned_presentation.sync_state_from_presentation()
+	returned_representation.position = Vector2(432.0, 208.0)
+	returned_representation.facing = ActorState.Facing.RIGHT
+	returned_representation.sync_state_from_representation()
 	var close_result := controller.request_interaction()
 	_expect(
 		close_result.success and close_result.action_id == &"close",
-		"Interaction must use the recreated FurniturePresentation index after Commit."
+		"Interaction must use the recreated FurnitureRepresentation index after Commit."
 	)
 	var reopen_result := controller.request_interaction()
 	_expect(
@@ -350,14 +350,14 @@ func _expect_prepare_failure(
 		% case_name
 	)
 	var old_location: GridScene = snapshot["current_location"]
-	var old_presentation: ActorPresentation = snapshot["controlled_presentation"]
+	var old_representation: ActorRepresentation = snapshot["controlled_representation"]
 	_expect(
 		is_instance_valid(old_location)
 		and old_location.is_inside_tree()
-		and is_instance_valid(old_presentation)
-		and old_presentation.is_inside_tree()
-		and old_presentation.is_in_group(&"player"),
-		"%s failure must keep the old Location and Player Presentation active."
+		and is_instance_valid(old_representation)
+		and old_representation.is_inside_tree()
+		and old_representation.is_in_group(&"player"),
+		"%s failure must keep the old Location and Player Representation active."
 		% case_name
 	)
 
@@ -387,13 +387,13 @@ func _expect_requested_prepare_failure(
 		% case_name
 	)
 	var old_location: GridScene = snapshot["current_location"]
-	var old_presentation: ActorPresentation = snapshot["controlled_presentation"]
+	var old_representation: ActorRepresentation = snapshot["controlled_representation"]
 	_expect(
 		is_instance_valid(old_location)
 		and old_location.is_inside_tree()
-		and is_instance_valid(old_presentation)
-		and old_presentation.is_inside_tree()
-		and old_presentation.is_in_group(&"player")
+		and is_instance_valid(old_representation)
+		and old_representation.is_inside_tree()
+		and old_representation.is_in_group(&"player")
 		and controller.is_physics_processing(),
 		"%s request failure must restore input processing and keep the old world playable."
 		% case_name
@@ -435,7 +435,7 @@ func _capture_world(
 	return {
 		"current_location": game.get("current_location"),
 		"controlled_actor": controller.controlled_actor,
-		"controlled_presentation": controller.controlled_presentation,
+		"controlled_representation": controller.controlled_representation,
 		"controller_processing": controller.is_physics_processing(),
 		"player_state": player.state,
 		"state_facts": state_facts,
@@ -474,29 +474,29 @@ func _remove_test_definition(
 	locations.erase(location_id)
 
 
-func _find_furniture_presentation(
+func _find_furniture_representation(
 	location: GridScene,
 	entity_id: StringName
-) -> FurniturePresentation:
+) -> FurnitureRepresentation:
 	if not is_instance_valid(location):
 		return null
 	for child in location.get_children():
-		if child is FurniturePresentation and (child as FurniturePresentation).entity_id == entity_id:
-			return child as FurniturePresentation
+		if child is FurnitureRepresentation and (child as FurnitureRepresentation).entity_id == entity_id:
+			return child as FurnitureRepresentation
 	return null
 
 
-func _get_actor_visual_path(presentation: ActorPresentation) -> String:
-	if not is_instance_valid(presentation):
+func _get_actor_visual_path(representation: ActorRepresentation) -> String:
+	if not is_instance_valid(representation):
 		return ""
-	var sprite := presentation.get_node_or_null("Sprite2D") as Sprite2D
+	var sprite := representation.get_node_or_null("Sprite2D") as Sprite2D
 	return sprite.texture.resource_path if sprite != null and sprite.texture != null else ""
 
 
-func _get_furniture_visual_path(presentation: FurniturePresentation) -> String:
-	if not is_instance_valid(presentation):
+func _get_furniture_visual_path(representation: FurnitureRepresentation) -> String:
+	if not is_instance_valid(representation):
 		return ""
-	var sprite := presentation.get_node_or_null("Sprite2D") as Sprite2D
+	var sprite := representation.get_node_or_null("Sprite2D") as Sprite2D
 	return sprite.texture.resource_path if sprite != null and sprite.texture != null else ""
 
 

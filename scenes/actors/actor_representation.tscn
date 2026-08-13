@@ -1,16 +1,16 @@
 [gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://scripts/actors/actor_presentation.gd" id="1_presentation"]
+[ext_resource type="Script" path="res://scripts/actors/actor_representation.gd" id="1_representation"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_actor"]
 radius = 10.0
 height = 22.0
 
-[node name="ActorPresentation" type="CharacterBody2D"]
+[node name="ActorRepresentation" type="CharacterBody2D"]
 z_index = 20
 collision_layer = 1
 collision_mask = 1
-script = ExtResource("1_presentation")
+script = ExtResource("1_representation")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 

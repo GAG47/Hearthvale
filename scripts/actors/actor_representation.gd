@@ -1,4 +1,4 @@
-class_name ActorPresentation
+class_name ActorRepresentation
 extends CharacterBody2D
 
 const VISUAL_DIRECTIONS: Array[String] = ["up", "down", "left", "right"]
@@ -27,11 +27,15 @@ var current_cell: Vector2i:
 	get:
 		if current_location == null:
 			return Vector2i.ZERO
-		var presentation_local_position := current_location.to_local(global_position)
+		var representation_local_position := current_location.to_local(global_position)
 		return Vector2i(
-			floori(presentation_local_position.x / GridScene.CELL_SIZE),
-			floori(presentation_local_position.y / GridScene.CELL_SIZE)
+			floori(representation_local_position.x / GridScene.CELL_SIZE),
+			floori(representation_local_position.y / GridScene.CELL_SIZE)
 		)
+
+
+func get_entity() -> Entity:
+	return actor
 
 
 func prepare_actor(
@@ -40,10 +44,10 @@ func prepare_actor(
 	target_local_position: Vector2
 ) -> bool:
 	if p_actor == null or location == null:
-		push_error("ActorPresentation preparation requires an Actor and target GridScene.")
+		push_error("ActorRepresentation preparation requires an Actor and target GridScene.")
 		return false
 	if p_actor.definition == null or p_actor.state == null:
-		push_error("ActorPresentation requires an ActorDefinition and ActorState.")
+		push_error("ActorRepresentation requires an ActorDefinition and ActorState.")
 		return false
 	if p_actor.definition.entity_id != p_actor.entity_id:
 		push_error(
@@ -53,11 +57,11 @@ func prepare_actor(
 		return false
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D
 	if sprite == null:
-		push_error("ActorPresentation requires a Sprite2D child.")
+		push_error("ActorRepresentation requires a Sprite2D child.")
 		return false
 	var collision := get_node_or_null("CollisionShape2D") as CollisionShape2D
 	if collision == null or collision.shape == null:
-		push_error("ActorPresentation requires CollisionShape2D with a Shape2D.")
+		push_error("ActorRepresentation requires CollisionShape2D with a Shape2D.")
 		return false
 	var loaded_visual_textures := _load_visual_textures(p_actor)
 	if loaded_visual_textures.size() != VISUAL_DIRECTIONS.size():
@@ -72,11 +76,11 @@ func prepare_actor(
 
 
 func finish_location_departure() -> void:
-	sync_state_from_presentation()
+	sync_state_from_representation()
 	current_location = null
 
 
-func sync_state_from_presentation() -> void:
+func sync_state_from_representation() -> void:
 	if actor == null or not is_instance_valid(current_location):
 		return
 	actor.state.current_location_id = current_location.location_id
@@ -157,4 +161,4 @@ func _get_facing_direction() -> String:
 
 
 func _exit_tree() -> void:
-	sync_state_from_presentation()
+	sync_state_from_representation()

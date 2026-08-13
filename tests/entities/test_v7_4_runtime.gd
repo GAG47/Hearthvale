@@ -3,9 +3,9 @@ extends SceneTree
 const MAIN_SCENE := preload("res://scenes/main.tscn")
 const PLAYER_DEFINITION_PATH := "res://data/actors/player.json"
 const MARTHA_DEFINITION_PATH := "res://data/actors/martha.json"
-const ACTOR_PRESENTATION_SCENE_PATH := "res://scenes/actors/actor_presentation.tscn"
-const FURNITURE_PRESENTATION_SCENE_PATH := (
-	"res://scenes/furniture/furniture_presentation.tscn"
+const ACTOR_REPRESENTATION_SCENE_PATH := "res://scenes/actors/actor_representation.tscn"
+const FURNITURE_REPRESENTATION_SCENE_PATH := (
+	"res://scenes/furniture/furniture_representation.tscn"
 )
 const CHEST_ENTITY_ID := &"5543caf7-2a10-4a40-84de-3a39ffdf670e"
 const SIGN_ENTITY_ID := &"1d67bbf9-edc2-4264-a861-8bd3e3e61e15"
@@ -144,47 +144,47 @@ func _run_tests() -> void:
 		"Each Furniture instance must own an independent OpenableState."
 	)
 
-	var presentation := controller.controlled_presentation
+	var representation := controller.controlled_representation
 	_expect(controller.controlled_actor == player, "PlayerController must control Player Actor.")
-	_expect(is_instance_valid(presentation), "PlayerController must bind ActorPresentation.")
-	if not is_instance_valid(presentation):
+	_expect(is_instance_valid(representation), "PlayerController must bind ActorRepresentation.")
+	if not is_instance_valid(representation):
 		game.queue_free()
 		await process_frame
 		_finish()
 		return
 
-	_expect(presentation.actor == player, "ActorPresentation must bind the logical Actor.")
+	_expect(representation.actor == player, "ActorRepresentation must bind the logical Actor.")
 	_expect(
-		presentation.scene_file_path == ACTOR_PRESENTATION_SCENE_PATH,
-		"Player must use the shared ActorPresentation Scene."
+		representation.scene_file_path == ACTOR_REPRESENTATION_SCENE_PATH,
+		"Player must use the shared ActorRepresentation Scene."
 	)
-	_expect(presentation.is_in_group(&"player"), "Controlled Presentation must carry player group.")
+	_expect(representation.is_in_group(&"player"), "Controlled Representation must carry player group.")
 	_expect(
-		presentation.get_node_or_null("CollisionShape2D") is CollisionShape2D,
-		"ActorPresentation collision must be preserved."
+		representation.get_node_or_null("CollisionShape2D") is CollisionShape2D,
+		"ActorRepresentation collision must be preserved."
 	)
 	_expect(
-		presentation.collision_layer == 1 and presentation.collision_mask == 1,
-		"ActorPresentation collision layer and mask must be preserved."
+		representation.collision_layer == 1 and representation.collision_mask == 1,
+		"ActorRepresentation collision layer and mask must be preserved."
 	)
-	_expect(presentation.get_node_or_null("Camera2D") == null, "Camera must remain outside ActorPresentation.")
+	_expect(representation.get_node_or_null("Camera2D") == null, "Camera must remain outside ActorRepresentation.")
 	_expect(
-		_get_actor_visual_path(presentation) == player_definition.visuals["down"],
+		_get_actor_visual_path(representation) == player_definition.visuals["down"],
 		"Player must initially display visuals.down."
 	)
 
 	var tavern := game.get("current_location") as GridScene
-	var initial_furniture_presentations := _get_furniture_presentations(tavern)
-	_expect(initial_furniture_presentations.size() == 3, "Tavern must spawn three FurniturePresentations.")
-	for furniture_presentation in initial_furniture_presentations:
+	var initial_furniture_representations := _get_furniture_representations(tavern)
+	_expect(initial_furniture_representations.size() == 3, "Tavern must spawn three FurnitureRepresentations.")
+	for furniture_representation in initial_furniture_representations:
 		_expect(
-			furniture_presentation.furniture is Furniture
-			and furniture_presentation.furniture is Entity,
-			"FurniturePresentation must bind an existing logical Furniture Entity."
+			furniture_representation.furniture is Furniture
+			and furniture_representation.furniture is Entity,
+			"FurnitureRepresentation must bind an existing logical Furniture Entity."
 		)
 		_expect(
-			furniture_presentation.scene_file_path == FURNITURE_PRESENTATION_SCENE_PATH,
-			"All Furniture must use the shared FurniturePresentation Scene."
+			furniture_representation.scene_file_path == FURNITURE_REPRESENTATION_SCENE_PATH,
+			"All Furniture must use the shared FurnitureRepresentation Scene."
 		)
 
 	var camera := controller.get_node_or_null("Camera2D") as Camera2D
@@ -198,34 +198,34 @@ func _run_tests() -> void:
 		_expect(camera.position_smoothing_enabled, "Camera smoothing must remain enabled.")
 		_expect(is_equal_approx(camera.position_smoothing_speed, 8.0), "Camera smoothing speed must remain 8.0.")
 
-	await _expect_input_facing_visual(presentation, &"ui_up", ActorState.Facing.UP, "up")
-	await _expect_input_facing_visual(presentation, &"ui_down", ActorState.Facing.DOWN, "down")
-	await _expect_input_facing_visual(presentation, &"ui_left", ActorState.Facing.LEFT, "left")
-	await _expect_input_facing_visual(presentation, &"ui_right", ActorState.Facing.RIGHT, "right")
-	presentation.facing = ActorState.Facing.DOWN
+	await _expect_input_facing_visual(representation, &"ui_up", ActorState.Facing.UP, "up")
+	await _expect_input_facing_visual(representation, &"ui_down", ActorState.Facing.DOWN, "down")
+	await _expect_input_facing_visual(representation, &"ui_left", ActorState.Facing.LEFT, "left")
+	await _expect_input_facing_visual(representation, &"ui_right", ActorState.Facing.RIGHT, "right")
+	representation.facing = ActorState.Facing.DOWN
 
-	var initial_position := presentation.position
+	var initial_position := representation.position
 	Input.action_press(&"ui_right")
 	await physics_frame
 	await physics_frame
 	Input.action_release(&"ui_right")
 	await physics_frame
-	_expect(presentation.position.x > initial_position.x, "PlayerController must apply movement input.")
-	_expect(presentation.facing == ActorState.Facing.RIGHT, "Movement must update ActorState.facing.")
-	_expect(player.local_position == presentation.position, "Movement must synchronize ActorState.local_position.")
+	_expect(representation.position.x > initial_position.x, "PlayerController must apply movement input.")
+	_expect(representation.facing == ActorState.Facing.RIGHT, "Movement must update ActorState.facing.")
+	_expect(player.local_position == representation.position, "Movement must synchronize ActorState.local_position.")
 
-	_place_actor(presentation, Vector2i(13, 6), ActorState.Facing.RIGHT)
-	var pre_collision_position := presentation.position
+	_place_actor(representation, Vector2i(13, 6), ActorState.Facing.RIGHT)
+	var pre_collision_position := representation.position
 	Input.action_press(&"ui_right")
 	await create_timer(0.3).timeout
 	Input.action_release(&"ui_right")
 	await physics_frame
-	_expect(presentation.position.x > pre_collision_position.x, "Player must approach blocking Furniture.")
-	_expect(presentation.position.x < 450.0, "ActorPresentation must collide with Chest FurniturePresentation.")
+	_expect(representation.position.x > pre_collision_position.x, "Player must approach blocking Furniture.")
+	_expect(representation.position.x < 450.0, "ActorRepresentation must collide with Chest FurnitureRepresentation.")
 
-	_test_interactions(controller, presentation, game, chest)
+	_test_interactions(controller, representation, game, chest)
 	var chest_state := chest.furniture_state
-	var old_chest_presentation := _find_furniture_presentation(tavern, CHEST_ENTITY_ID)
+	var old_chest_representation := _find_furniture_representation(tavern, CHEST_ENTITY_ID)
 	_expect(
 		chest_openable_state != null and chest_openable_state.is_open,
 		"Chest OpenableState must retain its opened state."
@@ -235,44 +235,44 @@ func _run_tests() -> void:
 		"Opening one Furniture instance must not modify another OpenableState."
 	)
 	_expect(
-		_get_furniture_visual_path(old_chest_presentation) == "res://assets/furniture/chest_open.svg",
-		"OpenableBehavior state changes must refresh FurniturePresentation."
+		_get_furniture_visual_path(old_chest_representation) == "res://assets/furniture/chest_open.svg",
+		"OpenableBehavior state changes must refresh FurnitureRepresentation."
 	)
 
-	var selected := _select_from(presentation, Vector2i(13, 6), ActorState.Facing.RIGHT)
+	var selected := _select_from(representation, Vector2i(13, 6), ActorState.Facing.RIGHT)
 	_expect(selected == chest, "InteractionTargetSelector must return the logical Furniture Entity.")
 	var selected_variant: Variant = selected
-	_expect(not selected_variant is Node, "InteractionTargetSelector must not return a Presentation Node.")
+	_expect(not selected_variant is Node, "InteractionTargetSelector must not return a Representation Node.")
 
-	var old_actor_presentation := presentation
+	var old_actor_representation := representation
 	game.call("request_location_change", &"back_door")
 	await _wait_for_transition(game)
 
-	var yard_presentation := controller.controlled_presentation
+	var yard_representation := controller.controlled_representation
 	_expect(player.current_location_id == &"tavern_yard", "Location change must update ActorState.")
 	_expect(
-		is_instance_valid(yard_presentation) and yard_presentation != old_actor_presentation,
-		"Location change must bind a new ActorPresentation."
+		is_instance_valid(yard_representation) and yard_representation != old_actor_representation,
+		"Location change must bind a new ActorRepresentation."
 	)
 	_expect(
-		controller.controlled_actor == player and yard_presentation.actor == player,
+		controller.controlled_actor == player and yard_representation.actor == player,
 		"Location change must keep the same logical Actor."
 	)
-	_expect(not is_instance_valid(old_actor_presentation), "Old ActorPresentation must be released.")
+	_expect(not is_instance_valid(old_actor_representation), "Old ActorRepresentation must be released.")
 	_expect(
-		_get_actor_visual_path(yard_presentation)
-		== _get_visual_path_for_facing(player_definition, yard_presentation.facing),
-		"A recreated ActorPresentation must restore ActorState.facing."
+		_get_actor_visual_path(yard_representation)
+		== _get_visual_path_for_facing(player_definition, yard_representation.facing),
+		"A recreated ActorRepresentation must restore ActorState.facing."
 	)
 	_expect(player.local_position == Vector2(384.0, 80.0), "ActorState must use the target entry position.")
-	_expect(controller.global_position == yard_presentation.global_position, "Camera owner must follow the new Presentation.")
+	_expect(controller.global_position == yard_representation.global_position, "Camera owner must follow the new Representation.")
 	if camera != null:
 		_expect(camera.limit_right == 768 and camera.limit_bottom == 576, "Camera bounds must update in Tavern Yard.")
 
 	var yard := game.get("current_location") as GridScene
-	_expect(_get_actor_presentations(yard).size() == 1, "Tavern Yard must contain only Player ActorPresentation.")
-	_expect(_get_furniture_presentations(yard).is_empty(), "Tavern FurniturePresentations must unload outside Tavern.")
-	_expect(not is_instance_valid(old_chest_presentation), "Old Chest FurniturePresentation must be released.")
+	_expect(_get_actor_representations(yard).size() == 1, "Tavern Yard must contain only Player ActorRepresentation.")
+	_expect(_get_furniture_representations(yard).is_empty(), "Tavern FurnitureRepresentations must unload outside Tavern.")
+	_expect(not is_instance_valid(old_chest_representation), "Old Chest FurnitureRepresentation must be released.")
 	_expect(registry.get_entity(CHEST_ENTITY_ID) == chest, "Chest Entity must survive Location unload.")
 	_expect(world_state.get_entity_state(CHEST_ENTITY_ID) == chest_state, "Chest State must survive Location unload without copying.")
 	_expect(
@@ -280,21 +280,21 @@ func _run_tests() -> void:
 		"Chest OpenableState must survive Location unload."
 	)
 
-	var yard_position := yard_presentation.position
+	var yard_position := yard_representation.position
 	Input.action_press(&"ui_down")
 	await physics_frame
 	await physics_frame
 	Input.action_release(&"ui_down")
 	await physics_frame
-	_expect(yard_presentation.position.y > yard_position.y, "Movement must continue after rebind.")
+	_expect(yard_representation.position.y > yard_position.y, "Movement must continue after rebind.")
 
 	game.call("request_location_change", &"tavern_door")
 	await _wait_for_transition(game)
 	var returned_tavern := game.get("current_location") as GridScene
-	var returned_chest_presentation := _find_furniture_presentation(returned_tavern, CHEST_ENTITY_ID)
+	var returned_chest_representation := _find_furniture_representation(returned_tavern, CHEST_ENTITY_ID)
 	_expect(player.current_location_id == &"tavern", "Player ActorState must return to Tavern.")
-	_expect(is_instance_valid(returned_chest_presentation), "Tavern reload must recreate Chest Presentation.")
-	_expect(returned_chest_presentation.furniture == chest, "Recreated Presentation must bind the same Chest Entity.")
+	_expect(is_instance_valid(returned_chest_representation), "Tavern reload must recreate Chest Representation.")
+	_expect(returned_chest_representation.furniture == chest, "Recreated Representation must bind the same Chest Entity.")
 	_expect(
 		chest.furniture_state == chest_state
 		and chest.get_openable_state() == chest_openable_state
@@ -303,8 +303,8 @@ func _run_tests() -> void:
 		"Recreated Chest must retain the same FurnitureState and OpenableState."
 	)
 	_expect(
-		_get_furniture_visual_path(returned_chest_presentation) == "res://assets/furniture/chest_open.svg",
-		"Recreated Chest Presentation must restore the open visual from FurnitureState."
+		_get_furniture_visual_path(returned_chest_representation) == "res://assets/furniture/chest_open.svg",
+		"Recreated Chest Representation must restore the open visual from FurnitureState."
 	)
 	_expect(registry.get_entities().size() == 4, "Location reload must not create duplicate Entities.")
 	_expect(world_state.get_entity_states().size() == 4, "Location reload must not create duplicate States.")
@@ -336,18 +336,18 @@ func _expect_furniture(
 
 func _test_interactions(
 	controller: PlayerController,
-	presentation: ActorPresentation,
+	representation: ActorRepresentation,
 	game: Node,
 	chest: Furniture
 ) -> void:
-	_place_actor(presentation, Vector2i(12, 7), ActorState.Facing.RIGHT)
+	_place_actor(representation, Vector2i(12, 7), ActorState.Facing.RIGHT)
 	var sign_result := controller.request_interaction()
 	_expect(sign_result.success and sign_result.action_id == &"inspect", "Sign inspect must use WorldAction.")
 	_expect(sign_result.message == "今日麦酒三铜币。", "Sign inspect result must remain unchanged.")
 	_expect(_last_action_result == sign_result, "PlayerController must emit Sign ActionResult.")
 	_expect(game.get_node("HUD/ActionResultLabel").text == sign_result.message, "HUD must receive ActionResult.")
 
-	_place_actor(presentation, Vector2i(13, 6), ActorState.Facing.RIGHT)
+	_place_actor(representation, Vector2i(13, 6), ActorState.Facing.RIGHT)
 	var open_result := controller.request_interaction()
 	_expect(open_result.success and open_result.action_id == &"open", "Chest open must use OpenableBehavior.")
 	_expect(open_result.message == "储物箱打开了。", "Open feedback must use display_name.")
@@ -361,7 +361,7 @@ func _test_interactions(
 	var reopen_result := controller.request_interaction()
 	_expect(reopen_result.success and reopen_result.action_id == &"open", "Closed Chest must offer open again.")
 
-	_place_actor(presentation, Vector2i(19, 3), ActorState.Facing.RIGHT)
+	_place_actor(representation, Vector2i(19, 3), ActorState.Facing.RIGHT)
 	var bed_result := controller.request_interaction()
 	_expect(bed_result.success and bed_result.action_id == &"sleep", "Bed sleep must use SleepableBehavior.")
 	_expect(bed_result.message == "你睡到了第二天 08:00。", "Bed sleep result must remain unchanged.")
@@ -369,68 +369,68 @@ func _test_interactions(
 
 
 func _select_from(
-	presentation: ActorPresentation,
+	representation: ActorRepresentation,
 	cell: Vector2i,
 	facing: ActorState.Facing
 ) -> Entity:
-	_place_actor(presentation, cell, facing)
-	return InteractionTargetSelector.select_target(presentation)
+	_place_actor(representation, cell, facing)
+	return InteractionTargetSelector.select_target(representation)
 
 
 func _place_actor(
-	presentation: ActorPresentation,
+	representation: ActorRepresentation,
 	cell: Vector2i,
 	facing: ActorState.Facing
 ) -> void:
-	presentation.position = Vector2(cell * GridScene.CELL_SIZE) + Vector2.ONE * 16.0
-	presentation.facing = facing
-	presentation.sync_state_from_presentation()
+	representation.position = Vector2(cell * GridScene.CELL_SIZE) + Vector2.ONE * 16.0
+	representation.facing = facing
+	representation.sync_state_from_representation()
 
 
-func _get_actor_presentations(location: GridScene) -> Array[ActorPresentation]:
-	var presentations: Array[ActorPresentation] = []
+func _get_actor_representations(location: GridScene) -> Array[ActorRepresentation]:
+	var representations: Array[ActorRepresentation] = []
 	if not is_instance_valid(location):
-		return presentations
+		return representations
 	for child in location.get_children():
-		if child is ActorPresentation:
-			presentations.append(child as ActorPresentation)
-	return presentations
+		if child is ActorRepresentation:
+			representations.append(child as ActorRepresentation)
+	return representations
 
 
-func _get_furniture_presentations(location: GridScene) -> Array[FurniturePresentation]:
-	var presentations: Array[FurniturePresentation] = []
+func _get_furniture_representations(location: GridScene) -> Array[FurnitureRepresentation]:
+	var representations: Array[FurnitureRepresentation] = []
 	if not is_instance_valid(location):
-		return presentations
+		return representations
 	for child in location.get_children():
-		if child is FurniturePresentation:
-			presentations.append(child as FurniturePresentation)
-	return presentations
+		if child is FurnitureRepresentation:
+			representations.append(child as FurnitureRepresentation)
+	return representations
 
 
-func _find_furniture_presentation(
+func _find_furniture_representation(
 	location: GridScene,
 	entity_id: StringName
-) -> FurniturePresentation:
-	for presentation in _get_furniture_presentations(location):
-		if presentation.entity_id == entity_id:
-			return presentation
+) -> FurnitureRepresentation:
+	for representation in _get_furniture_representations(location):
+		if representation.entity_id == entity_id:
+			return representation
 	return null
 
 
-func _get_actor_visual_path(presentation: ActorPresentation) -> String:
-	var sprite := presentation.get_node_or_null("Sprite2D") as Sprite2D
+func _get_actor_visual_path(representation: ActorRepresentation) -> String:
+	var sprite := representation.get_node_or_null("Sprite2D") as Sprite2D
 	return sprite.texture.resource_path if sprite != null and sprite.texture != null else ""
 
 
-func _get_furniture_visual_path(presentation: FurniturePresentation) -> String:
-	if not is_instance_valid(presentation):
+func _get_furniture_visual_path(representation: FurnitureRepresentation) -> String:
+	if not is_instance_valid(representation):
 		return ""
-	var sprite := presentation.get_node_or_null("Sprite2D") as Sprite2D
+	var sprite := representation.get_node_or_null("Sprite2D") as Sprite2D
 	return sprite.texture.resource_path if sprite != null and sprite.texture != null else ""
 
 
 func _expect_input_facing_visual(
-	presentation: ActorPresentation,
+	representation: ActorRepresentation,
 	input_action: StringName,
 	expected_facing: ActorState.Facing,
 	expected_direction: String
@@ -439,9 +439,9 @@ func _expect_input_facing_visual(
 	await physics_frame
 	Input.action_release(input_action)
 	_expect(
-		presentation.facing == expected_facing
-		and _get_actor_visual_path(presentation)
-		== presentation.actor.definition.visuals[expected_direction],
+		representation.facing == expected_facing
+		and _get_actor_visual_path(representation)
+		== representation.actor.definition.visuals[expected_direction],
 		"Input '%s' must set facing %s and immediately select visuals.%s."
 		% [input_action, expected_facing, expected_direction]
 	)

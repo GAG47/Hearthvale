@@ -1,14 +1,14 @@
 [gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://scripts/furniture/furniture_presentation.gd" id="1_presentation"]
+[ext_resource type="Script" path="res://scripts/furniture/furniture_representation.gd" id="1_representation"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_furniture"]
 resource_local_to_scene = true
 size = Vector2(28, 28)
 
-[node name="FurniturePresentation" type="Node2D"]
+[node name="FurnitureRepresentation" type="Node2D"]
 z_index = 5
-script = ExtResource("1_presentation")
+script = ExtResource("1_representation")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture_filter = 1

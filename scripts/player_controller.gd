@@ -8,75 +8,82 @@ signal action_completed(result: ActionResult)
 @onready var camera: Camera2D = $Camera2D
 
 var controlled_actor: Actor
-var controlled_presentation: ActorPresentation
+var controlled_representation: ActorRepresentation
 
 
 func _physics_process(_delta: float) -> void:
-	if controlled_actor == null or not is_instance_valid(controlled_presentation):
+	if controlled_actor == null or not is_instance_valid(controlled_representation):
 		return
 
 	if Input.is_action_just_pressed(&"interact"):
 		request_interaction()
 
 	var input_direction := _get_input_direction()
-	controlled_presentation.velocity = input_direction * move_speed
+	controlled_representation.velocity = input_direction * move_speed
 	if not input_direction.is_zero_approx():
 		_update_facing(input_direction)
 
-	controlled_presentation.move_and_slide()
-	controlled_presentation.sync_state_from_presentation()
+	controlled_representation.move_and_slide()
+	controlled_representation.sync_state_from_representation()
 	_sync_camera_position()
 
 
-func take_control(actor: Actor, presentation: ActorPresentation) -> bool:
-	if not can_take_control(actor, presentation):
+func take_control(actor: Actor, representation: Node) -> bool:
+	if not can_take_control(actor, representation):
 		return false
-	release_controlled_presentation()
-	_assign_control(actor, presentation)
+	release_controlled_representation()
+	_assign_control(actor, representation as ActorRepresentation)
 	return true
 
 
-func can_take_control(actor: Actor, presentation: ActorPresentation) -> bool:
-	if actor == null or not is_instance_valid(presentation):
-		push_error("PlayerController requires an Actor and ActorPresentation.")
+func can_take_control(actor: Actor, representation: Node) -> bool:
+	if actor == null or not is_instance_valid(representation) or not representation is ActorRepresentation:
+		push_error("PlayerController requires an Actor and ActorRepresentation.")
 		return false
-	if presentation.actor != actor:
+	var actor_representation := representation as ActorRepresentation
+	if actor_representation.get_entity() != actor:
 		push_error(
-			"PlayerController cannot bind Actor '%s' to a Presentation for Actor '%s'."
-			% [actor.entity_id, presentation.entity_id]
+			"PlayerController cannot bind Actor '%s' to a Representation for Actor '%s'."
+			% [actor.entity_id, actor_representation.entity_id]
 		)
 		return false
 	return true
 
 
-func activate_prepared_control(actor: Actor, presentation: ActorPresentation) -> void:
-	_release_controlled_presentation(false)
-	_assign_control(actor, presentation)
+func activate_prepared_control(actor: Actor, representation: Node) -> void:
+	var actor_representation := representation as ActorRepresentation
+	_release_controlled_representation(false)
+	_assign_control(actor, actor_representation)
 
 
-func release_controlled_presentation() -> void:
-	_release_controlled_presentation(true)
+func finish_controlled_location_departure() -> void:
+	if is_instance_valid(controlled_representation):
+		controlled_representation.finish_location_departure()
 
 
-func _release_controlled_presentation(sync_state: bool) -> void:
-	if is_instance_valid(controlled_presentation):
-		controlled_presentation.velocity = Vector2.ZERO
+func release_controlled_representation() -> void:
+	_release_controlled_representation(true)
+
+
+func _release_controlled_representation(sync_state: bool) -> void:
+	if is_instance_valid(controlled_representation):
+		controlled_representation.velocity = Vector2.ZERO
 		if sync_state:
-			controlled_presentation.sync_state_from_presentation()
-		controlled_presentation.remove_from_group(&"player")
-	controlled_presentation = null
+			controlled_representation.sync_state_from_representation()
+		controlled_representation.remove_from_group(&"player")
+	controlled_representation = null
 
 
-func _assign_control(actor: Actor, presentation: ActorPresentation) -> void:
+func _assign_control(actor: Actor, representation: ActorRepresentation) -> void:
 	controlled_actor = actor
-	controlled_presentation = presentation
-	controlled_presentation.add_to_group(&"player")
+	controlled_representation = representation
+	controlled_representation.add_to_group(&"player")
 	_sync_camera_position(true)
 
 
 func stop() -> void:
-	if is_instance_valid(controlled_presentation):
-		controlled_presentation.velocity = Vector2.ZERO
+	if is_instance_valid(controlled_representation):
+		controlled_representation.velocity = Vector2.ZERO
 
 
 func set_camera_bounds(bounds: Rect2) -> void:
@@ -88,18 +95,18 @@ func set_camera_bounds(bounds: Rect2) -> void:
 
 
 func request_interaction() -> ActionResult:
-	if controlled_actor == null or not is_instance_valid(controlled_presentation):
+	if controlled_actor == null or not is_instance_valid(controlled_representation):
 		var unavailable_result := ActionResult.failed(
 			&"interact",
 			&"",
 			"当前没有可控制的角色表现。",
-			&"controlled_presentation_unavailable"
+			&"controlled_representation_unavailable"
 		)
 		action_completed.emit(unavailable_result)
 		return unavailable_result
 
-	controlled_presentation.sync_state_from_presentation()
-	var target := InteractionTargetSelector.select_target(controlled_presentation)
+	controlled_representation.sync_state_from_representation()
+	var target := InteractionTargetSelector.select_target(controlled_representation)
 	if target == null:
 		var no_target_result := ActionResult.failed(&"interact", &"", "前方没有可交互的对象。")
 		action_completed.emit(no_target_result)
@@ -141,7 +148,7 @@ func _get_input_direction() -> Vector2:
 
 
 func _update_facing(direction: Vector2) -> void:
-	var next_facing := controlled_presentation.facing
+	var next_facing := controlled_representation.facing
 	if absf(direction.x) > absf(direction.y):
 		next_facing = (
 			ActorState.Facing.RIGHT if direction.x > 0.0 else ActorState.Facing.LEFT
@@ -151,14 +158,14 @@ func _update_facing(direction: Vector2) -> void:
 			ActorState.Facing.DOWN if direction.y > 0.0 else ActorState.Facing.UP
 		)
 
-	if next_facing != controlled_presentation.facing:
-		controlled_presentation.facing = next_facing
+	if next_facing != controlled_representation.facing:
+		controlled_representation.facing = next_facing
 
 
 func _sync_camera_position(reset_smoothing := false) -> void:
-	if not is_instance_valid(controlled_presentation):
+	if not is_instance_valid(controlled_representation):
 		return
-	global_position = controlled_presentation.global_position
+	global_position = controlled_representation.global_position
 	if reset_smoothing:
 		reset_physics_interpolation()
 		camera.reset_smoothing()

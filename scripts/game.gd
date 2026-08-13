@@ -4,12 +4,6 @@ const PLAYER_DEFINITION_PATH := "res://data/actors/player.json"
 const PLAYER_INITIAL_LOCATION_ID := &"tavern"
 const PLAYER_INITIAL_LOCAL_POSITION := Vector2(384.0, 256.0)
 const PLAYER_INITIAL_FACING := ActorState.Facing.DOWN
-const ACTOR_PRESENTATION_SCENE := preload(
-	"res://scenes/actors/actor_presentation.tscn"
-)
-const FURNITURE_PRESENTATION_SCENE := preload(
-	"res://scenes/furniture/furniture_presentation.tscn"
-)
 const FURNITURE_INSTANCES: Array[Dictionary] = [
 	{
 		"entity_id": &"5543caf7-2a10-4a40-84de-3a39ffdf670e",
@@ -34,6 +28,7 @@ const FURNITURE_INSTANCES: Array[Dictionary] = [
 var current_location: GridScene
 var transition_in_progress := false
 var controlled_actor_id := &""
+var representation_registry := EntityRepresentationRegistry.create_default()
 
 @onready var world_root: Node2D = $WorldRoot
 @onready var player_controller: PlayerController = $PlayerController
@@ -86,7 +81,7 @@ func request_location_change(edge_key: StringName) -> void:
 	if (
 		transition_in_progress
 		or current_location == null
-		or not is_instance_valid(player_controller.controlled_presentation)
+		or not is_instance_valid(player_controller.controlled_representation)
 		or edge_key.is_empty()
 	):
 		return
@@ -159,7 +154,7 @@ func _perform_location_change(
 	edge: LocationEdgeDefinition
 ) -> void:
 	var changed := _replace_location(edge.to_location, from_location_id, edge)
-	if is_instance_valid(player_controller.controlled_presentation):
+	if is_instance_valid(player_controller.controlled_representation):
 		player_controller.set_physics_process(true)
 
 	if not changed:
@@ -234,47 +229,42 @@ func _prepare_location_change(
 	var target_entities := entity_registry.get_entities_in_location(location_id)
 	if not target_entities.has(moving_actor):
 		target_entities.append(moving_actor)
-	var prepared_player_presentation: ActorPresentation
+	var prepared_player_representation: Node
 	for entity in target_entities:
-		if entity is Actor:
-			var actor := entity as Actor
-			var actor_position := spawn_position if actor == moving_actor else actor.local_position
-			var actor_presentation := _prepare_actor_presentation(
-				actor,
-				next_location,
-				actor_position
-			)
-			if actor_presentation == null:
+		var factory := representation_registry.get_factory(entity)
+		if factory == null:
+			next_location.free()
+			return {}
+		var target_local_position := (
+			spawn_position if entity == moving_actor else entity.local_position
+		)
+		var representation := factory.prepare(
+			entity,
+			next_location,
+			target_local_position
+		)
+		if representation == null:
+			next_location.free()
+			return {}
+		next_location.add_child(representation)
+		if entity.entity_id == controlled_actor_id:
+			if prepared_player_representation != null:
+				push_error(
+					"Location '%s' prepared more than one controlled Representation."
+					% location_id
+				)
 				next_location.free()
 				return {}
-			next_location.add_child(actor_presentation)
-			if actor.entity_id == controlled_actor_id:
-				if prepared_player_presentation != null:
-					push_error(
-						"Location '%s' prepared more than one controlled ActorPresentation."
-						% location_id
-					)
-					next_location.free()
-					return {}
-				prepared_player_presentation = actor_presentation
-		elif entity is Furniture:
-			var furniture_presentation := _prepare_furniture_presentation(
-				entity as Furniture,
-				next_location
-			)
-			if furniture_presentation == null:
-				next_location.free()
-				return {}
-			next_location.add_child(furniture_presentation)
+			prepared_player_representation = representation
 
-	if prepared_player_presentation == null:
+	if prepared_player_representation == null:
 		push_error(
-			"Location '%s' could not prepare the controlled ActorPresentation."
+			"Location '%s' could not prepare the controlled Representation."
 			% location_id
 		)
 		next_location.free()
 		return {}
-	if not player_controller.can_take_control(moving_actor, prepared_player_presentation):
+	if not player_controller.can_take_control(moving_actor, prepared_player_representation):
 		next_location.free()
 		return {}
 
@@ -283,7 +273,7 @@ func _prepare_location_change(
 		"location": next_location,
 		"moving_actor": moving_actor,
 		"spawn_position": spawn_position,
-		"player_presentation": prepared_player_presentation,
+		"player_representation": prepared_player_representation,
 	}
 
 
@@ -292,17 +282,15 @@ func _commit_location_change(prepared_change: Dictionary) -> void:
 	var next_location: GridScene = prepared_change["location"]
 	var moving_actor: Actor = prepared_change["moving_actor"]
 	var spawn_position: Vector2 = prepared_change["spawn_position"]
-	var next_player_presentation: ActorPresentation = prepared_change["player_presentation"]
+	var next_player_representation: Node = prepared_change["player_representation"]
 	var previous_location := current_location
-	var previous_player_presentation := player_controller.controlled_presentation
 
-	if is_instance_valid(previous_player_presentation):
-		previous_player_presentation.finish_location_departure()
+	player_controller.finish_controlled_location_departure()
 	moving_actor.state.current_location_id = next_location.location_id
 	moving_actor.state.local_position = spawn_position
 
 	world_root.add_child(next_location)
-	player_controller.activate_prepared_control(moving_actor, next_player_presentation)
+	player_controller.activate_prepared_control(moving_actor, next_player_representation)
 	current_location = next_location
 	player_controller.set_camera_bounds(current_location.get_world_rect())
 	location_label.text = definition.display_name
@@ -311,43 +299,6 @@ func _commit_location_change(prepared_change: Dictionary) -> void:
 	if is_instance_valid(previous_location):
 		world_root.remove_child(previous_location)
 		previous_location.queue_free()
-
-
-func _prepare_actor_presentation(
-	actor: Actor,
-	target_location: GridScene,
-	target_local_position: Vector2
-) -> ActorPresentation:
-	var scene_instance := ACTOR_PRESENTATION_SCENE.instantiate()
-	var presentation := scene_instance as ActorPresentation
-	if presentation == null:
-		push_error("The shared ActorPresentation Scene did not instantiate correctly.")
-		if is_instance_valid(scene_instance):
-			scene_instance.free()
-		return null
-	if not presentation.prepare_actor(actor, target_location, target_local_position):
-		presentation.free()
-		return null
-	presentation.name = "Actor_%s" % String(actor.entity_id).substr(0, 8)
-	return presentation
-
-
-func _prepare_furniture_presentation(
-	furniture: Furniture,
-	target_location: GridScene
-) -> FurniturePresentation:
-	var scene_instance := FURNITURE_PRESENTATION_SCENE.instantiate()
-	var presentation := scene_instance as FurniturePresentation
-	if presentation == null:
-		push_error("The shared FurniturePresentation Scene did not instantiate correctly.")
-		if is_instance_valid(scene_instance):
-			scene_instance.free()
-		return null
-	if not presentation.prepare_furniture(furniture, target_location):
-		presentation.free()
-		return null
-	presentation.name = "Furniture_%s" % String(furniture.entity_id).substr(0, 8)
-	return presentation
 
 
 func _on_player_action_completed(result: ActionResult) -> void:

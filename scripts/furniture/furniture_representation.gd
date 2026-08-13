@@ -1,4 +1,4 @@
-class_name FurniturePresentation
+class_name FurnitureRepresentation
 extends Node2D
 
 var furniture: Furniture
@@ -9,35 +9,43 @@ var entity_id: StringName:
 		return furniture.entity_id if furniture != null else &""
 
 
-func prepare_furniture(p_furniture: Furniture, location: GridScene) -> bool:
+func get_entity() -> Entity:
+	return furniture
+
+
+func prepare_furniture(
+	p_furniture: Furniture,
+	location: GridScene,
+	target_local_position: Vector2
+) -> bool:
 	if p_furniture == null or location == null:
-		push_error("FurniturePresentation preparation requires Furniture and target GridScene.")
+		push_error("FurnitureRepresentation preparation requires Furniture and target GridScene.")
 		return false
 	if p_furniture.definition == null or p_furniture.state == null:
-		push_error("FurniturePresentation requires FurnitureDefinition and FurnitureState.")
+		push_error("FurnitureRepresentation requires FurnitureDefinition and FurnitureState.")
 		return false
 	if (
 		p_furniture.definition.occupied_cells.x <= 0
 		or p_furniture.definition.occupied_cells.y <= 0
 	):
-		push_error("FurniturePresentation requires positive occupied_cells in its Definition.")
+		push_error("FurnitureRepresentation requires positive occupied_cells in its Definition.")
 		return false
 	if p_furniture.current_location_id != location.location_id:
 		push_error(
-			"Furniture '%s' belongs to Location '%s', but its presentation was requested in '%s'."
+			"Furniture '%s' belongs to Location '%s', but its representation was requested in '%s'."
 			% [p_furniture.entity_id, p_furniture.current_location_id, location.location_id]
 		)
 		return false
 
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D
 	if sprite == null:
-		push_error("FurniturePresentation requires a Sprite2D child.")
+		push_error("FurnitureRepresentation requires a Sprite2D child.")
 		return false
 	var blocking_body := get_node_or_null("BlockingBody") as StaticBody2D
 	var collision := get_node_or_null("BlockingBody/CollisionShape2D") as CollisionShape2D
 	if blocking_body == null or collision == null or not collision.shape is RectangleShape2D:
 		push_error(
-			"FurniturePresentation requires BlockingBody/CollisionShape2D with RectangleShape2D."
+			"FurnitureRepresentation requires BlockingBody/CollisionShape2D with RectangleShape2D."
 		)
 		return false
 	var visual_texture := _load_visual_texture(p_furniture)
@@ -46,7 +54,7 @@ func prepare_furniture(p_furniture: Furniture, location: GridScene) -> bool:
 
 	furniture = p_furniture
 	current_location = location
-	position = furniture.local_position
+	position = target_local_position
 	_configure_blocking_collision(blocking_body, collision)
 	sprite.texture = visual_texture
 	furniture.state_changed.connect(_on_furniture_state_changed)
@@ -57,7 +65,7 @@ func get_occupied_grid_cells() -> Array[Vector2i]:
 	return furniture.get_occupied_grid_cells() if furniture != null else []
 
 
-func sync_state_from_presentation() -> void:
+func sync_state_from_representation() -> void:
 	if furniture == null or not is_instance_valid(current_location):
 		return
 	furniture.state.current_location_id = current_location.location_id
@@ -66,13 +74,13 @@ func sync_state_from_presentation() -> void:
 
 func _ready() -> void:
 	if furniture != null and is_instance_valid(current_location):
-		current_location.register_furniture_presentation(self)
+		current_location.register_furniture_representation(self)
 
 
 func _exit_tree() -> void:
 	if is_instance_valid(current_location):
-		current_location.unregister_furniture_presentation(self)
-	sync_state_from_presentation()
+		current_location.unregister_furniture_representation(self)
+	sync_state_from_representation()
 
 
 func _configure_blocking_collision(
@@ -93,7 +101,7 @@ func _configure_blocking_collision(
 func _update_visual() -> bool:
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D
 	if sprite == null:
-		push_error("FurniturePresentation requires a Sprite2D child.")
+		push_error("FurnitureRepresentation requires a Sprite2D child.")
 		return false
 	var visual_texture := _load_visual_texture(furniture)
 	if visual_texture == null:

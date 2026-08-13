@@ -8,7 +8,7 @@ const CELL_SIZE := 32
 	set(value):
 		grid_size = value.max(Vector2i.ONE)
 
-var _furniture_presentations_by_cell: Dictionary = {}
+var _furniture_representations_by_cell: Dictionary = {}
 var world_identity_registered := false
 var world_state: WorldStateRuntime
 var world_definition: WorldDefinitionRuntime
@@ -86,34 +86,34 @@ func get_location_entry(entry_id: StringName) -> LocationEntry:
 	return null
 
 
-func register_furniture_presentation(presentation: FurniturePresentation) -> void:
-	if not is_instance_valid(presentation):
+func register_furniture_representation(representation: FurnitureRepresentation) -> void:
+	if not is_instance_valid(representation):
 		return
-	if presentation.current_location != self:
-		push_error("GridScene can only register FurniturePresentations bound to this Location.")
+	if representation.current_location != self:
+		push_error("GridScene can only register FurnitureRepresentations bound to this Location.")
 		return
 
-	for cell in presentation.get_occupied_grid_cells():
-		var presentations: Array[FurniturePresentation]
-		if _furniture_presentations_by_cell.has(cell):
-			presentations = _furniture_presentations_by_cell[cell]
+	for cell in representation.get_occupied_grid_cells():
+		var representations: Array[FurnitureRepresentation]
+		if _furniture_representations_by_cell.has(cell):
+			representations = _furniture_representations_by_cell[cell]
 		else:
-			presentations = []
-			_furniture_presentations_by_cell[cell] = presentations
-		if not presentations.has(presentation):
-			presentations.append(presentation)
+			representations = []
+			_furniture_representations_by_cell[cell] = representations
+		if not representations.has(representation):
+			representations.append(representation)
 
 
-func unregister_furniture_presentation(presentation: FurniturePresentation) -> void:
-	for cell in _furniture_presentations_by_cell.keys():
-		var presentations: Array[FurniturePresentation] = _furniture_presentations_by_cell[cell]
-		presentations.erase(presentation)
-		if presentations.is_empty():
-			_furniture_presentations_by_cell.erase(cell)
+func unregister_furniture_representation(representation: FurnitureRepresentation) -> void:
+	for cell in _furniture_representations_by_cell.keys():
+		var representations: Array[FurnitureRepresentation] = _furniture_representations_by_cell[cell]
+		representations.erase(representation)
+		if representations.is_empty():
+			_furniture_representations_by_cell.erase(cell)
 
 
-func get_furniture_presentations_at(cell: Vector2i) -> Array[FurniturePresentation]:
-	if not _furniture_presentations_by_cell.has(cell):
+func get_furniture_representations_at(cell: Vector2i) -> Array[FurnitureRepresentation]:
+	if not _furniture_representations_by_cell.has(cell):
 		return []
-	var presentations: Array[FurniturePresentation] = _furniture_presentations_by_cell[cell]
-	return presentations.duplicate()
+	var representations: Array[FurnitureRepresentation] = _furniture_representations_by_cell[cell]
+	return representations.duplicate()
