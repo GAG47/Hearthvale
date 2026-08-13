@@ -21,7 +21,7 @@ FurnitureState
 
 BehaviorState 是轻量状态基类，OpenableState 保存每个具体 Furniture 实例自己的 `is_open`。FurnitureState 不再直接包含该字段；SleepableBehavior 与 InspectableBehavior 没有独立动态事实，因此没有空 State 类型。
 
-Furniture 创建逻辑 Behavior 时，为 Definition 中的 openable 能力绑定或初始化 OpenableState。WorldState 仍持有同一个 FurnitureState，Location 卸载只释放 Representation；重新进入时同一 Furniture、FurnitureState 和 OpenableState 被重新表现，开启状态不会丢失。
+Furniture 创建逻辑 Behavior 时，为 Definition 中的 openable 能力绑定或初始化 OpenableState。WorldState 仍持有同一个 FurnitureState，Location 卸载只释放 Presentation；重新进入时同一 Furniture、FurnitureState 和 OpenableState 被重新表现，开启状态不会丢失。
 
 ## 通用反馈
 

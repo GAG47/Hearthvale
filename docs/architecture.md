@@ -16,7 +16,7 @@
 | Actors | 表达世界中的行动主体，包括玩家和 NPC | 因主体身份不同而擅自改写世界规则、直接宣布行动结果成立 |
 | World Simulation | 推进时间，驱动并组织非玩家直接触发的世界变化 | 代替所有游戏规则、任意写入未经验证的世界结果、承担画面表现 |
 | Content / AI | 提供开放性、语义性、创造性内容与决策建议 | 拥有规则权威、直接确定或修改世界事实 |
-| Representation | 承担 Godot 中玩家实际看到和操作的场景、画面、UI、输入及其他表现 | 成为世界事实的唯一来源、在表现层自行决定游戏规则结果 |
+| UI / 表现层 | 承担 Godot 中玩家实际看到和操作的场景、画面、UI、输入及其他表现 | 成为世界事实的唯一来源、在表现层自行决定游戏规则结果 |
 
 ## 领域之间的基本关系
 
@@ -26,7 +26,7 @@
 
 ```text
 变化来源
-  ├─ 玩家通过 Representation 表达操作意图
+  ├─ 玩家通过 UI / 输入层表达操作意图
   ├─ NPC 作为 Actor 作出行动决定
   ├─ World Simulation 推动时间与世界变化
   └─ Content / AI 提供内容或决策建议
@@ -39,7 +39,7 @@ World Rules 验证并确定规则结果
           ↓
 World State 记录新的世界事实
           ↓
-Representation 呈现世界状态与结果
+UI / 表现层呈现世界状态与结果
 ```
 
 这是一条职责关系，不是对调用顺序、代码依赖或 API 形式的预先规定。
@@ -184,7 +184,7 @@ WorldState 持有 WorldTimeState，使它与其他运行时世界事实一样跨
 
 时间服务在推进后通知总分钟变化，并分别报告跨过的分钟、绝对小时边界和绝对天边界。一次大跨度推进只需一次通知即可携带变化前后范围与跨越数量，未来消费者能够据此处理所有跨界，不必假定每次只增加一分钟。当前不在时间系统中预建事件调度器或 NPC 日程系统。
 
-睡眠仍沿用正式 Action 链：公共空间规则和 SleepableBehavior 通过后，请求 WorldTime 推进到下一天 08:00；日期进位与跨月、跨年计算由时间服务负责。Furniture 不保存另一份日期，也不直接写 WorldTimeState。HUD 属于 Representation，只订阅时间变化并读取派生值进行显示，不拥有或修改世界时间。
+睡眠仍沿用正式 Action 链：公共空间规则和 SleepableBehavior 通过后，请求 WorldTime 推进到下一天 08:00；日期进位与跨月、跨年计算由时间服务负责。Furniture 不保存另一份日期，也不直接写 WorldTimeState。HUD 属于 UI / 表现层，只订阅时间变化并读取派生值进行显示，不拥有或修改世界时间。
 
 ## Actor、Furniture、Behavior 与表现
 
@@ -225,7 +225,7 @@ Representation 根据逻辑状态更新当前表现
   ↓
 ActionResult（success / failure、消息与失败代码）
   ↓
-Representation 显示结果
+HUD / UI 显示 ActionResult
 ```
 
 公共空间规则属于 WorldAction 执行链，依赖逻辑 EntityState 验证 Actor 与 Entity 目标有效、属于同一个 Location，并且目标占据 Actor 当前格或 facing 相邻格；通过后，WorldAction 只调用 Entity 的 `check_action()` 与 `apply_action()`。Entity 默认拒绝，Furniture override 后委派 Behavior；WorldAction 不认识 Furniture 或任何其他目标子类。Scene / Physics 只参与目标命中，Action 不操作 FurnitureRepresentation。即使未来 NPC、AI 或其他系统绕过玩家 Selector 直接创建 WorldAction，非法空间行为也不能修改目标状态。
@@ -254,7 +254,7 @@ AI 的输出即使被接受，也必须通过与该行为相适应的规则和�
 
 ## Representation 与逻辑世界
 
-PlayerController 负责把玩家输入转化为可供游戏处理的意图；Representation 负责把 Entity、世界状态和行为结果呈现为 Godot 场景、画面、UI、声音及反馈。当前已经实现 ActorRepresentation 与 FurnitureRepresentation，它们不共享公共 Node 基类，各自保留适合自身空间职责的 Godot Node 类型。
+PlayerController 负责把玩家输入转化为可供游戏处理的意图；Representation 负责把 Entity 及其状态映射为当前加载 Scene 中的临时空间 Node，包括对应的视觉、碰撞和空间关系。UI、HUD、声音及其他反馈属于更广义的 UI / 表现层，不等同于 Representation。当前已经实现 ActorRepresentation 与 FurnitureRepresentation，它们不共享公共 Node 基类，各自保留适合自身空间职责的 Godot Node 类型。
 
 Representation 可以维护表现所需的临时状态，但永远只是 Entity 在当前加载 Scene 中的表现，不能把画面上看似发生的事情直接当作已经成立的世界事实。逻辑世界也不应依赖某个特定界面或验证场景才能成立。
 
