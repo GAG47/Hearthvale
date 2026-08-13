@@ -146,6 +146,40 @@ WorldState 与 Runtime Entity 持有同一个 EntityState 对象，不复制两�
 
 EntityRegistry 以 UUID v4 `entity_id` 统一管理当前 Runtime Entity，提供注册、按 ID 查询、稳定遍历与按 Location 查询。登记只检查 Entity 的共同条件：Entity 与 EntityState 存在、UUID 合法且双方 ID 一致；Registry 不认识 Actor、Furniture 或其他具体子类。它不加载 Definition，不创建 Entity、State 或 Representation，也不执行 Action。Location 加载及临时世界内容初始化仍由当前 Game 流程完成。
 
+### Entity Lifecycle / Baking
+
+人工固定世界内容遵循完整生命周期：
+
+```text
+Location Scene
+  ↓
+EntityPlacement
+  ↓ 开发阶段 Baking
+EntityBakerRegistry → 唯一 EntityBaker
+  ↓
+Initial Entity Data
+  ↓ New World 当前启动流程
+EntityFactoryRegistry → 唯一 EntityFactory
+  ↓
+Entity + EntityState
+  ↓ 注册
+EntityRegistry + WorldState
+  ↓ Location 加载
+Entity Representation System
+  ↓
+Representation
+```
+
+EntityPlacement 是只供制作阶段使用的 Authoring Data，不是 Entity、EntityState 或 Representation。ActorPlacement 与 FurniturePlacement 只保存 Definition 路径及初始摆放数据，位置直接来自 Node2D.position，Location ID 在 Baking 时由所属 LocationDefinition / GridScene 确定。Placement 不保存 UUID、BehaviorState 或运行时 Entity 引用；正常 Location 激活前会从场景树移除，不能参与 Action、Interaction、Collision、EntityRegistry、WorldState 或 Representation 创建。
+
+Baking 是明确执行的开发阶段转换，不发生在 New World 或 Location 加载期间。Bake Initial World 从 WorldDefinition 的正式 LocationDefinition 目录枚举 Scene，按 Location ID 和 Scene 中稳定顺序收集 Placement，经 EntityBakerRegistry 找到唯一 Baker，再输出 `data/world/initial_entities.json`。EntityBaker 是 RefCounted，只把 Placement 转换成可序列化 Initial Entity Data，不生成 UUID，也不创建 Entity、EntityState 或 Representation。零匹配和多匹配都会使整体 Baking 失败；所有数据验证成功后才替换输出文件。
+
+Initial Entity Data 当前以 `schema_version` 和 `entities` 记录新世界所需的创建数据。每条数据明确保存 `entity_type`、`definition_path`、`location_id`、`local_position`，Actor 另存 `initial_facing`；它不保存运行时 UUID，也不根据 Node、Scene 或 Definition 文件名猜类型。
+
+EntityFactory 是运行时统一创建入口，负责把 Initial Entity Data 或未来程序生成的同格式创建数据转换为 Entity + EntityState。ActorEntityFactory 与 FurnitureEntityFactory 分别加载 Definition、生成永久 UUID，并创建对应 State 和 Entity；Furniture 继续通过现有 Furniture 构造逻辑初始化 Behavior / BehaviorState。EntityFactory 不创建或持有 Representation。Game 只通过 EntityFactoryRegistry 按明确 `entity_type` 找到唯一 Factory，再使用 WorldState 与 EntityRegistry 的通用接口注册结果，不按 Actor / Furniture 类型分支注册。
+
+人工固定内容经过 Placement → Baking → Initial Entity Data；未来程序或 AI 生成内容可以直接产生 Entity 创建数据。两种来源统一进入 EntityFactory，之后使用相同的 EntityState、注册和 Representation 流程。Placement 只影响新世界初始数据；一旦 EntityState 已建立，Location 重载必须从 State 恢复位置和行为状态，不能重新读取 Placement。当前 Player 初始化仍属于独立的 Session 启动职责，没有迁入 Placement Baking。
+
 ### Entity Representation System
 
 Representation 是 Entity 在当前加载 Scene 中的临时空间表现。Entity 的逻辑存在不依赖 Representation；Location 加载或卸载可以创建、销毁和重建 Representation，而不删除或替换 Entity、EntityState 与 WorldState 中的权威事实。依赖方向只能从 Representation 层指向 Entity：Entity 不创建、持有或指定自己的 Representation，也不知道 PackedScene、Sprite、Collision 或 Scene Node 的创建方式。

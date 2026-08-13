@@ -7,9 +7,6 @@ const ACTOR_REPRESENTATION_SCENE_PATH := "res://scenes/actors/actor_representati
 const FURNITURE_REPRESENTATION_SCENE_PATH := (
 	"res://scenes/furniture/furniture_representation.tscn"
 )
-const CHEST_ENTITY_ID := &"5543caf7-2a10-4a40-84de-3a39ffdf670e"
-const SIGN_ENTITY_ID := &"1d67bbf9-edc2-4264-a861-8bd3e3e61e15"
-const BED_ENTITY_ID := &"a6ae5842-8c6d-4df2-9b80-a271b5496716"
 const SECOND_CHEST_ENTITY_ID := &"44444444-4444-4444-8444-444444444444"
 
 var _checks := 0
@@ -107,9 +104,9 @@ func _run_tests() -> void:
 	_expect(registry.get_entities().size() == 4, "Player and three Furniture Entities must exist.")
 	_expect(world_state.get_entity_states().size() == 4, "WorldState must hold four EntityStates.")
 
-	var chest := _expect_furniture(registry, world_state, CHEST_ENTITY_ID, &"wooden_chest")
-	var sign := _expect_furniture(registry, world_state, SIGN_ENTITY_ID, &"sign")
-	var bed := _expect_furniture(registry, world_state, BED_ENTITY_ID, &"simple_bed")
+	var chest := _expect_furniture(registry, world_state, &"wooden_chest")
+	var sign := _expect_furniture(registry, world_state, &"sign")
+	var bed := _expect_furniture(registry, world_state, &"simple_bed")
 	if chest == null or sign == null or bed == null:
 		game.queue_free()
 		await process_frame
@@ -225,7 +222,7 @@ func _run_tests() -> void:
 
 	_test_interactions(controller, representation, game, chest)
 	var chest_state := chest.furniture_state
-	var old_chest_representation := _find_furniture_representation(tavern, CHEST_ENTITY_ID)
+	var old_chest_representation := _find_furniture_representation(tavern, chest.entity_id)
 	_expect(
 		chest_openable_state != null and chest_openable_state.is_open,
 		"Chest OpenableState must retain its opened state."
@@ -273,8 +270,8 @@ func _run_tests() -> void:
 	_expect(_get_actor_representations(yard).size() == 1, "Tavern Yard must contain only Player ActorRepresentation.")
 	_expect(_get_furniture_representations(yard).is_empty(), "Tavern FurnitureRepresentations must unload outside Tavern.")
 	_expect(not is_instance_valid(old_chest_representation), "Old Chest FurnitureRepresentation must be released.")
-	_expect(registry.get_entity(CHEST_ENTITY_ID) == chest, "Chest Entity must survive Location unload.")
-	_expect(world_state.get_entity_state(CHEST_ENTITY_ID) == chest_state, "Chest State must survive Location unload without copying.")
+	_expect(registry.get_entity(chest.entity_id) == chest, "Chest Entity must survive Location unload.")
+	_expect(world_state.get_entity_state(chest.entity_id) == chest_state, "Chest State must survive Location unload without copying.")
 	_expect(
 		chest_openable_state != null and chest_openable_state.is_open,
 		"Chest OpenableState must survive Location unload."
@@ -291,7 +288,7 @@ func _run_tests() -> void:
 	game.call("request_location_change", &"tavern_door")
 	await _wait_for_transition(game)
 	var returned_tavern := game.get("current_location") as GridScene
-	var returned_chest_representation := _find_furniture_representation(returned_tavern, CHEST_ENTITY_ID)
+	var returned_chest_representation := _find_furniture_representation(returned_tavern, chest.entity_id)
 	_expect(player.current_location_id == &"tavern", "Player ActorState must return to Tavern.")
 	_expect(is_instance_valid(returned_chest_representation), "Tavern reload must recreate Chest Representation.")
 	_expect(returned_chest_representation.furniture == chest, "Recreated Representation must bind the same Chest Entity.")
@@ -317,21 +314,30 @@ func _run_tests() -> void:
 func _expect_furniture(
 	registry: EntityRegistryRuntime,
 	world_state: WorldStateRuntime,
-	entity_id: StringName,
 	expected_definition_id: StringName
 ) -> Furniture:
-	var furniture := registry.get_entity(entity_id) as Furniture
-	_expect(furniture != null, "Furniture '%s' must be registered." % entity_id)
+	var furniture := _find_furniture_by_definition(registry, expected_definition_id)
+	_expect(furniture != null, "Furniture '%s' must be registered." % expected_definition_id)
 	if furniture == null:
 		return null
 	_expect(furniture is Entity, "Furniture must extend Entity.")
 	_expect(furniture.state is FurnitureState, "Furniture must hold FurnitureState.")
 	_expect(furniture.definition.definition_id == expected_definition_id, "Furniture must use its data Definition.")
 	_expect(
-		world_state.get_entity_state(entity_id) == furniture.state,
+		world_state.get_entity_state(furniture.entity_id) == furniture.state,
 		"WorldState and Furniture must hold the same EntityState object."
 	)
 	return furniture
+
+
+func _find_furniture_by_definition(
+	registry: EntityRegistryRuntime,
+	definition_id: StringName
+) -> Furniture:
+	for entity in registry.get_entities():
+		if entity is Furniture and (entity as Furniture).definition.definition_id == definition_id:
+			return entity as Furniture
+	return null
 
 
 func _test_interactions(

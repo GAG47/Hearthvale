@@ -2,7 +2,6 @@ extends SceneTree
 
 const MAIN_SCENE := preload("res://scenes/main.tscn")
 const PLAYER_ENTITY_ID := &"5e05b833-0645-4c13-8713-4c8767a7efe3"
-const CHEST_ENTITY_ID := &"5543caf7-2a10-4a40-84de-3a39ffdf670e"
 const MISSING_SCENE_LOCATION_ID := &"v7_5_missing_scene"
 const WRONG_ROOT_LOCATION_ID := &"v7_5_wrong_root"
 const MISMATCHED_LOCATION_ID := &"v7_5_mismatched_location"
@@ -33,7 +32,7 @@ func _run_tests() -> void:
 
 	var controller := game.get_node_or_null("PlayerController") as PlayerController
 	var player := registry.get_entity(PLAYER_ENTITY_ID) as Actor
-	var chest := registry.get_entity(CHEST_ENTITY_ID) as Furniture
+	var chest := _find_furniture_by_definition(registry, &"wooden_chest")
 	_expect(controller != null, "Game must contain PlayerController.")
 	_expect(player != null, "Game must register the Player Actor.")
 	_expect(chest != null, "Game must register the Chest Furniture.")
@@ -276,7 +275,7 @@ func _run_tests() -> void:
 	var returned_representation := controller.controlled_representation
 	var returned_chest_representation := _find_furniture_representation(
 		returned_tavern,
-		CHEST_ENTITY_ID
+		chest.entity_id
 	)
 	_expect(returned_tavern != null and returned_tavern.location_id == &"tavern", "Return Commit must update current_location.")
 	_expect(player.current_location_id == &"tavern", "Return Commit must migrate ActorState.")
@@ -483,6 +482,16 @@ func _find_furniture_representation(
 	for child in location.get_children():
 		if child is FurnitureRepresentation and (child as FurnitureRepresentation).entity_id == entity_id:
 			return child as FurnitureRepresentation
+	return null
+
+
+func _find_furniture_by_definition(
+	registry: EntityRegistryRuntime,
+	definition_id: StringName
+) -> Furniture:
+	for entity in registry.get_entities():
+		if entity is Furniture and (entity as Furniture).definition.definition_id == definition_id:
+			return entity as Furniture
 	return null
 
 

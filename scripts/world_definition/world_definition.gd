@@ -35,6 +35,15 @@ func get_location(location_id: StringName) -> LocationDefinition:
 	return _locations[location_id]
 
 
+func get_locations() -> Array[LocationDefinition]:
+	var definitions: Array[LocationDefinition] = []
+	var location_ids := _locations.keys()
+	location_ids.sort()
+	for location_id in location_ids:
+		definitions.append(_locations[location_id])
+	return definitions
+
+
 func get_scene_path(location_id: StringName) -> String:
 	var definition := get_location(location_id)
 	return definition.scene_path if definition != null else ""

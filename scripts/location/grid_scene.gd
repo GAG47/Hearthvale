@@ -16,6 +16,7 @@ var _activation_prepared := false
 
 
 func _enter_tree() -> void:
+	_remove_entity_placements(self)
 	if _activation_prepared:
 		world_state.activate_prepared_location(self)
 		world_identity_registered = true
@@ -52,10 +53,19 @@ func prepare_activation(
 	if not p_world_state.can_register_location(self):
 		return false
 
+	_remove_entity_placements(self)
 	world_definition = p_world_definition
 	world_state = p_world_state
 	_activation_prepared = true
 	return true
+
+
+func _remove_entity_placements(node: Node) -> void:
+	for child in node.get_children():
+		if child is EntityPlacement:
+			child.free()
+			continue
+		_remove_entity_placements(child)
 
 
 func _exit_tree() -> void:

@@ -4,31 +4,13 @@ const PLAYER_DEFINITION_PATH := "res://data/actors/player.json"
 const PLAYER_INITIAL_LOCATION_ID := &"tavern"
 const PLAYER_INITIAL_LOCAL_POSITION := Vector2(384.0, 256.0)
 const PLAYER_INITIAL_FACING := ActorState.Facing.DOWN
-const FURNITURE_INSTANCES: Array[Dictionary] = [
-	{
-		"entity_id": &"5543caf7-2a10-4a40-84de-3a39ffdf670e",
-		"definition_path": "res://data/furniture/wooden_chest.json",
-		"location_id": &"tavern",
-		"local_position": Vector2(464.0, 208.0),
-	},
-	{
-		"entity_id": &"1d67bbf9-edc2-4264-a861-8bd3e3e61e15",
-		"definition_path": "res://data/furniture/sign.json",
-		"location_id": &"tavern",
-		"local_position": Vector2(432.0, 240.0),
-	},
-	{
-		"entity_id": &"a6ae5842-8c6d-4df2-9b80-a271b5496716",
-		"definition_path": "res://data/furniture/simple_bed.json",
-		"location_id": &"tavern",
-		"local_position": Vector2(656.0, 128.0),
-	},
-]
+const INITIAL_ENTITY_DATA_PATH := "res://data/world/initial_entities.json"
 
 var current_location: GridScene
 var transition_in_progress := false
 var controlled_actor_id := &""
 var representation_registry := EntityRepresentationRegistry.create_default()
+var entity_factory_registry := EntityFactoryRegistry.create_default()
 
 @onready var world_root: Node2D = $WorldRoot
 @onready var player_controller: PlayerController = $PlayerController
@@ -69,7 +51,7 @@ func _ready() -> void:
 		push_error("EntityRegistry Autoload is required before loading Game.")
 		return
 
-	if not _initialize_furniture_entities():
+	if not _initialize_world_entities():
 		return
 	var controlled_actor := _initialize_player_actor()
 	if controlled_actor == null:
@@ -127,24 +109,34 @@ func _initialize_player_actor() -> Actor:
 	return actor
 
 
-func _initialize_furniture_entities() -> bool:
-	for instance_data in FURNITURE_INSTANCES:
-		var definition_path: String = instance_data["definition_path"]
-		var definition := FurnitureDefinitionLoader.load_from_file(definition_path)
-		if definition == null:
-			push_error("Game could not load FurnitureDefinition '%s'." % definition_path)
+func _initialize_world_entities() -> bool:
+	var loaded_data: Variant = InitialEntityDataLoader.load_from_file(INITIAL_ENTITY_DATA_PATH)
+	if not loaded_data is Array:
+		push_error("Game could not load Initial Entity Data.")
+		return false
+	var initial_entities: Array = loaded_data
+	for entity_data_value: Variant in initial_entities:
+		var entity_data: Dictionary = entity_data_value
+		var location_id := StringName(entity_data["location_id"] as String)
+		if not world_definition.has_location(location_id):
+			push_error(
+				"Initial Entity Data references unknown location_id '%s'."
+				% location_id
+			)
 			return false
-		var state := FurnitureState.new(
-			instance_data["entity_id"],
-			instance_data["location_id"],
-			instance_data["local_position"]
-		)
-		if not world_state.register_entity_state(state):
-			push_error("Game could not register FurnitureState '%s'." % state.entity_id)
+		var entity_type := StringName(entity_data["entity_type"] as String)
+		var factory := entity_factory_registry.get_factory(entity_type)
+		if factory == null:
 			return false
-		var furniture := Furniture.new(definition, state)
-		if not entity_registry.register_entity(furniture):
-			push_error("Game could not register Furniture '%s'." % state.entity_id)
+		var entity := factory.create(entity_data)
+		if entity == null:
+			push_error("Game could not create initial Entity type '%s'." % entity_type)
+			return false
+		if not world_state.register_entity_state(entity.state):
+			push_error("Game could not register EntityState '%s'." % entity.entity_id)
+			return false
+		if not entity_registry.register_entity(entity):
+			push_error("Game could not register Entity '%s'." % entity.entity_id)
 			return false
 	return true
 
