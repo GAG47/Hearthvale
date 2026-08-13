@@ -83,18 +83,27 @@ GridScene 继续声明自己的 `location_id` 并负责具体格子空间、入�
   ↓
 WorldDefinition 查询有向边
   ↓
-取得 to_location + to_entry
-  ↓
-WorldDefinition 查询目标 scene_path
-  ↓
-实例化并验证目标 GridScene.location_id
-  ↓
-按 entry_id 定位目标 LocationEntry
-  ↓
-卸载当前 Location，进入目标 Location 的实际落点
+Prepare
+  ├─ 查询目标 LocationDefinition，加载并实例化目标 Scene
+  ├─ 验证 GridScene 身份、来源、出口和目标 LocationEntry
+  ├─ 计算迁移 Actor 的目标落点
+  ├─ 确认目标 Location 中需要表现的 Entity
+  └─ 创建并验证 ActorPresentation / FurniturePresentation
+          ↓ 全部成功
+Commit
+  ├─ 同步旧 ActorPresentation 的最后位置
+  ├─ 修改迁移 ActorState 的 Location 与位置
+  ├─ 激活已经准备好的目标 Location 与 Presentation
+  ├─ PlayerController 换绑新的 ActorPresentation
+  ├─ 更新 current_location
+  └─ 释放旧 Location
 ```
 
-目标 Scene 会在当前 Location 卸载前完成身份、出口和目标 Entry 验证，错误定义不会用半完成的切换替换当前场景。WorldDefinition 初始化校验 Location ID、Scene 资源、局部 edge key、目标 Location 和非空 Entry 标识，并加载全部 Location Scene 做静态图与实际场景的一致性验证。Scene 实例化后双向检查 LocationExit 与 outgoing edge：Scene 中每个 Exit 必须引用已定义边，Definition 中每条边也必须有实际 Exit；同时检查 Scene 身份、Scene 来源、Entry 唯一性，以及每条边的 `to_entry` 在目标 Location Scene 中真实存在。错误信息携带相应的 Location、edge、目标 Location 和 Entry，便于定位静态世界定义。
+Location 切换采用 Prepare → Commit。Prepare 允许创建临时目标 Location 与 Presentation，但不修改正式 WorldState 或 EntityState，不释放当前 Player Presentation，不改变 PlayerController 控制对象、`current_location` 或旧 Location。Actor 四向视觉、家具视觉与碰撞结构、目标玩家表现等所有正常可能失败的准备检查也在这一阶段完成。任何 Prepare 失败只释放本次临时内容，旧 Location、WorldState 与控制关系从未被修改，因此不需要 rollback。
+
+只有 Prepare 全部成功才进入 Commit。Commit 使用已经验证和加载的内容完成正式 State 迁移与表现换绑，不再加载 Scene 或视觉资源，也不再查找 Entry 或执行 Presentation 结构验证。Location 切换只重建 Presentation，不重新创建 Entity、EntityState 或 BehaviorState。
+
+WorldDefinition 初始化继续校验 Location ID、Scene 资源、局部 edge key、目标 Location 和非空 Entry 标识，并加载全部 Location Scene 做静态图与实际场景的一致性验证。Scene 实例化后双向检查 LocationExit 与 outgoing edge：Scene 中每个 Exit 必须引用已定义边，Definition 中每条边也必须有实际 Exit；同时检查 Scene 身份、Scene 来源、Entry 唯一性，以及每条边的 `to_entry` 在目标 Location Scene 中真实存在。错误信息携带相应的 Location、edge、目标 Location 和 Entry，便于定位静态世界定义。
 
 Location Graph 当前只表达静态空间拓扑。NPC 路线、日程、离屏模拟、旅行时间、距离、道路封锁、天气影响、事件改路和世界地图 UI 尚未实现；未来系统可以查询该图，但不应把这些未确定职责提前塞入边定义。
 

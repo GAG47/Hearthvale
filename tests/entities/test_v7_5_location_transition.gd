@@ -1,0 +1,520 @@
+extends SceneTree
+
+const MAIN_SCENE := preload("res://scenes/main.tscn")
+const PLAYER_ENTITY_ID := &"5e05b833-0645-4c13-8713-4c8767a7efe3"
+const CHEST_ENTITY_ID := &"5543caf7-2a10-4a40-84de-3a39ffdf670e"
+const MISSING_SCENE_LOCATION_ID := &"v7_5_missing_scene"
+const WRONG_ROOT_LOCATION_ID := &"v7_5_wrong_root"
+const MISMATCHED_LOCATION_ID := &"v7_5_mismatched_location"
+
+var _checks := 0
+var _failures := 0
+
+
+func _init() -> void:
+	call_deferred("_run_tests")
+
+
+func _run_tests() -> void:
+	var world_definition := root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
+	var world_state := root.get_node_or_null("WorldState") as WorldStateRuntime
+	var registry := root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
+	_expect(world_definition != null, "WorldDefinition Autoload must exist.")
+	_expect(world_state != null, "WorldState Autoload must exist.")
+	_expect(registry != null, "EntityRegistry Autoload must exist.")
+	if world_definition == null or world_state == null or registry == null:
+		_finish()
+		return
+
+	var game := MAIN_SCENE.instantiate()
+	root.add_child(game)
+	await process_frame
+	await physics_frame
+
+	var controller := game.get_node_or_null("PlayerController") as PlayerController
+	var player := registry.get_entity(PLAYER_ENTITY_ID) as Actor
+	var chest := registry.get_entity(CHEST_ENTITY_ID) as Furniture
+	_expect(controller != null, "Game must contain PlayerController.")
+	_expect(player != null, "Game must register the Player Actor.")
+	_expect(chest != null, "Game must register the Chest Furniture.")
+	if controller == null or player == null or chest == null:
+		game.queue_free()
+		await process_frame
+		_finish()
+		return
+
+	var tavern := game.get("current_location") as GridScene
+	var tavern_presentation := controller.controlled_presentation
+	_expect(tavern != null and tavern.location_id == &"tavern", "Tavern must be current.")
+	_expect(
+		is_instance_valid(tavern_presentation),
+		"PlayerController must initially control Tavern ActorPresentation."
+	)
+	if tavern == null or not is_instance_valid(tavern_presentation):
+		game.queue_free()
+		await process_frame
+		_finish()
+		return
+
+	var missing_definition_edge := LocationEdgeDefinition.new(
+		&"test_missing_definition",
+		&"v7_5_missing_definition",
+		&"entry"
+	)
+	_expect_prepare_failure(
+		game,
+		controller,
+		world_state,
+		player,
+		missing_definition_edge.to_location,
+		&"tavern",
+		missing_definition_edge,
+		"missing LocationDefinition"
+	)
+
+	_add_test_definition(
+		world_definition,
+		LocationDefinition.new(
+			MISSING_SCENE_LOCATION_ID,
+			"Missing Scene",
+			"res://tests/entities/fixtures/locations/does_not_exist.tscn"
+		)
+	)
+	_expect_prepare_failure(
+		game,
+		controller,
+		world_state,
+		player,
+		MISSING_SCENE_LOCATION_ID,
+		&"tavern",
+		null,
+		"unloadable target Scene"
+	)
+	_remove_test_definition(world_definition, MISSING_SCENE_LOCATION_ID)
+
+	_add_test_definition(
+		world_definition,
+		LocationDefinition.new(
+			WRONG_ROOT_LOCATION_ID,
+			"Wrong Root",
+			"res://scenes/main.tscn"
+		)
+	)
+	_expect_prepare_failure(
+		game,
+		controller,
+		world_state,
+		player,
+		WRONG_ROOT_LOCATION_ID,
+		&"tavern",
+		null,
+		"target Scene that does not instantiate as GridScene"
+	)
+	_remove_test_definition(world_definition, WRONG_ROOT_LOCATION_ID)
+
+	_add_test_definition(
+		world_definition,
+		LocationDefinition.new(
+			MISMATCHED_LOCATION_ID,
+			"Mismatched Location",
+			"res://scenes/tavern_yard.tscn"
+		)
+	)
+	_expect_prepare_failure(
+		game,
+		controller,
+		world_state,
+		player,
+		MISMATCHED_LOCATION_ID,
+		&"tavern",
+		null,
+		"Scene location_id mismatch"
+	)
+	_remove_test_definition(world_definition, MISMATCHED_LOCATION_ID)
+
+	var missing_entry_edge := LocationEdgeDefinition.new(
+		&"test_missing_entry",
+		&"tavern_yard",
+		&"does_not_exist"
+	)
+	_expect_prepare_failure(
+		game,
+		controller,
+		world_state,
+		player,
+		&"tavern_yard",
+		&"tavern",
+		missing_entry_edge,
+		"missing target Entry"
+	)
+
+	var yard_edge := LocationEdgeDefinition.new(
+		&"back_door",
+		&"tavern_yard",
+		&"tavern_entrance"
+	)
+	var original_right_visual: String = player.definition.visuals["right"]
+	player.definition.visuals["right"] = "res://assets/actors/does_not_exist.svg"
+	await _expect_requested_prepare_failure(
+		game,
+		controller,
+		world_state,
+		player,
+		&"back_door",
+		"ActorPresentation visual preparation"
+	)
+	player.definition.visuals["right"] = original_right_visual
+
+	var playable_position := tavern_presentation.position
+	Input.action_press(&"ui_left")
+	await physics_frame
+	await physics_frame
+	Input.action_release(&"ui_left")
+	await physics_frame
+	_expect(
+		tavern_presentation.position.x < playable_position.x,
+		"The old Location must remain playable after Prepare failures."
+	)
+
+	var state_count := world_state.get_entity_states().size()
+	var chest_state := chest.furniture_state
+	var openable_state := chest.get_openable_state()
+	_expect(openable_state != null, "Chest must keep its OpenableState.")
+	if openable_state != null:
+		openable_state.is_open = true
+	tavern_presentation.facing = ActorState.Facing.LEFT
+	tavern_presentation.sync_state_from_presentation()
+	var old_tavern := game.get("current_location") as GridScene
+	var old_tavern_presentation := controller.controlled_presentation
+	var yard_changed := _attempt_replace(
+		game,
+		&"tavern_yard",
+		&"tavern",
+		yard_edge
+	)
+	_expect(yard_changed, "A fully prepared Tavern to Yard change must Commit.")
+	await process_frame
+	var yard := game.get("current_location") as GridScene
+	var yard_presentation := controller.controlled_presentation
+	_expect(yard != null and yard.location_id == &"tavern_yard", "Commit must update current_location.")
+	_expect(player.current_location_id == &"tavern_yard", "Commit must migrate ActorState location.")
+	_expect(player.local_position == Vector2(384.0, 80.0), "Commit must use target Entry position.")
+	_expect(player.facing == ActorState.Facing.LEFT, "Commit must preserve ActorState facing.")
+	_expect(
+		is_instance_valid(yard_presentation)
+		and yard_presentation != old_tavern_presentation
+		and controller.controlled_actor == player
+		and yard_presentation.actor == player,
+		"Commit must switch PlayerController to the prepared ActorPresentation."
+	)
+	_expect(not is_instance_valid(old_tavern), "Commit must release the old Location.")
+	_expect(not is_instance_valid(old_tavern_presentation), "Commit must release old Presentation.")
+	_expect(
+		_get_actor_visual_path(yard_presentation) == player.definition.visuals["left"],
+		"Prepared ActorPresentation must preserve the four-direction visual."
+	)
+	var camera := controller.get_node_or_null("Camera2D") as Camera2D
+	_expect(
+		controller.global_position == yard_presentation.global_position,
+		"Camera owner must follow the newly controlled ActorPresentation."
+	)
+	_expect(
+		camera != null and camera.limit_right == 768 and camera.limit_bottom == 576,
+		"Commit must update Camera bounds for the target Location."
+	)
+	_expect(
+		world_state.get_entity_states().size() == state_count,
+		"Successful Commit must not create EntityStates."
+	)
+	_expect(
+		chest.furniture_state == chest_state
+		and chest.get_openable_state() == openable_state
+		and openable_state != null
+		and openable_state.is_open,
+		"Leaving Tavern must preserve FurnitureState and BehaviorState objects."
+	)
+
+	var yard_start := yard_presentation.position
+	Input.action_press(&"ui_down")
+	await physics_frame
+	await physics_frame
+	Input.action_release(&"ui_down")
+	await physics_frame
+	_expect(yard_presentation.position.y > yard_start.y, "Movement must work after Commit.")
+
+	var tavern_edge := LocationEdgeDefinition.new(
+		&"tavern_door",
+		&"tavern",
+		&"back_door"
+	)
+	var openable_config: Dictionary = chest.definition.behaviors["openable"]
+	var original_open_visual: String = openable_config["open_visual_ref"]
+	openable_config["open_visual_ref"] = "res://assets/furniture/does_not_exist.svg"
+	_expect_prepare_failure(
+		game,
+		controller,
+		world_state,
+		player,
+		&"tavern",
+		&"tavern_yard",
+		tavern_edge,
+		"FurniturePresentation visual preparation"
+	)
+	openable_config["open_visual_ref"] = original_open_visual
+
+	var old_yard := game.get("current_location") as GridScene
+	var old_yard_presentation := controller.controlled_presentation
+	var tavern_changed := _attempt_replace(
+		game,
+		&"tavern",
+		&"tavern_yard",
+		tavern_edge
+	)
+	_expect(tavern_changed, "A fully prepared Yard to Tavern change must Commit.")
+	await process_frame
+	var returned_tavern := game.get("current_location") as GridScene
+	var returned_presentation := controller.controlled_presentation
+	var returned_chest_presentation := _find_furniture_presentation(
+		returned_tavern,
+		CHEST_ENTITY_ID
+	)
+	_expect(returned_tavern != null and returned_tavern.location_id == &"tavern", "Return Commit must update current_location.")
+	_expect(player.current_location_id == &"tavern", "Return Commit must migrate ActorState.")
+	_expect(player.local_position == Vector2(576.0, 432.0), "Return Commit must use back_door Entry.")
+	_expect(
+		is_instance_valid(returned_presentation)
+		and returned_presentation != old_yard_presentation,
+		"Return Commit must bind another prepared ActorPresentation."
+	)
+	_expect(not is_instance_valid(old_yard), "Return Commit must release Yard.")
+	_expect(not is_instance_valid(old_yard_presentation), "Return Commit must release Yard Presentation.")
+	_expect(
+		is_instance_valid(returned_chest_presentation)
+		and returned_chest_presentation.furniture == chest,
+		"Return Commit must activate prepared FurniturePresentation."
+	)
+	_expect(
+		chest.furniture_state == chest_state
+		and chest.get_openable_state() == openable_state
+		and openable_state != null
+		and openable_state.is_open,
+		"Returning to Tavern must keep the same opened OpenableState."
+	)
+	_expect(
+		_get_furniture_visual_path(returned_chest_presentation)
+		== "res://assets/furniture/chest_open.svg",
+		"Recreated Chest Presentation must restore the open visual."
+	)
+	_expect(
+		world_state.get_entity_states().size() == state_count,
+		"Location round trip must not reinitialize EntityState or BehaviorState."
+	)
+	returned_presentation.position = Vector2(432.0, 208.0)
+	returned_presentation.facing = ActorState.Facing.RIGHT
+	returned_presentation.sync_state_from_presentation()
+	var close_result := controller.request_interaction()
+	_expect(
+		close_result.success and close_result.action_id == &"close",
+		"Interaction must use the recreated FurniturePresentation index after Commit."
+	)
+	var reopen_result := controller.request_interaction()
+	_expect(
+		reopen_result.success
+		and reopen_result.action_id == &"open"
+		and openable_state != null
+		and openable_state.is_open,
+		"Furniture Behavior must remain usable after the Location round trip."
+	)
+
+	game.queue_free()
+	await process_frame
+	_finish()
+
+
+func _expect_prepare_failure(
+	game: Node,
+	controller: PlayerController,
+	world_state: WorldStateRuntime,
+	player: Actor,
+	target_location_id: StringName,
+	from_location_id: StringName,
+	edge: LocationEdgeDefinition,
+	case_name: String
+) -> void:
+	var snapshot := _capture_world(game, controller, world_state, player)
+	var changed := _attempt_replace(game, target_location_id, from_location_id, edge)
+	_expect(not changed, "%s must fail during Prepare." % case_name)
+	_expect(
+		_capture_world(game, controller, world_state, player) == snapshot,
+		"%s failure must leave Location, WorldState, ActorState and PlayerController unchanged."
+		% case_name
+	)
+	var old_location: GridScene = snapshot["current_location"]
+	var old_presentation: ActorPresentation = snapshot["controlled_presentation"]
+	_expect(
+		is_instance_valid(old_location)
+		and old_location.is_inside_tree()
+		and is_instance_valid(old_presentation)
+		and old_presentation.is_inside_tree()
+		and old_presentation.is_in_group(&"player"),
+		"%s failure must keep the old Location and Player Presentation active."
+		% case_name
+	)
+
+
+func _expect_requested_prepare_failure(
+	game: Node,
+	controller: PlayerController,
+	world_state: WorldStateRuntime,
+	player: Actor,
+	edge_key: StringName,
+	case_name: String
+) -> void:
+	var snapshot := _capture_world(game, controller, world_state, player)
+	game.call("request_location_change", edge_key)
+	for _frame in range(10):
+		await process_frame
+		await physics_frame
+		if not game.get("transition_in_progress"):
+			break
+	_expect(
+		not game.get("transition_in_progress"),
+		"%s request must finish after Prepare failure." % case_name
+	)
+	_expect(
+		_capture_world(game, controller, world_state, player) == snapshot,
+		"%s request failure must leave Location, WorldState, ActorState and PlayerController unchanged."
+		% case_name
+	)
+	var old_location: GridScene = snapshot["current_location"]
+	var old_presentation: ActorPresentation = snapshot["controlled_presentation"]
+	_expect(
+		is_instance_valid(old_location)
+		and old_location.is_inside_tree()
+		and is_instance_valid(old_presentation)
+		and old_presentation.is_inside_tree()
+		and old_presentation.is_in_group(&"player")
+		and controller.is_physics_processing(),
+		"%s request failure must restore input processing and keep the old world playable."
+		% case_name
+	)
+
+
+func _capture_world(
+	game: Node,
+	controller: PlayerController,
+	world_state: WorldStateRuntime,
+	player: Actor
+) -> Dictionary:
+	var state_facts: Dictionary = {}
+	for state in world_state.get_entity_states():
+		var fact := {
+			"state": state,
+			"location_id": state.current_location_id,
+			"local_position": state.local_position,
+		}
+		if state is ActorState:
+			fact["facing"] = (state as ActorState).facing
+		elif state is FurnitureState:
+			var behavior_facts: Dictionary = {}
+			for behavior_id in (state as FurnitureState).behavior_states:
+				var behavior_state := (state as FurnitureState).behavior_states[behavior_id]
+				var behavior_fact := {"state": behavior_state}
+				if behavior_state is OpenableState:
+					behavior_fact["is_open"] = (behavior_state as OpenableState).is_open
+				behavior_facts[behavior_id] = behavior_fact
+			fact["behavior_states"] = behavior_facts
+		state_facts[state.entity_id] = fact
+
+	var active_locations: Dictionary = {}
+	var active_registry: Dictionary = world_state.get("_active_locations")
+	for location_id in active_registry:
+		var reference := active_registry[location_id] as WeakRef
+		active_locations[location_id] = reference.get_ref() if reference != null else null
+
+	return {
+		"current_location": game.get("current_location"),
+		"controlled_actor": controller.controlled_actor,
+		"controlled_presentation": controller.controlled_presentation,
+		"controller_processing": controller.is_physics_processing(),
+		"player_state": player.state,
+		"state_facts": state_facts,
+		"active_locations": active_locations,
+	}
+
+
+func _attempt_replace(
+	game: Node,
+	target_location_id: StringName,
+	from_location_id: StringName,
+	edge: LocationEdgeDefinition
+) -> bool:
+	var result: Variant = game.call(
+		"_replace_location",
+		target_location_id,
+		from_location_id,
+		edge
+	)
+	return result == true
+
+
+func _add_test_definition(
+	world_definition: WorldDefinitionRuntime,
+	definition: LocationDefinition
+) -> void:
+	var locations: Dictionary = world_definition.get("_locations")
+	locations[definition.location_id] = definition
+
+
+func _remove_test_definition(
+	world_definition: WorldDefinitionRuntime,
+	location_id: StringName
+) -> void:
+	var locations: Dictionary = world_definition.get("_locations")
+	locations.erase(location_id)
+
+
+func _find_furniture_presentation(
+	location: GridScene,
+	entity_id: StringName
+) -> FurniturePresentation:
+	if not is_instance_valid(location):
+		return null
+	for child in location.get_children():
+		if child is FurniturePresentation and (child as FurniturePresentation).entity_id == entity_id:
+			return child as FurniturePresentation
+	return null
+
+
+func _get_actor_visual_path(presentation: ActorPresentation) -> String:
+	if not is_instance_valid(presentation):
+		return ""
+	var sprite := presentation.get_node_or_null("Sprite2D") as Sprite2D
+	return sprite.texture.resource_path if sprite != null and sprite.texture != null else ""
+
+
+func _get_furniture_visual_path(presentation: FurniturePresentation) -> String:
+	if not is_instance_valid(presentation):
+		return ""
+	var sprite := presentation.get_node_or_null("Sprite2D") as Sprite2D
+	return sprite.texture.resource_path if sprite != null and sprite.texture != null else ""
+
+
+func _expect(condition: bool, message: String) -> void:
+	_checks += 1
+	if condition:
+		return
+	_failures += 1
+	push_error("Test failure: %s" % message)
+
+
+func _finish() -> void:
+	if _failures == 0:
+		print("V7.5 Location Prepare to Commit: %d checks passed." % _checks)
+		quit(0)
+		return
+	push_error(
+		"V7.5 Location Prepare to Commit: %d of %d checks failed."
+		% [_failures, _checks]
+	)
+	quit(1)

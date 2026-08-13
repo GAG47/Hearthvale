@@ -9,9 +9,18 @@ var entity_id: StringName:
 		return furniture.entity_id if furniture != null else &""
 
 
-func bind_furniture(p_furniture: Furniture, location: GridScene) -> bool:
+func prepare_furniture(p_furniture: Furniture, location: GridScene) -> bool:
 	if p_furniture == null or location == null:
-		push_error("FurniturePresentation requires Furniture and a loaded GridScene.")
+		push_error("FurniturePresentation preparation requires Furniture and target GridScene.")
+		return false
+	if p_furniture.definition == null or p_furniture.state == null:
+		push_error("FurniturePresentation requires FurnitureDefinition and FurnitureState.")
+		return false
+	if (
+		p_furniture.definition.occupied_cells.x <= 0
+		or p_furniture.definition.occupied_cells.y <= 0
+	):
+		push_error("FurniturePresentation requires positive occupied_cells in its Definition.")
 		return false
 	if p_furniture.current_location_id != location.location_id:
 		push_error(
@@ -20,14 +29,26 @@ func bind_furniture(p_furniture: Furniture, location: GridScene) -> bool:
 		)
 		return false
 
+	var sprite := get_node_or_null("Sprite2D") as Sprite2D
+	if sprite == null:
+		push_error("FurniturePresentation requires a Sprite2D child.")
+		return false
+	var blocking_body := get_node_or_null("BlockingBody") as StaticBody2D
+	var collision := get_node_or_null("BlockingBody/CollisionShape2D") as CollisionShape2D
+	if blocking_body == null or collision == null or not collision.shape is RectangleShape2D:
+		push_error(
+			"FurniturePresentation requires BlockingBody/CollisionShape2D with RectangleShape2D."
+		)
+		return false
+	var visual_texture := _load_visual_texture(p_furniture)
+	if visual_texture == null:
+		return false
+
 	furniture = p_furniture
 	current_location = location
 	position = furniture.local_position
-	_configure_blocking_collision()
-	if not _update_visual():
-		furniture = null
-		current_location = null
-		return false
+	_configure_blocking_collision(blocking_body, collision)
+	sprite.texture = visual_texture
 	furniture.state_changed.connect(_on_furniture_state_changed)
 	return true
 
@@ -54,12 +75,10 @@ func _exit_tree() -> void:
 	sync_state_from_presentation()
 
 
-func _configure_blocking_collision() -> void:
-	var blocking_body := get_node_or_null("BlockingBody") as StaticBody2D
-	var collision := get_node_or_null("BlockingBody/CollisionShape2D") as CollisionShape2D
-	if blocking_body == null or collision == null:
-		push_error("FurniturePresentation requires BlockingBody/CollisionShape2D.")
-		return
+func _configure_blocking_collision(
+	blocking_body: StaticBody2D,
+	collision: CollisionShape2D
+) -> void:
 	blocking_body.collision_layer = 1 if furniture.definition.blocks_movement else 0
 	blocking_body.collision_mask = 1 if furniture.definition.blocks_movement else 0
 	collision.disabled = not furniture.definition.blocks_movement
@@ -76,16 +95,29 @@ func _update_visual() -> bool:
 	if sprite == null:
 		push_error("FurniturePresentation requires a Sprite2D child.")
 		return false
-	var visual_ref := furniture.get_visual_ref()
-	if not ResourceLoader.exists(visual_ref):
-		push_error("Furniture '%s' visual_ref '%s' does not exist." % [entity_id, visual_ref])
+	var visual_texture := _load_visual_texture(furniture)
+	if visual_texture == null:
 		return false
+	sprite.texture = visual_texture
+	return true
+
+
+func _load_visual_texture(p_furniture: Furniture) -> Texture2D:
+	var visual_ref := p_furniture.get_visual_ref()
+	if not ResourceLoader.exists(visual_ref):
+		push_error(
+			"Furniture '%s' visual_ref '%s' does not exist."
+			% [p_furniture.entity_id, visual_ref]
+		)
+		return null
 	var visual_resource := ResourceLoader.load(visual_ref)
 	if not visual_resource is Texture2D:
-		push_error("Furniture '%s' visual_ref '%s' is not a Texture2D." % [entity_id, visual_ref])
-		return false
-	sprite.texture = visual_resource
-	return true
+		push_error(
+			"Furniture '%s' visual_ref '%s' is not a Texture2D."
+			% [p_furniture.entity_id, visual_ref]
+		)
+		return null
+	return visual_resource
 
 
 func _on_furniture_state_changed() -> void:

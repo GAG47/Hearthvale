@@ -34,9 +34,16 @@ var current_cell: Vector2i:
 		)
 
 
-func bind_actor(p_actor: Actor, location: GridScene) -> bool:
+func prepare_actor(
+	p_actor: Actor,
+	location: GridScene,
+	target_local_position: Vector2
+) -> bool:
 	if p_actor == null or location == null:
-		push_error("ActorPresentation requires an Actor and a loaded GridScene.")
+		push_error("ActorPresentation preparation requires an Actor and target GridScene.")
+		return false
+	if p_actor.definition == null or p_actor.state == null:
+		push_error("ActorPresentation requires an ActorDefinition and ActorState.")
 		return false
 	if p_actor.definition.entity_id != p_actor.entity_id:
 		push_error(
@@ -44,19 +51,13 @@ func bind_actor(p_actor: Actor, location: GridScene) -> bool:
 			% [p_actor.definition.entity_id, p_actor.entity_id]
 		)
 		return false
-	if p_actor.current_location_id != location.location_id:
-		push_error(
-			"Actor '%s' state belongs to Location '%s', but its presentation was requested in Location '%s'."
-			% [
-				p_actor.entity_id,
-				p_actor.current_location_id,
-				location.location_id,
-			]
-			)
-		return false
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D
 	if sprite == null:
 		push_error("ActorPresentation requires a Sprite2D child.")
+		return false
+	var collision := get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if collision == null or collision.shape == null:
+		push_error("ActorPresentation requires CollisionShape2D with a Shape2D.")
 		return false
 	var loaded_visual_textures := _load_visual_textures(p_actor)
 	if loaded_visual_textures.size() != VISUAL_DIRECTIONS.size():
@@ -65,9 +66,14 @@ func bind_actor(p_actor: Actor, location: GridScene) -> bool:
 	actor = p_actor
 	current_location = location
 	_visual_textures = loaded_visual_textures
-	position = actor.local_position
+	position = target_local_position
 	_update_facing_visual()
 	return true
+
+
+func finish_location_departure() -> void:
+	sync_state_from_presentation()
+	current_location = null
 
 
 func sync_state_from_presentation() -> void:

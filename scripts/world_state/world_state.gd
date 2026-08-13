@@ -11,6 +11,13 @@ var _active_locations: Dictionary = {}
 
 
 func register_location(location: GridScene) -> bool:
+	if not can_register_location(location):
+		return false
+	_activate_location(location)
+	return true
+
+
+func can_register_location(location: GridScene) -> bool:
 	if not is_instance_valid(location) or location.location_id.is_empty():
 		push_error("Every Location requires a non-empty stable location_id.")
 		return false
@@ -25,18 +32,16 @@ func register_location(location: GridScene) -> bool:
 				% [location_id, known_source, source]
 			)
 			return false
-		if known_source.is_empty() and not source.is_empty():
-			_development_location_sources[location_id] = source
-	else:
-		_development_location_sources[location_id] = source
 
 	var active_location := _get_active_node(_active_locations, location_id)
 	if active_location != null and active_location != location:
 		push_error("Duplicate active location_id '%s'." % location_id)
 		return false
-
-	_active_locations[location_id] = weakref(location)
 	return true
+
+
+func activate_prepared_location(location: GridScene) -> void:
+	_activate_location(location)
 
 
 func unregister_location(location: GridScene) -> void:
@@ -45,6 +50,16 @@ func unregister_location(location: GridScene) -> void:
 	var active_location := _get_active_node(_active_locations, location.location_id)
 	if active_location == location:
 		_active_locations.erase(location.location_id)
+
+
+func _activate_location(location: GridScene) -> void:
+	var location_id := location.location_id
+	var source := location.scene_file_path
+	if not _development_location_sources.has(location_id):
+		_development_location_sources[location_id] = source
+	elif (_development_location_sources[location_id] as String).is_empty() and not source.is_empty():
+		_development_location_sources[location_id] = source
+	_active_locations[location_id] = weakref(location)
 
 
 func register_entity_state(state: EntityState) -> bool:

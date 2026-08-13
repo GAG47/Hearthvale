@@ -9,7 +9,7 @@ Hearthvale 是一款中世纪西幻 RPG / Living World 游戏。玩家作为世�
 
 ## 当前状态
 
-世界与空间、静态 Location Graph、统一 Entity、运行时 World State、交互行为和世界时间已经建立。所有 Entity 都拥有永久 UUID v4 和独立 EntityState；当前实现的大类是 Actor 与 Furniture，由 EntityRegistry 统一查询。Godot Scene 中只创建绑定逻辑实体的 ActorPresentation / FurniturePresentation。ActorDefinition 保留四向静态视觉，FurnitureDefinition 通过数据组合 Sleepable、Openable、Inspectable 行为。Location 卸载只释放 Presentation，Entity 与 State 会持续存在并在重新进入时恢复。当前工程可以直接运行，移动、四向视觉、碰撞、Camera、地点切换、家具交互、储物箱状态持续和睡眠推进时间均保持正常。
+世界与空间、静态 Location Graph、统一 Entity、运行时 World State、交互行为和世界时间已经建立。所有 Entity 都拥有永久 UUID v4 和独立 EntityState；当前实现的大类是 Actor 与 Furniture，由 EntityRegistry 统一查询。Godot Scene 中只创建绑定逻辑实体的 ActorPresentation / FurniturePresentation。ActorDefinition 保留四向静态视觉，FurnitureDefinition 通过数据组合 Sleepable、Openable、Inspectable 行为。Location 切换采用 Prepare → Commit：目标 Scene、Entry 与 Presentation 全部准备成功后才迁移 State 并替换当前场景；准备失败不会破坏旧 Location 或控制关系。Location 卸载只释放 Presentation，Entity 与 State 会持续存在并在重新进入时恢复。当前工程可以直接运行，移动、四向视觉、碰撞、Camera、地点切换、家具交互、储物箱状态持续和睡眠推进时间均保持正常。
 
 ## 目录
 
@@ -45,3 +45,4 @@ scripts/  游戏脚本
 - [V7.3：Character 表现分离与四向静态视觉](docs/v7_3_character_presentation_four_direction_visuals_development_log.md)
 - [V7.4：统一 Entity 架构](docs/v7_4_unified_entity_architecture_development_log.md)
 - [V7.4.1：Entity 架构清理](docs/v7_4_1_entity_architecture_cleanup_development_log.md)
+- [V7.5：Location Prepare → Commit 生命周期](docs/v7_5_location_prepare_commit_development_log.md)

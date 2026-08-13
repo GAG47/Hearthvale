@@ -29,6 +29,14 @@ func _physics_process(_delta: float) -> void:
 
 
 func take_control(actor: Actor, presentation: ActorPresentation) -> bool:
+	if not can_take_control(actor, presentation):
+		return false
+	release_controlled_presentation()
+	_assign_control(actor, presentation)
+	return true
+
+
+func can_take_control(actor: Actor, presentation: ActorPresentation) -> bool:
 	if actor == null or not is_instance_valid(presentation):
 		push_error("PlayerController requires an Actor and ActorPresentation.")
 		return false
@@ -38,21 +46,32 @@ func take_control(actor: Actor, presentation: ActorPresentation) -> bool:
 			% [actor.entity_id, presentation.entity_id]
 		)
 		return false
+	return true
 
-	release_controlled_presentation()
+
+func activate_prepared_control(actor: Actor, presentation: ActorPresentation) -> void:
+	_release_controlled_presentation(false)
+	_assign_control(actor, presentation)
+
+
+func release_controlled_presentation() -> void:
+	_release_controlled_presentation(true)
+
+
+func _release_controlled_presentation(sync_state: bool) -> void:
+	if is_instance_valid(controlled_presentation):
+		controlled_presentation.velocity = Vector2.ZERO
+		if sync_state:
+			controlled_presentation.sync_state_from_presentation()
+		controlled_presentation.remove_from_group(&"player")
+	controlled_presentation = null
+
+
+func _assign_control(actor: Actor, presentation: ActorPresentation) -> void:
 	controlled_actor = actor
 	controlled_presentation = presentation
 	controlled_presentation.add_to_group(&"player")
 	_sync_camera_position(true)
-	return true
-
-
-func release_controlled_presentation() -> void:
-	if is_instance_valid(controlled_presentation):
-		controlled_presentation.velocity = Vector2.ZERO
-		controlled_presentation.sync_state_from_presentation()
-		controlled_presentation.remove_from_group(&"player")
-	controlled_presentation = null
 
 
 func stop() -> void:
