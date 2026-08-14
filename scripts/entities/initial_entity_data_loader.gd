@@ -1,8 +1,6 @@
 class_name InitialEntityDataLoader
 extends RefCounted
 
-const SCHEMA_VERSION := 1
-
 
 static func load_from_file(path: String) -> Variant:
 	var file := FileAccess.open(path, FileAccess.READ)
@@ -35,10 +33,10 @@ static func load_from_file(path: String) -> Variant:
 		push_error("Initial Entity Data '%s' requires a Dictionary root." % path)
 		return null
 	var root_data: Dictionary = parsed_data
-	if root_data.get("schema_version") != SCHEMA_VERSION:
+	if root_data.get("schema_version") != InitialEntityDataSchema.VERSION:
 		push_error(
 			"Initial Entity Data '%s' requires schema_version %d."
-			% [path, SCHEMA_VERSION]
+			% [path, InitialEntityDataSchema.VERSION]
 		)
 		return null
 	if not root_data.has("entities") or not root_data["entities"] is Array:

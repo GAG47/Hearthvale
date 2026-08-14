@@ -33,6 +33,7 @@ func _get_configuration_warnings() -> PackedStringArray:
 	if definition == null:
 		warnings.append("ActorPlacement requires an ActorDefinition Resource.")
 		return warnings
+	warnings.append_array(definition.get_validation_warnings())
 	var preview_texture := get_preview_texture()
 	if preview_texture == null:
 		warnings.append(

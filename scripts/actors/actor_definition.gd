@@ -4,11 +4,30 @@ extends Resource
 
 const VISUAL_DIRECTIONS: Array[StringName] = [&"up", &"down", &"left", &"right"]
 
-@export var display_name := ""
-@export var visual_up: Texture2D
-@export var visual_down: Texture2D
-@export var visual_left: Texture2D
-@export var visual_right: Texture2D
+@export var display_name := "":
+	set(value):
+		display_name = value
+		emit_changed()
+
+@export var visual_up: Texture2D:
+	set(value):
+		visual_up = value
+		emit_changed()
+
+@export var visual_down: Texture2D:
+	set(value):
+		visual_down = value
+		emit_changed()
+
+@export var visual_left: Texture2D:
+	set(value):
+		visual_left = value
+		emit_changed()
+
+@export var visual_right: Texture2D:
+	set(value):
+		visual_right = value
+		emit_changed()
 
 
 func get_visual(direction: StringName) -> Texture2D:

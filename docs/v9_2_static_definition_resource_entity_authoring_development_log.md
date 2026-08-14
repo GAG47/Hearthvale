@@ -22,15 +22,19 @@ ActorDefinition 与 FurnitureDefinition 现在都继承 Resource，不再保存�
 
 ActorDefinition 使用 String display_name 与四个强类型 Texture2D 方向视觉。FurnitureDefinition 使用 String display_name、Texture2D visual、Vector2i occupied_cells、bool blocks_movement 和现有 Behavior Dictionary；储物箱开启视觉同样是 Texture2D。Furniture 的 Behavior / BehaviorState 运行规则没有改变。
 
+两种 Definition 中会影响 Preview、Validation 或运行配置的全部导出属性都在 setter 中调用 `emit_changed()`。已绑定 Resource 的 Placement 继续监听 `changed`，因此修改角色四向视觉、家具视觉、占地、阻挡或 Behavior 配置后会立即走现有预览刷新流程。
+
 ## Authoring Preview
 
 ActorPlacement 与 FurniturePlacement 直接导出强类型 Definition Resource，不再保存路径字符串。Actor Preview 根据 initial_facing 绘制同一 ActorDefinition 的方向视觉；Furniture Preview 绘制同一 FurnitureDefinition 的视觉及按运行时格子规则计算的 occupied_cells。
 
-Definition 或 facing 属性变化会立即 queue_redraw 并更新 Configuration Warning。Actor 缺少 Definition 或当前 facing 视觉、Furniture 缺少 Definition / visual 或 occupied_cells 非法时，Scene Tree 会显示原生配置警告。Preview 不创建 Entity、State、碰撞或 Representation，正常 Location 激活仍会移除 Placement。
+Definition 或 facing 属性变化会立即 queue_redraw 并更新 Configuration Warning。Placement Warning 现在完整包含绑定 Definition 的 `get_validation_warnings()`，并保留 Placement 自身配置检查；ActorBaker 与 FurnitureBaker 复用同一 Definition 方法。因此会使 Baking 失败的缺失方向视觉、非法占地或 Behavior 配置也会在 Scene Tree 提前显示原生警告。Preview 不创建 Entity、State、碰撞或 Representation，正常 Location 激活仍会移除 Placement。
 
 ## Baking 与运行时
 
 ActorBaker / FurnitureBaker 从 Placement.definition 的 resource_path 查询 ResourceUID，并只把 `definition_uid` 写入 initial_entities.json。输出仍按 Location 与 Scene 顺序保持稳定，失败时不覆盖有效文件。
+
+Initial Entity Data 因 Definition 引用从 `definition_path` 迁移为 `definition_uid`，已升级为 Schema Version 2。正式常量 `InitialEntityDataSchema.VERSION` 是唯一版本来源，Baking Writer 用它写入版本，InitialEntityDataLoader 用它验证并明确拒绝其他版本。
 
 ActorEntityFactory / FurnitureEntityFactory 直接通过 uid:// 引用加载 Resource，并验证具体 Definition 类型及静态配置，然后生成独立 Entity UUID 与 State。Editor Preview 与 Runtime Representation 读取同一 Definition Texture2D，因此不再存在 JSON 视觉路径到 Texture2D 的第二套转换。
 
@@ -48,9 +52,10 @@ V9.2 只记录 AI 数据边界，没有实现 AI、Memory、Relationship 或生�
 
 ## 验证
 
-- Godot 4.7.1 下 V7.4、V7.4.1、V7.5、V8、V9、V9.1 与 V9.2 七组回归共 456 项检查通过；
+- Godot 4.7.1 下 V7.4、V7.4.1、V7.5、V8、V9、V9.1 与 V9.2 七组回归共 481 项检查通过；
 - 五份 Definition `.tres` 均按强类型正常加载，固定 ResourceUID 可解析；
-- Placement Resource 引用、Actor facing Preview、Furniture visual / occupied_cells Preview 和 Configuration Warning 通过；
+- Placement Resource 引用、Definition `changed` 刷新、Actor facing Preview、Furniture visual / occupied_cells Preview 和完整 Configuration Warning 通过；
+- Schema Version 2 正常加载与 Baking，非 Version 2 数据被明确拒绝，Writer / Loader 共用同一常量；
 - Baker 输出 definition_uid，Factory 按 UID 加载正确类型并生成独立 entity_id；
 - Resource 移动后更新 UID 映射，同一 ResourceUID 仍可加载；
 - 连续两次正式 Baking 产物哈希一致，失败 CLI 返回 1，主场景 headless smoke 返回 0；

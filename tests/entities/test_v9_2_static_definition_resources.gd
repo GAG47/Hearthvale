@@ -1,5 +1,6 @@
 extends SceneTree
 
+const BAKE_TOOL := preload("res://tools/bake_initial_world.gd")
 const PLAYER_PATH := "res://data/actors/player.tres"
 const MARTHA_PATH := "res://data/actors/martha.tres"
 const BED_PATH := "res://data/furniture/simple_bed.tres"
@@ -12,9 +13,33 @@ const CHEST_UID := "uid://d1t0crg266u0f"
 const SIGN_UID := "uid://d0hdcbqvh7bfb"
 const UID_RENAME_BEFORE := "user://v9_2_uid_before.tres"
 const UID_RENAME_AFTER := "user://v9_2_uid_after.tres"
+const SCHEMA_BAKE_PATH := "user://v9_2_schema_bake.json"
+const WRONG_SCHEMA_PATH := "user://v9_2_wrong_schema.json"
 
 var _checks := 0
 var _failures := 0
+
+
+class TrackingActorPlacement:
+	extends ActorPlacement
+
+	var refresh_count := 0
+
+
+	func _refresh_preview() -> void:
+		refresh_count += 1
+		super._refresh_preview()
+
+
+class TrackingFurniturePlacement:
+	extends FurniturePlacement
+
+	var refresh_count := 0
+
+
+	func _refresh_preview() -> void:
+		refresh_count += 1
+		super._refresh_preview()
 
 
 func _init() -> void:
@@ -31,7 +56,10 @@ func _run_tests() -> void:
 	_test_furniture_resources(bed, chest, sign)
 	_test_resource_uid_loading()
 	_test_placements_and_previews(martha, bed, chest)
+	_test_resource_change_notifications()
+	_test_definition_validation_consistency()
 	_test_bakers_and_factories(martha, chest)
+	_test_schema_version()
 	_test_resource_uid_rename()
 	_test_removed_json_chain()
 	_finish()
@@ -145,6 +173,133 @@ func _test_placements_and_previews(
 	furniture_placement.free()
 
 
+func _test_resource_change_notifications() -> void:
+	var player_up := load("res://assets/actors/player_up.svg") as Texture2D
+	var player_down := load("res://assets/actors/player_down.svg") as Texture2D
+	var player_left := load("res://assets/actors/player_left.svg") as Texture2D
+	var player_right := load("res://assets/actors/player_right.svg") as Texture2D
+	var martha_up := load("res://assets/actors/martha_up.svg") as Texture2D
+	var martha_down := load("res://assets/actors/martha_down.svg") as Texture2D
+	var martha_left := load("res://assets/actors/martha_left.svg") as Texture2D
+	var martha_right := load("res://assets/actors/martha_right.svg") as Texture2D
+	var actor_definition := ActorDefinition.new()
+	actor_definition.display_name = "Preview Actor"
+	actor_definition.visual_up = player_up
+	actor_definition.visual_down = player_down
+	actor_definition.visual_left = player_left
+	actor_definition.visual_right = player_right
+	var actor_placement := TrackingActorPlacement.new()
+	actor_placement.initial_facing = ActorState.Facing.DOWN
+	actor_placement.definition = actor_definition
+	var actor_changed_events := [0]
+	actor_definition.changed.connect(func(): actor_changed_events[0] += 1)
+	var actor_refresh_start := actor_placement.refresh_count
+	actor_definition.display_name = "Updated Preview Actor"
+	actor_definition.visual_up = martha_up
+	actor_definition.visual_down = martha_down
+	actor_definition.visual_left = martha_left
+	actor_definition.visual_right = martha_right
+	_expect(actor_changed_events[0] == 5, "Every ActorDefinition export must emit changed when assigned.")
+	_expect(
+		actor_placement.refresh_count == actor_refresh_start + 5,
+		"Bound ActorPlacement must refresh for every ActorDefinition change."
+	)
+	_expect(
+		actor_placement.get_preview_texture() == martha_down,
+		"Actor Preview must immediately use a changed facing visual."
+	)
+	actor_definition.visual_down = null
+	_expect(actor_changed_events[0] == 6, "Clearing an Actor visual must emit changed.")
+	_expect(actor_placement.get_preview_texture() == null, "Actor Preview must clear an invalid changed visual.")
+	_expect(
+		not actor_placement._get_configuration_warnings().is_empty(),
+		"Actor warnings must update after a bound visual becomes invalid."
+	)
+
+	var sign_texture := load("res://assets/furniture/sign.svg") as Texture2D
+	var chest_texture := load("res://assets/furniture/chest_closed.svg") as Texture2D
+	var furniture_definition := FurnitureDefinition.new()
+	furniture_definition.display_name = "Preview Furniture"
+	furniture_definition.visual = sign_texture
+	furniture_definition.behaviors = {"inspectable": {"text": "Preview"}}
+	furniture_definition.occupied_cells = Vector2i.ONE
+	furniture_definition.blocks_movement = true
+	var furniture_placement := TrackingFurniturePlacement.new()
+	furniture_placement.position = Vector2(64.0, 64.0)
+	furniture_placement.definition = furniture_definition
+	var furniture_changed_events := [0]
+	furniture_definition.changed.connect(func(): furniture_changed_events[0] += 1)
+	var furniture_refresh_start := furniture_placement.refresh_count
+	furniture_definition.display_name = "Updated Preview Furniture"
+	furniture_definition.visual = chest_texture
+	furniture_definition.behaviors = {"unsupported": {}}
+	furniture_definition.occupied_cells = Vector2i(1, 2)
+	furniture_definition.blocks_movement = false
+	_expect(
+		furniture_changed_events[0] == 5,
+		"Every FurnitureDefinition export must emit changed when assigned."
+	)
+	_expect(
+		furniture_placement.refresh_count == furniture_refresh_start + 5,
+		"Bound FurniturePlacement must refresh for every Definition change."
+	)
+	_expect(
+		furniture_placement.get_preview_texture() == chest_texture,
+		"Furniture Preview must immediately use a changed visual."
+	)
+	_expect(
+		furniture_placement.get_preview_cell_rects().size() == 2,
+		"Furniture occupied-cell Preview must immediately reflect a changed size."
+	)
+	_expect(
+		not furniture_placement._get_configuration_warnings().is_empty(),
+		"Furniture warnings must update after a bound behavior becomes invalid."
+	)
+	actor_placement.free()
+	furniture_placement.free()
+
+
+func _test_definition_validation_consistency() -> void:
+	var actor_definition := ActorDefinition.new()
+	actor_definition.display_name = "Invalid Actor"
+	actor_definition.visual_down = load("res://assets/actors/player_down.svg") as Texture2D
+	actor_definition.visual_left = load("res://assets/actors/player_left.svg") as Texture2D
+	actor_definition.visual_right = load("res://assets/actors/player_right.svg") as Texture2D
+	var actor_placement := ActorPlacement.new()
+	actor_placement.definition = actor_definition
+	actor_placement.initial_facing = ActorState.Facing.DOWN
+	var actor_definition_warnings := actor_definition.get_validation_warnings()
+	var actor_placement_warnings := actor_placement._get_configuration_warnings()
+	_expect(
+		_contains_all_warnings(actor_placement_warnings, actor_definition_warnings),
+		"ActorPlacement warnings must include the complete ActorDefinition validation."
+	)
+	_expect(
+		ActorBaker.new().bake(actor_placement, &"tavern").is_empty(),
+		"Actor Editor and Baking validation must both reject the same invalid Definition."
+	)
+
+	var furniture_definition := FurnitureDefinition.new()
+	furniture_definition.display_name = "Invalid Furniture"
+	furniture_definition.visual = load("res://assets/furniture/sign.svg") as Texture2D
+	furniture_definition.behaviors = {"unsupported": {}}
+	furniture_definition.occupied_cells = Vector2i.ONE
+	var furniture_placement := FurniturePlacement.new()
+	furniture_placement.definition = furniture_definition
+	var furniture_definition_warnings := furniture_definition.get_validation_warnings()
+	var furniture_placement_warnings := furniture_placement._get_configuration_warnings()
+	_expect(
+		_contains_all_warnings(furniture_placement_warnings, furniture_definition_warnings),
+		"FurniturePlacement warnings must include complete FurnitureDefinition validation."
+	)
+	_expect(
+		FurnitureBaker.new().bake(furniture_placement, &"tavern").is_empty(),
+		"Furniture Editor and Baking validation must both reject the same invalid Definition."
+	)
+	actor_placement.free()
+	furniture_placement.free()
+
+
 func _test_bakers_and_factories(
 	martha: ActorDefinition,
 	chest: FurnitureDefinition
@@ -174,6 +329,52 @@ func _test_bakers_and_factories(
 		_expect(furniture.get_openable_state() is OpenableState, "Furniture BehaviorState initialization must remain.")
 	actor_placement.free()
 	furniture_placement.free()
+
+
+func _test_schema_version() -> void:
+	_expect(InitialEntityDataSchema.VERSION == 2, "Initial Entity Data current Schema Version must be 2.")
+	var current_root := _read_json_dictionary("res://data/world/initial_entities.json")
+	_expect(current_root.get("schema_version") == 2, "Committed Initial Entity Data must use Schema Version 2.")
+	_expect(
+		InitialEntityDataLoader.load_from_file("res://data/world/initial_entities.json") is Array,
+		"InitialEntityDataLoader must accept current Version 2 data."
+	)
+
+	var wrong_schema_file := FileAccess.open(WRONG_SCHEMA_PATH, FileAccess.WRITE)
+	_expect(wrong_schema_file != null, "Wrong-schema test data must be writable.")
+	if wrong_schema_file != null:
+		wrong_schema_file.store_string(JSON.stringify({"schema_version": 1, "entities": []}))
+		wrong_schema_file.close()
+		_expect(
+			InitialEntityDataLoader.load_from_file(WRONG_SCHEMA_PATH) == null,
+			"InitialEntityDataLoader must reject non-Version 2 data."
+		)
+
+	var world_definition := root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
+	_expect(world_definition != null, "Schema Baking test requires WorldDefinition.")
+	if world_definition != null:
+		_expect(
+			BAKE_TOOL.bake_initial_world(world_definition, SCHEMA_BAKE_PATH),
+			"Baking must produce Schema Version 2 data."
+		)
+		var baked_root := _read_json_dictionary(SCHEMA_BAKE_PATH)
+		_expect(baked_root.get("schema_version") == 2, "Baking output must declare Schema Version 2.")
+		_expect(
+			InitialEntityDataLoader.load_from_file(SCHEMA_BAKE_PATH) is Array,
+			"Loader must accept Version 2 output produced by Baking."
+		)
+	var loader_source := FileAccess.get_file_as_string(
+		"res://scripts/entities/initial_entity_data_loader.gd"
+	)
+	var baker_source := FileAccess.get_file_as_string("res://tools/bake_initial_world.gd")
+	_expect(
+		loader_source.contains("InitialEntityDataSchema.VERSION")
+		and baker_source.contains("InitialEntityDataSchema.VERSION"),
+		"Loader and Baking Writer must share InitialEntityDataSchema.VERSION."
+	)
+	for path in [WRONG_SCHEMA_PATH, SCHEMA_BAKE_PATH]:
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
 func _test_resource_uid_rename() -> void:
@@ -239,6 +440,21 @@ func _object_has_property(object: Object, property_name: StringName) -> bool:
 		if property["name"] == property_name:
 			return true
 	return false
+
+
+func _contains_all_warnings(
+	placement_warnings: PackedStringArray,
+	definition_warnings: PackedStringArray
+) -> bool:
+	for warning in definition_warnings:
+		if not placement_warnings.has(warning):
+			return false
+	return true
+
+
+func _read_json_dictionary(path: String) -> Dictionary:
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	return parsed as Dictionary if parsed is Dictionary else {}
 
 
 func _expect(condition: bool, message: String) -> void:

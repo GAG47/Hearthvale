@@ -4,11 +4,30 @@ extends Resource
 
 const SUPPORTED_BEHAVIORS: Array[String] = ["sleepable", "openable", "inspectable"]
 
-@export var display_name := ""
-@export var visual: Texture2D
-@export var behaviors: Dictionary = {}
-@export var occupied_cells := Vector2i.ONE
-@export var blocks_movement := true
+@export var display_name := "":
+	set(value):
+		display_name = value
+		emit_changed()
+
+@export var visual: Texture2D:
+	set(value):
+		visual = value
+		emit_changed()
+
+@export var behaviors: Dictionary = {}:
+	set(value):
+		behaviors = value
+		emit_changed()
+
+@export var occupied_cells := Vector2i.ONE:
+	set(value):
+		occupied_cells = value
+		emit_changed()
+
+@export var blocks_movement := true:
+	set(value):
+		blocks_movement = value
+		emit_changed()
 
 
 func get_validation_warnings() -> PackedStringArray:

@@ -163,7 +163,7 @@ static func _write_output(output_path: String, entities: Array[Dictionary]) -> b
 		)
 		return false
 	var output_data := {
-		"schema_version": 1,
+		"schema_version": InitialEntityDataSchema.VERSION,
 		"entities": entities,
 	}
 	file.store_string(JSON.stringify(output_data, "\t") + "\n")
