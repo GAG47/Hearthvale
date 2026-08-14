@@ -1,5 +1,5 @@
 {
-	"entity_id": "90da2d88-d049-4519-9e5c-e35136ff6a7d",
+	"definition_id": "90da2d88-d049-4519-9e5c-e35136ff6a7d",
 	"display_name": "Martha",
 	"visuals": {
 		"up": "res://assets/actors/martha_up.svg",

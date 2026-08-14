@@ -39,10 +39,17 @@ static func load_from_file(path: String) -> FurnitureDefinition:
 		return null
 	var data: Dictionary = parsed_data
 
-	var definition_id := _read_non_empty_string(data, "definition_id", path)
+	var definition_id_text := _read_non_empty_string(data, "definition_id", path)
 	var display_name := _read_non_empty_string(data, "display_name", path)
 	var visual_ref := _read_texture_path(data, "visual_ref", path)
-	if definition_id.is_empty() or display_name.is_empty() or visual_ref.is_empty():
+	if definition_id_text.is_empty() or display_name.is_empty() or visual_ref.is_empty():
+		return null
+	var definition_id := StringName(definition_id_text)
+	if not UuidValidator.is_valid_v4(definition_id):
+		push_error(
+			"FurnitureDefinitionLoader '%s' field 'definition_id' is not a valid UUID v4: '%s'."
+			% [path, definition_id_text]
+		)
 		return null
 
 	if not data.has("behaviors") or not data["behaviors"] is Dictionary:
@@ -63,7 +70,7 @@ static func load_from_file(path: String) -> FurnitureDefinition:
 	var blocks_movement: bool = data["blocks_movement"]
 
 	return FurnitureDefinition.new(
-		StringName(definition_id),
+		definition_id,
 		display_name,
 		visual_ref,
 		behaviors,

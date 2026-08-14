@@ -36,9 +36,11 @@ godot --headless --path . --script res://tools/bake_initial_world.gd
 
 当前 schema_version 为 1。每条 Entity 数据包含明确 `entity_type`、`definition_path`、`location_id`、`local_position`；Actor 另含 `initial_facing`。Placement 和 Initial Entity Data 都不保存运行时 UUID。
 
-EntityFactory 提供 `supports(entity_type)` 与 `create(entity_data)`。ActorEntityFactory 和 FurnitureEntityFactory 加载对应 Definition、通过 UuidGenerator 生成永久 UUID，并创建 EntityState 与 Entity。Actor Factory 用新 UUID 构造本次 ActorDefinition，使现有 Actor Definition / State ID 一致边界保持成立；Player 初始化本轮不迁移。Furniture 继续由 Furniture 自身现有构造逻辑建立 Behavior 与 BehaviorState，没有在 Factory 中复制能力初始化。
+EntityFactory 提供 `supports(entity_type)` 与 `create(entity_data)`。ActorEntityFactory 和 FurnitureEntityFactory 加载对应 Definition、通过 UuidGenerator 生成世界实例的永久 `entity_id`，并创建 EntityState 与 Entity。Actor Factory 直接使用加载得到的 ActorDefinition，不再为实例复制 Definition。Furniture 继续由 Furniture 自身现有构造逻辑建立 Behavior 与 BehaviorState，没有在 Factory 中复制能力初始化。
 
-EntityFactoryRegistry 同样要求唯一匹配。Game 读取 Initial Entity Data 后只按 entity_type 请求 Factory，再通过 WorldState 与 EntityRegistry 的通用接口登记结果；它不再保存三件家具的 UUID、Definition 路径、Location 或位置，也没有按 Actor / Furniture 类型分支注册。
+ActorDefinition 与 FurnitureDefinition 统一使用 UUID v4 `definition_id` 标识永久内容身份；Entity / EntityState 使用独立 UUID v4 `entity_id` 标识当前世界中的具体实例。Initial Entity Data 的 `definition_path` 只负责找到 Definition，不保存或代替这两种身份。
+
+EntityFactoryRegistry 同样要求唯一匹配。Game 读取全部 Initial Entity Data 后进入 Prepare：只按 entity_type 请求 Factory，创建并验证完整的 Entity + EntityState 批次，不修改正式 Registry。全部成功后才进入 Commit，通过 WorldState 与 EntityRegistry 的批量接口统一登记；任何中间创建或验证失败都保持两个 Registry 原样。Game 不再保存三件家具的 UUID、Definition 路径、Location 或位置，也没有按 Actor / Furniture 类型分支注册。
 
 ## 当前家具迁移
 
@@ -48,7 +50,7 @@ Location 往返继续只重建 Representation。家具位置、OpenableState 和
 
 ## 验证
 
-- V9 Entity Lifecycle / Baking 专项：91 项检查通过；
+- V9 Entity Lifecycle / Baking 专项：93 项检查通过；
 - V7.4.1 完整运行链：113 项检查通过；
 - V7.5 Location Prepare → Commit：58 项检查通过；
 - V8 Entity Representation System：41 项检查通过；
@@ -56,10 +58,12 @@ Location 往返继续只重建 Representation。家具位置、OpenableState 和
 - 无 Baker、多个 Baker、无 Factory、多个 Factory 与错误 Placement 均明确失败；
 - 错误 Placement 不覆盖已有 Baking 输出；
 - ActorPlacement → ActorBaker → ActorEntityFactory → Actor + ActorState 完整链路通过；
+- V9.1 Entity Lifecycle Cleanup：43 项检查通过，覆盖初始化原子性、Definition / Entity 身份分离和 Baking CLI 退出码；
 - Furniture UUID、Definition、FurnitureState、BehaviorState、注册和 Representation 链路通过；
 - sleep、open、close、inspect、移动、碰撞、Camera、Location 往返与失败安全保持正常；
+- Baking CLI 成功返回 0，失败返回 1；
 - 主场景 headless smoke 正常退出。
 
 ## 范围
 
-本轮没有迁移 Player、WorldTime 或完整 Game / Session 初始化，没有实现 Save / Load、AI、Schedule、Dungeon Generator 或新的 Entity 类型。
+Player 仍未迁入 Placement / Baking；当前 Session 启动流程直接加载 Player Definition，并为 Player Actor / ActorState 生成独立 `entity_id`。本轮没有重构 WorldTime 或完整 Game / Session 初始化，也没有实现 Save / Load、AI、Schedule、Dungeon Generator 或新的 Entity 类型。

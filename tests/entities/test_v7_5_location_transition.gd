@@ -1,7 +1,7 @@
 extends SceneTree
 
 const MAIN_SCENE := preload("res://scenes/main.tscn")
-const PLAYER_ENTITY_ID := &"5e05b833-0645-4c13-8713-4c8767a7efe3"
+const CHEST_DEFINITION_ID := &"7f45a0d2-2ff2-4f1c-8b7a-3d7d0dd5b8a1"
 const MISSING_SCENE_LOCATION_ID := &"v7_5_missing_scene"
 const WRONG_ROOT_LOCATION_ID := &"v7_5_wrong_root"
 const MISMATCHED_LOCATION_ID := &"v7_5_mismatched_location"
@@ -31,8 +31,9 @@ func _run_tests() -> void:
 	await physics_frame
 
 	var controller := game.get_node_or_null("PlayerController") as PlayerController
-	var player := registry.get_entity(PLAYER_ENTITY_ID) as Actor
-	var chest := _find_furniture_by_definition(registry, &"wooden_chest")
+	var controlled_actor_id: StringName = game.get("controlled_actor_id")
+	var player := registry.get_entity(controlled_actor_id) as Actor
+	var chest := _find_furniture_by_definition(registry, CHEST_DEFINITION_ID)
 	_expect(controller != null, "Game must contain PlayerController.")
 	_expect(player != null, "Game must register the Player Actor.")
 	_expect(chest != null, "Game must register the Chest Furniture.")

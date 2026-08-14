@@ -63,6 +63,14 @@ func _activate_location(location: GridScene) -> void:
 
 
 func register_entity_state(state: EntityState) -> bool:
+	if not can_register_entity_state(state):
+		return false
+
+	_entity_states[state.entity_id] = state
+	return true
+
+
+func can_register_entity_state(state: EntityState) -> bool:
 	if state == null or not UuidValidator.is_valid_v4(state.entity_id):
 		var invalid_id := state.entity_id if state != null else &""
 		push_error("EntityState entity_id '%s' is not a valid UUID v4." % invalid_id)
@@ -72,9 +80,34 @@ func register_entity_state(state: EntityState) -> bool:
 			return true
 		push_error("Entity '%s' already has a different registered EntityState." % state.entity_id)
 		return false
-
-	_entity_states[state.entity_id] = state
 	return true
+
+
+func can_register_entity_states(states: Array[EntityState]) -> bool:
+	var prepared_ids: Dictionary[StringName, bool] = {}
+	for state in states:
+		if not can_register_entity_state(state):
+			return false
+		if prepared_ids.has(state.entity_id):
+			push_error(
+				"WorldState prepared EntityStates contain duplicate entity_id '%s'."
+				% state.entity_id
+			)
+			return false
+		prepared_ids[state.entity_id] = true
+	return true
+
+
+func register_entity_states(states: Array[EntityState]) -> bool:
+	if not can_register_entity_states(states):
+		return false
+	commit_prepared_entity_states(states)
+	return true
+
+
+func commit_prepared_entity_states(states: Array[EntityState]) -> void:
+	for state in states:
+		_entity_states[state.entity_id] = state
 
 
 func get_entity_state(entity_id: StringName) -> EntityState:

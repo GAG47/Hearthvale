@@ -4,7 +4,9 @@ const REGISTRY_SCRIPT := preload("res://scripts/entities/entity_registry.gd")
 const TEST_ACTION_ENTITY := preload("res://tests/entities/helpers/test_action_entity.gd")
 
 const ACTOR_ID := &"11111111-1111-4111-8111-111111111111"
+const ACTOR_DEFINITION_ID := &"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 const FURNITURE_ID := &"00000000-0000-4000-8000-000000000001"
+const FURNITURE_DEFINITION_ID := &"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 const GENERIC_ENTITY_ID := &"22222222-2222-4222-8222-222222222222"
 const OTHER_ENTITY_ID := &"33333333-3333-4333-8333-333333333333"
 
@@ -82,7 +84,7 @@ func _run_tests() -> void:
 	)
 	var named_furniture := Furniture.new(
 		FurnitureDefinition.new(
-			&"test_openable",
+			&"55555555-5555-4555-8555-555555555555",
 			"测试柜",
 			"res://assets/furniture/chest_closed.svg",
 			{
@@ -127,7 +129,7 @@ func _run_tests() -> void:
 
 func _create_actor(entity_id: StringName, location_id: StringName) -> Actor:
 	return Actor.new(
-		ActorDefinition.new(entity_id, "Test Actor", _create_test_visuals()),
+		ActorDefinition.new(ACTOR_DEFINITION_ID, "Test Actor", _create_test_visuals()),
 		ActorState.new(
 			entity_id,
 			location_id,
@@ -139,7 +141,7 @@ func _create_actor(entity_id: StringName, location_id: StringName) -> Actor:
 
 func _create_furniture(entity_id: StringName, location_id: StringName) -> Furniture:
 	var definition := FurnitureDefinition.new(
-		&"test_furniture",
+		FURNITURE_DEFINITION_ID,
 		"Test Furniture",
 		"res://assets/furniture/sign.svg",
 		{},

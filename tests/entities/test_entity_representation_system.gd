@@ -48,7 +48,7 @@ func _run_tests() -> void:
 	var actor := Actor.new(
 		actor_definition,
 		ActorState.new(
-			actor_definition.entity_id,
+			&"66666666-6666-4666-8666-666666666666",
 			&"tavern",
 			Vector2(96.0, 128.0),
 			ActorState.Facing.LEFT

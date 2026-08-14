@@ -27,18 +27,13 @@ func create(entity_data: Dictionary) -> Entity:
 		push_error("Actor entity creation has invalid initial_facing '%s'." % facing_text)
 		return null
 
-	var source_definition := ActorDefinitionLoader.load_from_file(definition_path)
-	if source_definition == null:
+	var definition := ActorDefinitionLoader.load_from_file(definition_path)
+	if definition == null:
 		return null
 	var entity_id := UuidGenerator.generate_v4()
 	if not UuidValidator.is_valid_v4(entity_id):
 		push_error("ActorEntityFactory could not generate a UUID v4.")
 		return null
-	var definition := ActorDefinition.new(
-		entity_id,
-		source_definition.display_name,
-		source_definition.visuals
-	)
 	var state := ActorState.new(
 		entity_id,
 		StringName(location_id_text),

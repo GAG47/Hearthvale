@@ -5,14 +5,47 @@ var _entities: Dictionary[StringName, Entity] = {}
 
 
 func register_entity(entity: Entity) -> bool:
+	if not can_register_entity(entity):
+		return false
+
+	_entities[entity.entity_id] = entity
+	return true
+
+
+func can_register_entity(entity: Entity) -> bool:
 	if not _validate_entity(entity):
 		return false
 	if _entities.has(entity.entity_id):
 		push_error("EntityRegistry already contains entity_id '%s'." % entity.entity_id)
 		return false
-
-	_entities[entity.entity_id] = entity
 	return true
+
+
+func can_register_entities(entities: Array[Entity]) -> bool:
+	var prepared_ids: Dictionary[StringName, bool] = {}
+	for entity in entities:
+		if not can_register_entity(entity):
+			return false
+		if prepared_ids.has(entity.entity_id):
+			push_error(
+				"EntityRegistry prepared Entities contain duplicate entity_id '%s'."
+				% entity.entity_id
+			)
+			return false
+		prepared_ids[entity.entity_id] = true
+	return true
+
+
+func register_entities(entities: Array[Entity]) -> bool:
+	if not can_register_entities(entities):
+		return false
+	commit_prepared_entities(entities)
+	return true
+
+
+func commit_prepared_entities(entities: Array[Entity]) -> void:
+	for entity in entities:
+		_entities[entity.entity_id] = entity
 
 
 func has_entity(entity_id: StringName) -> bool:

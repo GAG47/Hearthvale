@@ -160,9 +160,9 @@ EntityBakerRegistry → 唯一 EntityBaker
 Initial Entity Data
   ↓ New World 当前启动流程
 EntityFactoryRegistry → 唯一 EntityFactory
-  ↓
+  ↓ Prepare：创建并验证全部 Entity + EntityState
 Entity + EntityState
-  ↓ 注册
+  ↓ Commit：统一注册
 EntityRegistry + WorldState
   ↓ Location 加载
 Entity Representation System
@@ -176,7 +176,9 @@ Baking 是明确执行的开发阶段转换，不发生在 New World 或 Locatio
 
 Initial Entity Data 当前以 `schema_version` 和 `entities` 记录新世界所需的创建数据。每条数据明确保存 `entity_type`、`definition_path`、`location_id`、`local_position`，Actor 另存 `initial_facing`；它不保存运行时 UUID，也不根据 Node、Scene 或 Definition 文件名猜类型。
 
-EntityFactory 是运行时统一创建入口，负责把 Initial Entity Data 或未来程序生成的同格式创建数据转换为 Entity + EntityState。ActorEntityFactory 与 FurnitureEntityFactory 分别加载 Definition、生成永久 UUID，并创建对应 State 和 Entity；Furniture 继续通过现有 Furniture 构造逻辑初始化 Behavior / BehaviorState。EntityFactory 不创建或持有 Representation。Game 只通过 EntityFactoryRegistry 按明确 `entity_type` 找到唯一 Factory，再使用 WorldState 与 EntityRegistry 的通用接口注册结果，不按 Actor / Furniture 类型分支注册。
+EntityFactory 是运行时统一创建入口，负责把 Initial Entity Data 或未来程序生成的同格式创建数据转换为 Entity + EntityState。ActorEntityFactory 与 FurnitureEntityFactory 分别加载原始 Definition、为世界实例生成永久 `entity_id`，并创建对应 State 和 Entity；Furniture 继续通过现有 Furniture 构造逻辑初始化 Behavior / BehaviorState。EntityFactory 不创建或持有 Representation。
+
+固定 Entity 初始化采用 Prepare → Commit。Prepare 读取全部 Initial Entity Data，为每条数据取得唯一 Factory，创建并验证全部临时 Entity + EntityState，同时检查 Location、UUID、Entity / State 对应关系以及待注册批次内和正式 Registry 中的 ID 冲突；这一阶段不修改 WorldState 或 EntityRegistry。只有整个批次成功才进入 Commit，通过两个 Registry 的批量注册接口统一登记所有 State 与 Entity。中间任何一条创建或验证失败都不会产生部分 Entity、孤立 State 或其他半初始化结果。Game 的注册逻辑始终面向通用 Entity，不按 Actor / Furniture 类型分支。
 
 人工固定内容经过 Placement → Baking → Initial Entity Data；未来程序或 AI 生成内容可以直接产生 Entity 创建数据。两种来源统一进入 EntityFactory，之后使用相同的 EntityState、注册和 Representation 流程。Placement 只影响新世界初始数据；一旦 EntityState 已建立，Location 重载必须从 State 恢复位置和行为状态，不能重新读取 Placement。当前 Player 初始化仍属于独立的 Session 启动职责，没有迁入 Placement Baking。
 
@@ -200,9 +202,9 @@ Scene、Location 与 World State 表达不同职责：
 - Godot Scene 是该 Location 当前被加载后承担显示、碰撞、交互和场景行为的运行时表现；
 - World State 是独立于 Location Scene 生命周期持续存在的动态世界事实。
 
-世界身份使用稳定逻辑 ID。Location 继续使用 `location_id`；所有 Entity 使用全世界唯一的 UUID v4 `entity_id`。UUID 不编码名称、类型、Location、职业、用途、生成顺序或状态，创建后不变；UUID Generator 只生成 UUID，格式验证是独立职责。
+世界身份使用稳定逻辑 ID。Location 继续使用 `location_id`；每份 ActorDefinition 与 FurnitureDefinition 使用 UUID v4 `definition_id` 标识永久内容身份，每个世界中的具体 Entity 实例使用独立的 UUID v4 `entity_id`。`definition_id` 回答“哪一份 Definition”，`entity_id` 回答“当前世界中的哪一个实例”，两者不能相等绑定或互相代用。UUID 不编码名称、类型、Location、职业、用途、生成顺序或状态，创建后不变；UUID Generator 只生成 UUID，格式验证是独立职责。
 
-Definition 与 State 保持分离。ActorDefinition 描述角色名称和四向视觉；FurnitureDefinition 描述家具种类、静态视觉、占位、阻挡与 Behavior 配置。具体实例的 Location、位置、朝向或开启状态只进入相应 EntityState。TileMap、CollisionShape、Sprite 和 SceneTree 都不复制到 WorldState。
+Definition 与 State 保持分离。Initial Entity Data 通过 `definition_path` 找到 Definition，Definition 内部的 `definition_id` 标识内容；EntityFactory 另行生成 `entity_id` 并写入 EntityState 与 Entity。ActorDefinition 描述角色名称和四向视觉；FurnitureDefinition 描述家具种类、静态视觉、占位、阻挡与 Behavior 配置。具体实例的 Location、位置、朝向或开启状态只进入相应 EntityState。TileMap、CollisionShape、Sprite 和 SceneTree 都不复制到 WorldState。
 
 WorldState 是随当前游戏运行持续存在的 Autoload，以 `entity_id → EntityState` 统一保存 Entity 的动态状态，当前实际类型包括 ActorState 与 FurnitureState，并继续独立保存 WorldTimeState。它不加载 Definition、不创建 Entity，也不解释家具行为。Scene Node 被释放不代表逻辑实体或世界事实删除：Location 重载会创建新的 Representation，绑定 EntityRegistry 中同一 Entity 及 WorldState 中同一 State。
 
@@ -222,13 +224,13 @@ WorldState 持有 WorldTimeState，使它与其他运行时世界事实一样跨
 
 ## Actor、Furniture、Behavior 与表现
 
-Actor extends Entity，并关联 ActorDefinition 与 ActorState。ActorDefinition 当前只保存 UUID v4 `entity_id`、`display_name` 和 `visuals.up/down/left/right` 四张静态 Texture2D 路径；ActorState 在公共 EntityState 上增加四方向 `facing`。Location 加载时统一创建 ActorRepresentation，从 State 恢复位置和朝向并选择对应纹理；卸载前把 Scene 中的连续位置同步回同一个 State。
+Actor extends Entity，并关联 ActorDefinition 与 ActorState。ActorDefinition 当前保存 UUID v4 `definition_id`、`display_name` 和 `visuals.up/down/left/right` 四张静态 Texture2D 路径；ActorState 在公共 EntityState 上增加四方向 `facing`。ActorEntityFactory 直接使用加载得到的 ActorDefinition，并为 Actor / ActorState 生成独立 `entity_id`。Location 加载时统一创建 ActorRepresentation，从 State 恢复位置和朝向并选择对应纹理；卸载前把 Scene 中的连续位置同步回同一个 State。
 
-Furniture extends Entity，并关联可共享的 FurnitureDefinition、实例独享的 FurnitureState 和一组轻量 Behavior。`simple_bed`、`wooden_chest`、`sign` 都是 JSON Definition，不存在 Bed、Chest、Sign 逻辑子类。SleepableBehavior、OpenableBehavior、InspectableBehavior 分别封装当前睡眠、开关与查看规则；`is_open` 属于 `FurnitureState.behavior_states.openable` 中的 OpenableState，开启视觉路径属于 Definition 配置，Behavior 对象不保存具体家具实例状态。Behavior 的通用反馈从 FurnitureDefinition.display_name 取得名称，不假设能力只能属于某一种具体家具。
+Furniture extends Entity，并关联可共享的 FurnitureDefinition、实例独享的 FurnitureState 和一组轻量 Behavior。每份 FurnitureDefinition 同样以 UUID v4 `definition_id` 标识内容，Furniture / FurnitureState 使用另行生成的 `entity_id` 标识世界实例。床、储物箱、告示牌都是 JSON Definition，不存在 Bed、Chest、Sign 逻辑子类。SleepableBehavior、OpenableBehavior、InspectableBehavior 分别封装当前睡眠、开关与查看规则；`is_open` 属于 `FurnitureState.behavior_states.openable` 中的 OpenableState，开启视觉路径属于 Definition 配置，Behavior 对象不保存具体家具实例状态。Behavior 的通用反馈从 FurnitureDefinition.display_name 取得名称，不假设能力只能属于某一种具体家具。
 
 所有家具共用 FurnitureRepresentation Scene。它只绑定已有 Furniture，按 Definition / State 设置视觉、位置、占位碰撞，并把自身登记到当前 GridScene 的空间索引；它不生成 UUID，不创建或注册 Entity / State，也不判断 Action。OpenableState 变化后 Representation 只负责刷新视觉。离开酒馆会释放这些 Node，重新进入时创建的新 Representation 会绑定原 Furniture、原 FurnitureState 与其中同一个 OpenableState，因此直接恢复开启状态。
 
-PlayerController 独立持有当前受控 Actor 和它在已加载 Location 中的 ActorRepresentation，继续负责输入、连续移动、交互意图、结果信号和 Camera。角色与 Camera 跟随在物理帧更新，并使用 2D 物理插值平滑渲染；Location 切换后 Controller 绑定同一 Actor 的新 Representation。Actor 与 ActorRepresentation 不保存 Player 类型标记，Player 只表示当前控制权。Martha ActorDefinition 数据仍可加载，但在通用 NPC 初始化出现前不创建 Runtime Entity、State 或 Representation。
+PlayerController 独立持有当前受控 Actor 和它在已加载 Location 中的 ActorRepresentation，继续负责输入、连续移动、交互意图、结果信号和 Camera。当前 Player Definition 保存自己的 `definition_id`，Session 启动流程另行生成 Player Actor / ActorState 的 `entity_id`。角色与 Camera 跟随在物理帧更新，并使用 2D 物理插值平滑渲染；Location 切换后 Controller 绑定同一 Actor 的新 Representation。Actor 与 ActorRepresentation 不保存 Player 类型标记，Player 只表示当前控制权。Martha ActorDefinition 数据仍可加载，但在通用 NPC 初始化出现前不创建 Runtime Entity、State 或 Representation。
 
 ## 当前交互与行为关系
 

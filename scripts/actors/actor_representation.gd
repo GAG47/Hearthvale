@@ -49,10 +49,10 @@ func prepare_actor(
 	if p_actor.definition == null or p_actor.state == null:
 		push_error("ActorRepresentation requires an ActorDefinition and ActorState.")
 		return false
-	if p_actor.definition.entity_id != p_actor.entity_id:
+	if not UuidValidator.is_valid_v4(p_actor.definition.definition_id):
 		push_error(
-			"ActorDefinition ID '%s' does not match ActorState ID '%s'."
-			% [p_actor.definition.entity_id, p_actor.entity_id]
+			"ActorDefinition definition_id '%s' is not a valid UUID v4."
+			% p_actor.definition.definition_id
 		)
 		return false
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D

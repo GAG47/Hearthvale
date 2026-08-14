@@ -83,29 +83,33 @@ func _initialize_player_actor() -> Actor:
 	if definition == null:
 		push_error("Game could not load the Player ActorDefinition.")
 		return null
+	var entity_id := UuidGenerator.generate_v4()
+	if not UuidValidator.is_valid_v4(entity_id):
+		push_error("Game could not generate the Player entity_id UUID v4.")
+		return null
 
 	var state := ActorState.new(
-		definition.entity_id,
+		entity_id,
 		PLAYER_INITIAL_LOCATION_ID,
 		PLAYER_INITIAL_LOCAL_POSITION,
 		PLAYER_INITIAL_FACING
 	)
-	if not world_state.register_entity_state(state):
-		push_error(
-			"Game could not register the Player ActorState for entity_id '%s'."
-			% definition.entity_id
-		)
-		return null
-
 	var actor := Actor.new(definition, state)
-	if not entity_registry.register_entity(actor):
+	var prepared_states: Array[EntityState] = [state]
+	var prepared_entities: Array[Entity] = [actor]
+	if (
+		not world_state.can_register_entity_states(prepared_states)
+		or not entity_registry.can_register_entities(prepared_entities)
+	):
 		push_error(
-			"Game could not register the Player Actor for entity_id '%s'."
-			% definition.entity_id
+			"Game could not prepare the Player Actor for entity_id '%s'."
+			% entity_id
 		)
 		return null
+	world_state.commit_prepared_entity_states(prepared_states)
+	entity_registry.commit_prepared_entities(prepared_entities)
 
-	controlled_actor_id = definition.entity_id
+	controlled_actor_id = entity_id
 	return actor
 
 
@@ -114,16 +118,58 @@ func _initialize_world_entities() -> bool:
 	if not loaded_data is Array:
 		push_error("Game could not load Initial Entity Data.")
 		return false
-	var initial_entities: Array = loaded_data
+	return _initialize_world_entities_from_data(loaded_data)
+
+
+func _initialize_world_entities_from_data(initial_entities: Array) -> bool:
+	var prepared_value: Variant = _prepare_world_entities(initial_entities)
+	if not prepared_value is Array:
+		return false
+	var prepared_entities: Array[Entity] = []
+	for entity_value: Variant in prepared_value:
+		if not entity_value is Entity:
+			push_error("Prepared world Entity data contains a non-Entity value.")
+			return false
+		prepared_entities.append(entity_value)
+	return _commit_world_entities(prepared_entities)
+
+
+func _prepare_world_entities(initial_entities: Array) -> Variant:
+	if world_definition == null or world_state == null or entity_registry == null:
+		push_error("World Entity preparation requires WorldDefinition, WorldState, and EntityRegistry.")
+		return null
+	if entity_factory_registry == null:
+		push_error("World Entity preparation requires an EntityFactoryRegistry.")
+		return null
+
+	var prepared_entities: Array[Entity] = []
+	var prepared_ids: Dictionary[StringName, bool] = {}
 	for entity_data_value: Variant in initial_entities:
+		if not entity_data_value is Dictionary:
+			push_error("World Entity preparation requires Dictionary creation data.")
+			return null
 		var entity_data: Dictionary = entity_data_value
+		if (
+			not entity_data.has("location_id")
+			or not entity_data["location_id"] is String
+			or (entity_data["location_id"] as String).strip_edges().is_empty()
+		):
+			push_error("World Entity preparation requires a non-empty String location_id.")
+			return null
+		if (
+			not entity_data.has("entity_type")
+			or not entity_data["entity_type"] is String
+			or (entity_data["entity_type"] as String).strip_edges().is_empty()
+		):
+			push_error("World Entity preparation requires a non-empty String entity_type.")
+			return null
 		var location_id := StringName(entity_data["location_id"] as String)
 		if not world_definition.has_location(location_id):
 			push_error(
 				"Initial Entity Data references unknown location_id '%s'."
 				% location_id
 			)
-			return false
+			return null
 		var entity_type := StringName(entity_data["entity_type"] as String)
 		var factory := entity_factory_registry.get_factory(entity_type)
 		if factory == null:
@@ -131,13 +177,39 @@ func _initialize_world_entities() -> bool:
 		var entity := factory.create(entity_data)
 		if entity == null:
 			push_error("Game could not create initial Entity type '%s'." % entity_type)
-			return false
-		if not world_state.register_entity_state(entity.state):
-			push_error("Game could not register EntityState '%s'." % entity.entity_id)
-			return false
-		if not entity_registry.register_entity(entity):
-			push_error("Game could not register Entity '%s'." % entity.entity_id)
-			return false
+			return null
+		if prepared_ids.has(entity.entity_id):
+			push_error(
+				"World Entity preparation created duplicate entity_id '%s'."
+				% entity.entity_id
+			)
+			return null
+		if (
+			not world_state.can_register_entity_state(entity.state)
+			or not entity_registry.can_register_entity(entity)
+		):
+			push_error("Game could not validate prepared Entity '%s'." % entity.entity_id)
+			return null
+		prepared_ids[entity.entity_id] = true
+		prepared_entities.append(entity)
+	return prepared_entities
+
+
+func _commit_world_entities(prepared_entities: Array[Entity]) -> bool:
+	var prepared_states: Array[EntityState] = []
+	for entity in prepared_entities:
+		prepared_states.append(entity.state)
+	if not world_state.can_register_entity_states(prepared_states):
+		push_error("Game could not commit prepared EntityStates.")
+		return false
+	if not entity_registry.can_register_entities(prepared_entities):
+		push_error("Game could not commit prepared Entities.")
+		return false
+
+	# Both registries are fully validated before either one is mutated. Commit only
+	# inserts that prepared batch, so there is no fallible step between registries.
+	world_state.commit_prepared_entity_states(prepared_states)
+	entity_registry.commit_prepared_entities(prepared_entities)
 	return true
 
 

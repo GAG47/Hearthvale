@@ -5,6 +5,10 @@ const MAIN_SCENE := preload("res://scenes/main.tscn")
 const INITIAL_DATA_PATH := "res://data/world/initial_entities.json"
 const MARTHA_DEFINITION_PATH := "res://data/actors/martha.json"
 const CHEST_DEFINITION_PATH := "res://data/furniture/wooden_chest.json"
+const MARTHA_DEFINITION_ID := &"90da2d88-d049-4519-9e5c-e35136ff6a7d"
+const CHEST_DEFINITION_ID := &"7f45a0d2-2ff2-4f1c-8b7a-3d7d0dd5b8a1"
+const SIGN_DEFINITION_ID := &"9c4b72f1-bd0e-4f67-a5d2-6e5b1f9c3a20"
+const BED_DEFINITION_ID := &"c2a6e4b8-1d73-4c5f-9a0e-7b3d8f21e654"
 const BAKED_TEST_PATH := "user://v9_initial_entities_test.json"
 const INVALID_TEST_PATH := "user://v9_invalid_output_guard.json"
 
@@ -205,7 +209,8 @@ func _test_entity_factories(baked_entities: Array[Dictionary]) -> void:
 	_expect(actor != null, "ActorEntityFactory must create Actor.")
 	if actor != null:
 		_expect(UuidValidator.is_valid_v4(actor.entity_id), "ActorEntityFactory must generate UUID v4.")
-		_expect(actor.definition.entity_id == actor.entity_id, "Actor Definition and State must use generated UUID.")
+		_expect(actor.definition.definition_id == MARTHA_DEFINITION_ID, "Actor Factory must preserve Definition identity.")
+		_expect(actor.definition.definition_id != actor.entity_id, "Actor Definition and Entity IDs must be independent.")
 		_expect(actor.definition.display_name == "Martha", "ActorEntityFactory must load ActorDefinition.")
 		_expect(actor.state is ActorState, "ActorEntityFactory must create ActorState.")
 		_expect(actor.current_location_id == &"town_street", "ActorState must use creation location_id.")
@@ -219,7 +224,8 @@ func _test_entity_factories(baked_entities: Array[Dictionary]) -> void:
 	_expect(furniture != null, "FurnitureEntityFactory must create Furniture.")
 	if furniture != null:
 		_expect(UuidValidator.is_valid_v4(furniture.entity_id), "FurnitureEntityFactory must generate UUID v4.")
-		_expect(furniture.definition.definition_id == &"wooden_chest", "Furniture Factory must load Definition.")
+		_expect(furniture.definition.definition_id == CHEST_DEFINITION_ID, "Furniture Factory must load Definition.")
+		_expect(furniture.definition.definition_id != furniture.entity_id, "Furniture Definition and Entity IDs must be independent.")
 		_expect(furniture.state is FurnitureState, "Furniture Factory must create FurnitureState.")
 		_expect(furniture.current_location_id == &"tavern", "FurnitureState must use creation location_id.")
 		_expect(furniture.local_position == Vector2(464.0, 208.0), "FurnitureState must use creation position.")
@@ -252,9 +258,9 @@ func _test_runtime_creation_and_representation(
 	root.add_child(game)
 	await process_frame
 	await physics_frame
-	var chest := _find_furniture(entity_registry, &"wooden_chest")
-	var sign := _find_furniture(entity_registry, &"sign")
-	var bed := _find_furniture(entity_registry, &"simple_bed")
+	var chest := _find_furniture(entity_registry, CHEST_DEFINITION_ID)
+	var sign := _find_furniture(entity_registry, SIGN_DEFINITION_ID)
+	var bed := _find_furniture(entity_registry, BED_DEFINITION_ID)
 	_expect(chest != null and sign != null and bed != null, "Game must create all baked Furniture Entities.")
 	if chest == null or sign == null or bed == null:
 		game.queue_free()

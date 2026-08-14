@@ -39,19 +39,19 @@ static func load_from_file(path: String) -> ActorDefinition:
 		return null
 	var data: Dictionary = parsed_data
 
-	if not data.has("entity_id"):
-		push_error("ActorDefinitionLoader '%s' is missing 'entity_id'." % path)
+	if not data.has("definition_id"):
+		push_error("ActorDefinitionLoader '%s' is missing 'definition_id'." % path)
 		return null
-	var raw_entity_id: Variant = data["entity_id"]
-	if not raw_entity_id is String:
-		push_error("ActorDefinitionLoader '%s' field 'entity_id' must be a String." % path)
+	var raw_definition_id: Variant = data["definition_id"]
+	if not raw_definition_id is String:
+		push_error("ActorDefinitionLoader '%s' field 'definition_id' must be a String." % path)
 		return null
-	var entity_id_text: String = raw_entity_id
-	var entity_id := StringName(entity_id_text)
-	if not UuidValidator.is_valid_v4(entity_id):
+	var definition_id_text: String = raw_definition_id
+	var definition_id := StringName(definition_id_text)
+	if not UuidValidator.is_valid_v4(definition_id):
 		push_error(
-			"ActorDefinitionLoader '%s' field 'entity_id' is not a valid UUID v4: '%s'."
-			% [path, entity_id_text]
+			"ActorDefinitionLoader '%s' field 'definition_id' is not a valid UUID v4: '%s'."
+			% [path, definition_id_text]
 		)
 		return null
 
@@ -84,7 +84,7 @@ static func load_from_file(path: String) -> ActorDefinition:
 			return null
 		visuals[direction] = visual_path
 
-	return ActorDefinition.new(entity_id, display_name, visuals)
+	return ActorDefinition.new(definition_id, display_name, visuals)
 
 
 static func _validate_visual_path(

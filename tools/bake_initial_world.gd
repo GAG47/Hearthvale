@@ -1,6 +1,7 @@
 extends SceneTree
 
 const OUTPUT_PATH := "res://data/world/initial_entities.json"
+const OUTPUT_ARGUMENT_PREFIX := "--output="
 
 
 func _init() -> void:
@@ -9,10 +10,18 @@ func _init() -> void:
 
 func _run() -> void:
 	var world_definition := root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
-	var success := bake_initial_world(world_definition, OUTPUT_PATH)
+	var output_path := _read_output_path(OS.get_cmdline_user_args())
+	var success := bake_initial_world(world_definition, output_path)
 	if success:
-		print("Bake Initial World wrote '%s'." % OUTPUT_PATH)
+		print("Bake Initial World wrote '%s'." % output_path)
 	quit(0 if success else 1)
+
+
+static func _read_output_path(arguments: PackedStringArray) -> String:
+	for argument in arguments:
+		if argument.begins_with(OUTPUT_ARGUMENT_PREFIX):
+			return argument.trim_prefix(OUTPUT_ARGUMENT_PREFIX)
+	return OUTPUT_PATH
 
 
 static func bake_initial_world(

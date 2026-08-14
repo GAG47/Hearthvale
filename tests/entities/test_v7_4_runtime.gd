@@ -8,6 +8,9 @@ const FURNITURE_REPRESENTATION_SCENE_PATH := (
 	"res://scenes/furniture/furniture_representation.tscn"
 )
 const SECOND_CHEST_ENTITY_ID := &"44444444-4444-4444-8444-444444444444"
+const CHEST_DEFINITION_ID := &"7f45a0d2-2ff2-4f1c-8b7a-3d7d0dd5b8a1"
+const SIGN_DEFINITION_ID := &"9c4b72f1-bd0e-4f67-a5d2-6e5b1f9c3a20"
+const BED_DEFINITION_ID := &"c2a6e4b8-1d73-4c5f-9a0e-7b3d8f21e654"
 
 var _checks := 0
 var _failures := 0
@@ -54,7 +57,8 @@ func _run_tests() -> void:
 		return
 
 	controller.action_completed.connect(_on_action_completed)
-	var player := registry.get_entity(player_definition.entity_id) as Actor
+	var controlled_actor_id: StringName = game.get("controlled_actor_id")
+	var player := registry.get_entity(controlled_actor_id) as Actor
 	_expect(player != null, "Game must register the Player Actor as an Entity.")
 	if player == null:
 		game.queue_free()
@@ -64,8 +68,8 @@ func _run_tests() -> void:
 
 	_expect(player is Entity, "Actor must extend Entity.")
 	_expect(
-		game.get("controlled_actor_id") == player_definition.entity_id,
-		"Game controlled_actor_id must come from player.json."
+		controlled_actor_id == player.entity_id,
+		"Game controlled_actor_id must use the runtime Player entity_id."
 	)
 	_expect(
 		world_state.get_entity_state(player.entity_id) == player.state,
@@ -73,10 +77,15 @@ func _run_tests() -> void:
 	)
 	_expect(player.state is ActorState, "Player must hold ActorState through Entity.state.")
 	_expect(
-		player.definition.entity_id == player_definition.entity_id
+		player.definition.definition_id == player_definition.definition_id
 		and player.definition.display_name == player_definition.display_name
 		and player.definition.visuals == player_definition.visuals,
 		"The runtime Player ActorDefinition must preserve all player.json fields."
+	)
+	_expect(
+		UuidValidator.is_valid_v4(player.entity_id)
+		and player.entity_id != player.definition.definition_id,
+		"Player runtime entity_id must be a UUID distinct from definition_id."
 	)
 	_expect(
 		player.definition.visuals == {
@@ -94,19 +103,15 @@ func _run_tests() -> void:
 	)
 	_expect(player.facing == ActorState.Facing.DOWN, "Player must start facing DOWN.")
 	_expect(
-		not registry.has_entity(martha_definition.entity_id),
+		not _has_actor_with_definition(registry, martha_definition.definition_id),
 		"Martha must remain definition-only in the current runtime."
-	)
-	_expect(
-		not world_state.has_entity_state(martha_definition.entity_id),
-		"Martha must not receive an ActorState."
 	)
 	_expect(registry.get_entities().size() == 4, "Player and three Furniture Entities must exist.")
 	_expect(world_state.get_entity_states().size() == 4, "WorldState must hold four EntityStates.")
 
-	var chest := _expect_furniture(registry, world_state, &"wooden_chest")
-	var sign := _expect_furniture(registry, world_state, &"sign")
-	var bed := _expect_furniture(registry, world_state, &"simple_bed")
+	var chest := _expect_furniture(registry, world_state, CHEST_DEFINITION_ID)
+	var sign := _expect_furniture(registry, world_state, SIGN_DEFINITION_ID)
+	var bed := _expect_furniture(registry, world_state, BED_DEFINITION_ID)
 	if chest == null or sign == null or bed == null:
 		game.queue_free()
 		await process_frame
@@ -338,6 +343,16 @@ func _find_furniture_by_definition(
 		if entity is Furniture and (entity as Furniture).definition.definition_id == definition_id:
 			return entity as Furniture
 	return null
+
+
+func _has_actor_with_definition(
+	registry: EntityRegistryRuntime,
+	definition_id: StringName
+) -> bool:
+	for entity in registry.get_entities():
+		if entity is Actor and (entity as Actor).definition.definition_id == definition_id:
+			return true
+	return false
 
 
 func _test_interactions(
