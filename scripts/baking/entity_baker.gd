@@ -8,5 +8,6 @@ extends RefCounted
 
 @abstract func bake(
 	placement: EntityPlacement,
-	location_id: StringName
+	location_id: StringName,
+	location_local_position: Vector2
 ) -> Dictionary

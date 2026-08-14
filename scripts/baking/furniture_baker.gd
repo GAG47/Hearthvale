@@ -6,7 +6,11 @@ func supports(placement: EntityPlacement) -> bool:
 	return placement is FurniturePlacement
 
 
-func bake(placement: EntityPlacement, location_id: StringName) -> Dictionary:
+func bake(
+	placement: EntityPlacement,
+	location_id: StringName,
+	location_local_position: Vector2
+) -> Dictionary:
 	if not placement is FurniturePlacement:
 		push_error("FurnitureBaker requires a FurniturePlacement.")
 		return {}
@@ -24,8 +28,8 @@ func bake(placement: EntityPlacement, location_id: StringName) -> Dictionary:
 	if location_id.is_empty():
 		push_error("FurniturePlacement '%s' requires a valid Location ID." % placement.name)
 		return {}
-	if not _is_valid_position(furniture_placement.position):
-		push_error("FurniturePlacement '%s' has an invalid local position." % placement.name)
+	if not _is_valid_position(location_local_position):
+		push_error("FurniturePlacement '%s' has an invalid Location-local position." % placement.name)
 		return {}
 	var definition_uid := _get_resource_uid(furniture_placement.definition)
 	if definition_uid.is_empty():
@@ -37,8 +41,8 @@ func bake(placement: EntityPlacement, location_id: StringName) -> Dictionary:
 		"definition_uid": definition_uid,
 		"location_id": String(location_id),
 		"local_position": [
-			furniture_placement.position.x,
-			furniture_placement.position.y,
+			location_local_position.x,
+			location_local_position.y,
 		],
 	}
 

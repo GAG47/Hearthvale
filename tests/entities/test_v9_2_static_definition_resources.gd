@@ -15,6 +15,10 @@ const UID_RENAME_BEFORE := "user://v9_2_uid_before.tres"
 const UID_RENAME_AFTER := "user://v9_2_uid_after.tres"
 const SCHEMA_BAKE_PATH := "user://v9_2_schema_bake.json"
 const WRONG_SCHEMA_PATH := "user://v9_2_wrong_schema.json"
+const LOCATION_LOCAL_BAKE_PATH := "user://v9_2_location_local_bake.json"
+const LOCATION_LOCAL_SCENE_PATH := (
+	"res://tests/entities/fixtures/locations/v9_2_location_local_placements.tscn"
+)
 
 var _checks := 0
 var _failures := 0
@@ -59,6 +63,7 @@ func _run_tests() -> void:
 	_test_resource_change_notifications()
 	_test_definition_validation_consistency()
 	_test_bakers_and_factories(martha, chest)
+	_test_location_local_baking()
 	_test_schema_version()
 	_test_resource_uid_rename()
 	_test_removed_json_chain()
@@ -275,15 +280,18 @@ func _test_definition_validation_consistency() -> void:
 		"ActorPlacement warnings must include the complete ActorDefinition validation."
 	)
 	_expect(
-		ActorBaker.new().bake(actor_placement, &"tavern").is_empty(),
+		ActorBaker.new().bake(
+			actor_placement,
+			&"tavern",
+			actor_placement.position
+		).is_empty(),
 		"Actor Editor and Baking validation must both reject the same invalid Definition."
 	)
 
 	var furniture_definition := FurnitureDefinition.new()
 	furniture_definition.display_name = "Invalid Furniture"
-	furniture_definition.visual = load("res://assets/furniture/sign.svg") as Texture2D
 	furniture_definition.behaviors = {"unsupported": {}}
-	furniture_definition.occupied_cells = Vector2i.ONE
+	furniture_definition.occupied_cells = Vector2i.ZERO
 	var furniture_placement := FurniturePlacement.new()
 	furniture_placement.definition = furniture_definition
 	var furniture_definition_warnings := furniture_definition.get_validation_warnings()
@@ -293,7 +301,15 @@ func _test_definition_validation_consistency() -> void:
 		"FurniturePlacement warnings must include complete FurnitureDefinition validation."
 	)
 	_expect(
-		FurnitureBaker.new().bake(furniture_placement, &"tavern").is_empty(),
+		furniture_placement_warnings == furniture_definition_warnings,
+		"FurniturePlacement must not duplicate FurnitureDefinition warnings."
+	)
+	_expect(
+		FurnitureBaker.new().bake(
+			furniture_placement,
+			&"tavern",
+			furniture_placement.position
+		).is_empty(),
 		"Furniture Editor and Baking validation must both reject the same invalid Definition."
 	)
 	actor_placement.free()
@@ -308,7 +324,11 @@ func _test_bakers_and_factories(
 	actor_placement.definition = martha
 	actor_placement.position = Vector2(400.0, 200.0)
 	actor_placement.initial_facing = ActorState.Facing.LEFT
-	var actor_data := ActorBaker.new().bake(actor_placement, &"town_street")
+	var actor_data := ActorBaker.new().bake(
+		actor_placement,
+		&"town_street",
+		actor_placement.position
+	)
 	_expect(actor_data["definition_uid"] == MARTHA_UID, "ActorBaker must output definition_uid.")
 	_expect(not actor_data.has("definition_path"), "ActorBaker must not output Definition path.")
 	var actor := ActorEntityFactory.new().create(actor_data) as Actor
@@ -319,7 +339,11 @@ func _test_bakers_and_factories(
 	var furniture_placement := FurniturePlacement.new()
 	furniture_placement.definition = chest
 	furniture_placement.position = Vector2(464.0, 208.0)
-	var furniture_data := FurnitureBaker.new().bake(furniture_placement, &"tavern")
+	var furniture_data := FurnitureBaker.new().bake(
+		furniture_placement,
+		&"tavern",
+		furniture_placement.position
+	)
 	_expect(furniture_data["definition_uid"] == CHEST_UID, "FurnitureBaker must output definition_uid.")
 	_expect(not furniture_data.has("definition_path"), "FurnitureBaker must not output Definition path.")
 	var furniture := FurnitureEntityFactory.new().create(furniture_data) as Furniture
@@ -329,6 +353,66 @@ func _test_bakers_and_factories(
 		_expect(furniture.get_openable_state() is OpenableState, "Furniture BehaviorState initialization must remain.")
 	actor_placement.free()
 	furniture_placement.free()
+
+
+func _test_location_local_baking() -> void:
+	var location_definitions: Array[LocationDefinition] = [
+		LocationDefinition.new(
+			&"v9_2_location_local",
+			"V9.2 Location-local Baking",
+			LOCATION_LOCAL_SCENE_PATH
+		),
+	]
+	_expect(
+		BAKE_TOOL.bake_definitions(
+			location_definitions,
+			EntityBakerRegistry.create_default(),
+			LOCATION_LOCAL_BAKE_PATH
+		),
+		"Baking must support nested Placement transforms."
+	)
+	var baked_value: Variant = InitialEntityDataLoader.load_from_file(
+		LOCATION_LOCAL_BAKE_PATH
+	)
+	_expect(baked_value is Array, "Location-local Baking output must load.")
+	if baked_value is Array:
+		var baked_entities: Array = baked_value
+		var expected_entity_types: Array[String] = [
+			"furniture",
+			"actor",
+			"furniture",
+			"actor",
+			"furniture",
+		]
+		var expected_positions: Array[Vector2] = [
+			Vector2(10.0, 20.0),
+			Vector2(30.0, 40.0),
+			Vector2(350.0, 150.0),
+			Vector2(135.0, 66.0),
+			Vector2(140.0, 120.0),
+		]
+		_expect(
+			baked_entities.size() == expected_positions.size(),
+			"Every nested Placement must be baked."
+		)
+		for index in range(mini(baked_entities.size(), expected_positions.size())):
+			var entity_data: Dictionary = baked_entities[index]
+			var position_data: Array = entity_data["local_position"]
+			var actual_position := Vector2(
+				float(position_data[0]),
+				float(position_data[1])
+			)
+			_expect(
+				entity_data["entity_type"] == expected_entity_types[index],
+				"Nested Placement %d must use the correct Baker." % index
+			)
+			_expect(
+				actual_position.is_equal_approx(expected_positions[index]),
+				"Nested Placement %d must bake in the Location root coordinate system."
+				% index
+			)
+	if FileAccess.file_exists(LOCATION_LOCAL_BAKE_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(LOCATION_LOCAL_BAKE_PATH))
 
 
 func _test_schema_version() -> void:

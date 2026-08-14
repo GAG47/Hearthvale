@@ -6,7 +6,11 @@ func supports(placement: EntityPlacement) -> bool:
 	return placement is ActorPlacement
 
 
-func bake(placement: EntityPlacement, location_id: StringName) -> Dictionary:
+func bake(
+	placement: EntityPlacement,
+	location_id: StringName,
+	location_local_position: Vector2
+) -> Dictionary:
 	if not placement is ActorPlacement:
 		push_error("ActorBaker requires an ActorPlacement.")
 		return {}
@@ -21,8 +25,8 @@ func bake(placement: EntityPlacement, location_id: StringName) -> Dictionary:
 	if location_id.is_empty():
 		push_error("ActorPlacement '%s' requires a valid Location ID." % placement.name)
 		return {}
-	if not _is_valid_position(actor_placement.position):
-		push_error("ActorPlacement '%s' has an invalid local position." % placement.name)
+	if not _is_valid_position(location_local_position):
+		push_error("ActorPlacement '%s' has an invalid Location-local position." % placement.name)
 		return {}
 	var facing_name := _facing_to_string(actor_placement.initial_facing)
 	if facing_name.is_empty():
@@ -37,7 +41,7 @@ func bake(placement: EntityPlacement, location_id: StringName) -> Dictionary:
 		"entity_type": "actor",
 		"definition_uid": definition_uid,
 		"location_id": String(location_id),
-		"local_position": [actor_placement.position.x, actor_placement.position.y],
+		"local_position": [location_local_position.x, location_local_position.y],
 		"initial_facing": facing_name,
 	}
 

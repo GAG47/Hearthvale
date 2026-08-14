@@ -24,7 +24,11 @@ class MatchingBaker:
 		return true
 
 
-	func bake(_placement: EntityPlacement, _location_id: StringName) -> Dictionary:
+	func bake(
+		_placement: EntityPlacement,
+		_location_id: StringName,
+		_location_local_position: Vector2
+	) -> Dictionary:
 		return {}
 
 
@@ -99,18 +103,26 @@ func _test_placement_and_baker_registry() -> void:
 		"Multiple Baker matches must fail without registration-order priority."
 	)
 
-	var actor_data := actor_baker.bake(actor_placement, &"town_street")
+	var actor_data := actor_baker.bake(
+		actor_placement,
+		&"town_street",
+		actor_placement.position
+	)
 	_expect(actor_data["entity_type"] == "actor", "Actor Baking must emit explicit entity_type.")
 	_expect(actor_data["definition_uid"] == MARTHA_DEFINITION_UID, "Actor Baking must emit ResourceUID.")
 	_expect(actor_data["location_id"] == "town_street", "Actor Baking must use owning Location ID.")
-	_expect(actor_data["local_position"] == [400.0, 200.0], "Actor Baking must serialize Node2D.position.")
+	_expect(actor_data["local_position"] == [400.0, 200.0], "Actor Baking must serialize Location-local position.")
 	_expect(actor_data["initial_facing"] == "left", "Actor Baking must serialize initial_facing.")
 
-	var furniture_data := furniture_baker.bake(furniture_placement, &"tavern")
+	var furniture_data := furniture_baker.bake(
+		furniture_placement,
+		&"tavern",
+		furniture_placement.position
+	)
 	_expect(furniture_data["entity_type"] == "furniture", "Furniture Baking must emit explicit entity_type.")
 	_expect(furniture_data["definition_uid"] == CHEST_DEFINITION_UID, "Furniture Baking must emit ResourceUID.")
 	_expect(furniture_data["location_id"] == "tavern", "Furniture Baking must use owning Location ID.")
-	_expect(furniture_data["local_position"] == [320.0, 180.0], "Furniture Baking must serialize Node2D.position.")
+	_expect(furniture_data["local_position"] == [320.0, 180.0], "Furniture Baking must serialize Location-local position.")
 	_expect(not furniture_data.has("entity_id"), "Baking Data must not contain a runtime UUID.")
 
 	actor_placement.free()

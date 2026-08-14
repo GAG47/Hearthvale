@@ -92,7 +92,12 @@ static func bake_definitions(
 			if baker == null:
 				location.free()
 				return false
-			var entity_data := baker.bake(placement, definition.location_id)
+			var location_local_position := location.to_local(placement.global_position)
+			var entity_data := baker.bake(
+				placement,
+				definition.location_id,
+				location_local_position
+			)
 			if entity_data.is_empty() or not _validate_baked_entity(entity_data):
 				location.free()
 				return false

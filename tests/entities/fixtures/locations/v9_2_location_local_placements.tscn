@@ -1,0 +1,52 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/location/grid_scene.gd" id="1_grid"]
+[ext_resource type="Script" path="res://scripts/placements/actor_placement.gd" id="2_actor_placement"]
+[ext_resource type="Script" path="res://scripts/placements/furniture_placement.gd" id="3_furniture_placement"]
+[ext_resource type="Resource" uid="uid://dscpwfh6l65fh" path="res://data/actors/martha.tres" id="4_martha"]
+[ext_resource type="Resource" uid="uid://d0hdcbqvh7bfb" path="res://data/furniture/sign.tres" id="5_sign"]
+
+[node name="LocationLocalPlacements" type="Node2D"]
+script = ExtResource("1_grid")
+location_id = &"v9_2_location_local"
+
+[node name="DirectFurniture" type="Node2D" parent="."]
+position = Vector2(10, 20)
+script = ExtResource("3_furniture_placement")
+definition = ExtResource("5_sign")
+
+[node name="ZeroGroup" type="Node2D" parent="."]
+
+[node name="ZeroGroupActor" type="Node2D" parent="ZeroGroup"]
+position = Vector2(30, 40)
+script = ExtResource("2_actor_placement")
+definition = ExtResource("4_martha")
+
+[node name="OffsetGroup" type="Node2D" parent="."]
+position = Vector2(300, 100)
+
+[node name="OffsetFurniture" type="Node2D" parent="OffsetGroup"]
+position = Vector2(50, 50)
+script = ExtResource("3_furniture_placement")
+definition = ExtResource("5_sign")
+
+[node name="NestedGroup" type="Node2D" parent="."]
+position = Vector2(100, 20)
+
+[node name="NestedChild" type="Node2D" parent="NestedGroup"]
+position = Vector2(30, 40)
+
+[node name="NestedActor" type="Node2D" parent="NestedGroup/NestedChild"]
+position = Vector2(5, 6)
+script = ExtResource("2_actor_placement")
+definition = ExtResource("4_martha")
+
+[node name="TransformedGroup" type="Node2D" parent="."]
+position = Vector2(200, 100)
+rotation = 1.5707963267949
+scale = Vector2(2, 3)
+
+[node name="TransformedFurniture" type="Node2D" parent="TransformedGroup"]
+position = Vector2(10, 20)
+script = ExtResource("3_furniture_placement")
+definition = ExtResource("5_sign")

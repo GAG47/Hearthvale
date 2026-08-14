@@ -56,10 +56,6 @@ func _get_configuration_warnings() -> PackedStringArray:
 		warnings.append("FurniturePlacement requires a FurnitureDefinition Resource.")
 		return warnings
 	warnings.append_array(definition.get_validation_warnings())
-	if definition.visual == null:
-		warnings.append("FurniturePlacement requires FurnitureDefinition.visual.")
-	if definition.occupied_cells.x <= 0 or definition.occupied_cells.y <= 0:
-		warnings.append("FurniturePlacement requires positive occupied_cells.")
 	return warnings
 
 
