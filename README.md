@@ -9,7 +9,7 @@ Hearthvale 是一款中世纪西幻 RPG / Living World 游戏。玩家作为世�
 
 ## 当前状态
 
-世界与空间、静态 Location Graph、统一 Entity、运行时 World State、交互行为和世界时间已经建立。固定世界内容以 Scene Placement 制作，经开发阶段 Baking 生成 Initial Entity Data；New World 当前启动流程再通过统一 EntityFactory 生成永久 UUID、EntityState 与 Entity。Entity Representation System 为已存在 Entity 创建临时 Scene 表现。Location 切换采用 Prepare → Commit：目标 Scene、Entry 与全部 Representation 准备成功后才迁移 State 并替换当前场景；准备失败不会破坏旧 Location 或控制关系。Location 卸载只释放 Representation，Entity 与 State 会持续存在并在重新进入时恢复。当前工程可以直接运行，移动、四向视觉、碰撞、Camera、地点切换、家具交互、储物箱状态持续和睡眠推进时间均保持正常。
+世界与空间、静态 Location Graph、统一 Entity、运行时 World State、交互行为和世界时间已经建立。Actor / Furniture 静态 Definition 使用带 ResourceUID 的 Godot Custom Resource；固定世界内容以直接引用 Definition 的 Scene Placement 制作，经开发阶段 Baking 生成只保存 `definition_uid` 的 Initial Entity Data。New World 当前启动流程再通过统一 EntityFactory 生成永久 UUID、EntityState 与 Entity。Entity Representation System 为已存在 Entity 创建临时 Scene 表现。Location 切换采用 Prepare → Commit，Location 卸载只释放 Representation，Entity 与 State 会持续存在并在重新进入时恢复。当前工程可以直接运行，移动、四向视觉、碰撞、Camera、地点切换、家具交互、储物箱状态持续和睡眠推进时间均保持正常。
 
 ## 目录
 
@@ -48,3 +48,4 @@ scripts/  游戏脚本
 - [V7.5：Location Prepare → Commit 生命周期](docs/v7_5_location_prepare_commit_development_log.md)
 - [V8：Entity Representation System](docs/v8_entity_representation_system_development_log.md)
 - [V9：Entity Lifecycle / Baking](docs/v9_entity_lifecycle_baking_development_log.md)
+- [V9.2：Static Definition Resource + Entity Authoring](docs/v9_2_static_definition_resource_entity_authoring_development_log.md)

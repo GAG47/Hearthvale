@@ -1,8 +1,8 @@
 extends SceneTree
 
 const MAIN_SCENE := preload("res://scenes/main.tscn")
-const PLAYER_DEFINITION_PATH := "res://data/actors/player.json"
-const CHEST_DEFINITION_PATH := "res://data/furniture/wooden_chest.json"
+const PLAYER_DEFINITION_PATH := "res://data/actors/player.tres"
+const CHEST_DEFINITION_PATH := "res://data/furniture/wooden_chest.tres"
 
 var _checks := 0
 var _failures := 0
@@ -37,8 +37,8 @@ func _init() -> void:
 
 
 func _run_tests() -> void:
-	var actor_definition := ActorDefinitionLoader.load_from_file(PLAYER_DEFINITION_PATH)
-	var furniture_definition := FurnitureDefinitionLoader.load_from_file(CHEST_DEFINITION_PATH)
+	var actor_definition := load(PLAYER_DEFINITION_PATH) as ActorDefinition
+	var furniture_definition := load(CHEST_DEFINITION_PATH) as FurnitureDefinition
 	_expect(actor_definition != null, "Player ActorDefinition must load for Factory tests.")
 	_expect(furniture_definition != null, "Chest FurnitureDefinition must load for Factory tests.")
 	if actor_definition == null or furniture_definition == null:

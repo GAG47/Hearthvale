@@ -1,7 +1,7 @@
 extends SceneTree
 
 const MAIN_SCENE := preload("res://scenes/main.tscn")
-const CHEST_DEFINITION_ID := &"7f45a0d2-2ff2-4f1c-8b7a-3d7d0dd5b8a1"
+const CHEST_DEFINITION_UID := "uid://d1t0crg266u0f"
 const MISSING_SCENE_LOCATION_ID := &"v7_5_missing_scene"
 const WRONG_ROOT_LOCATION_ID := &"v7_5_wrong_root"
 const MISMATCHED_LOCATION_ID := &"v7_5_mismatched_location"
@@ -33,7 +33,7 @@ func _run_tests() -> void:
 	var controller := game.get_node_or_null("PlayerController") as PlayerController
 	var controlled_actor_id: StringName = game.get("controlled_actor_id")
 	var player := registry.get_entity(controlled_actor_id) as Actor
-	var chest := _find_furniture_by_definition(registry, CHEST_DEFINITION_ID)
+	var chest := _find_furniture_by_definition(registry, CHEST_DEFINITION_UID)
 	_expect(controller != null, "Game must contain PlayerController.")
 	_expect(player != null, "Game must register the Player Actor.")
 	_expect(chest != null, "Game must register the Chest Furniture.")
@@ -153,8 +153,8 @@ func _run_tests() -> void:
 		&"tavern_yard",
 		&"tavern_entrance"
 	)
-	var original_right_visual: String = player.definition.visuals["right"]
-	player.definition.visuals["right"] = "res://assets/actors/does_not_exist.svg"
+	var original_right_visual := player.definition.visual_right
+	player.definition.visual_right = null
 	await _expect_requested_prepare_failure(
 		game,
 		controller,
@@ -163,7 +163,7 @@ func _run_tests() -> void:
 		&"back_door",
 		"ActorRepresentation visual preparation"
 	)
-	player.definition.visuals["right"] = original_right_visual
+	player.definition.visual_right = original_right_visual
 
 	var playable_position := tavern_representation.position
 	Input.action_press(&"ui_left")
@@ -210,7 +210,7 @@ func _run_tests() -> void:
 	_expect(not is_instance_valid(old_tavern), "Commit must release the old Location.")
 	_expect(not is_instance_valid(old_tavern_representation), "Commit must release old Representation.")
 	_expect(
-		_get_actor_visual_path(yard_representation) == player.definition.visuals["left"],
+		_get_actor_visual_path(yard_representation) == player.definition.visual_left.resource_path,
 		"Prepared ActorRepresentation must preserve the four-direction visual."
 	)
 	var camera := controller.get_node_or_null("Camera2D") as Camera2D
@@ -248,8 +248,8 @@ func _run_tests() -> void:
 		&"back_door"
 	)
 	var openable_config: Dictionary = chest.definition.behaviors["openable"]
-	var original_open_visual: String = openable_config["open_visual_ref"]
-	openable_config["open_visual_ref"] = "res://assets/furniture/does_not_exist.svg"
+	var original_open_visual := openable_config["open_visual"] as Texture2D
+	openable_config["open_visual"] = null
 	_expect_prepare_failure(
 		game,
 		controller,
@@ -260,7 +260,7 @@ func _run_tests() -> void:
 		tavern_edge,
 		"FurnitureRepresentation visual preparation"
 	)
-	openable_config["open_visual_ref"] = original_open_visual
+	openable_config["open_visual"] = original_open_visual
 
 	var old_yard := game.get("current_location") as GridScene
 	var old_yard_representation := controller.controlled_representation
@@ -488,10 +488,15 @@ func _find_furniture_representation(
 
 func _find_furniture_by_definition(
 	registry: EntityRegistryRuntime,
-	definition_id: StringName
+	definition_uid: String
 ) -> Furniture:
 	for entity in registry.get_entities():
-		if entity is Furniture and (entity as Furniture).definition.definition_id == definition_id:
+		if (
+			entity is Furniture
+			and ResourceUID.id_to_text(
+				ResourceLoader.get_resource_uid((entity as Furniture).definition.resource_path)
+			) == definition_uid
+		):
 			return entity as Furniture
 	return null
 

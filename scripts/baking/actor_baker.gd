@@ -11,8 +11,12 @@ func bake(placement: EntityPlacement, location_id: StringName) -> Dictionary:
 		push_error("ActorBaker requires an ActorPlacement.")
 		return {}
 	var actor_placement := placement as ActorPlacement
-	if actor_placement.definition_path.strip_edges().is_empty():
-		push_error("ActorPlacement '%s' requires a non-empty definition_path." % placement.name)
+	if actor_placement.definition == null:
+		push_error("ActorPlacement '%s' requires an ActorDefinition Resource." % placement.name)
+		return {}
+	var definition_warnings := actor_placement.definition.get_validation_warnings()
+	if not definition_warnings.is_empty():
+		push_error("ActorPlacement '%s' has an invalid Definition: %s" % [placement.name, definition_warnings[0]])
 		return {}
 	if location_id.is_empty():
 		push_error("ActorPlacement '%s' requires a valid Location ID." % placement.name)
@@ -24,16 +28,14 @@ func bake(placement: EntityPlacement, location_id: StringName) -> Dictionary:
 	if facing_name.is_empty():
 		push_error("ActorPlacement '%s' has an invalid initial_facing." % placement.name)
 		return {}
-	if ActorDefinitionLoader.load_from_file(actor_placement.definition_path) == null:
-		push_error(
-			"ActorPlacement '%s' could not load ActorDefinition '%s'."
-			% [placement.name, actor_placement.definition_path]
-		)
+	var definition_uid := _get_resource_uid(actor_placement.definition)
+	if definition_uid.is_empty():
+		push_error("ActorPlacement '%s' Definition requires a stable ResourceUID." % placement.name)
 		return {}
 
 	return {
 		"entity_type": "actor",
-		"definition_path": actor_placement.definition_path,
+		"definition_uid": definition_uid,
 		"location_id": String(location_id),
 		"local_position": [actor_placement.position.x, actor_placement.position.y],
 		"initial_facing": facing_name,
@@ -52,6 +54,15 @@ static func _facing_to_string(facing: ActorState.Facing) -> String:
 			return "right"
 		_:
 			return ""
+
+
+static func _get_resource_uid(resource: Resource) -> String:
+	if resource == null or resource.resource_path.is_empty():
+		return ""
+	var resource_id := ResourceLoader.get_resource_uid(resource.resource_path)
+	if resource_id == ResourceUID.INVALID_ID:
+		return ""
+	return ResourceUID.id_to_text(resource_id)
 
 
 static func _is_valid_position(value: Vector2) -> bool:

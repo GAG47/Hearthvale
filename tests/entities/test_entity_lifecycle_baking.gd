@@ -3,12 +3,12 @@ extends SceneTree
 const BAKE_TOOL := preload("res://tools/bake_initial_world.gd")
 const MAIN_SCENE := preload("res://scenes/main.tscn")
 const INITIAL_DATA_PATH := "res://data/world/initial_entities.json"
-const MARTHA_DEFINITION_PATH := "res://data/actors/martha.json"
-const CHEST_DEFINITION_PATH := "res://data/furniture/wooden_chest.json"
-const MARTHA_DEFINITION_ID := &"90da2d88-d049-4519-9e5c-e35136ff6a7d"
-const CHEST_DEFINITION_ID := &"7f45a0d2-2ff2-4f1c-8b7a-3d7d0dd5b8a1"
-const SIGN_DEFINITION_ID := &"9c4b72f1-bd0e-4f67-a5d2-6e5b1f9c3a20"
-const BED_DEFINITION_ID := &"c2a6e4b8-1d73-4c5f-9a0e-7b3d8f21e654"
+const MARTHA_DEFINITION: ActorDefinition = preload("res://data/actors/martha.tres")
+const CHEST_DEFINITION: FurnitureDefinition = preload("res://data/furniture/wooden_chest.tres")
+const MARTHA_DEFINITION_UID := "uid://dscpwfh6l65fh"
+const CHEST_DEFINITION_UID := "uid://d1t0crg266u0f"
+const SIGN_DEFINITION_UID := "uid://d0hdcbqvh7bfb"
+const BED_DEFINITION_UID := "uid://cau5iorciyxt8"
 const BAKED_TEST_PATH := "user://v9_initial_entities_test.json"
 const INVALID_TEST_PATH := "user://v9_invalid_output_guard.json"
 
@@ -67,12 +67,12 @@ func _run_tests() -> void:
 func _test_placement_and_baker_registry() -> void:
 	var actor_placement := ActorPlacement.new()
 	actor_placement.name = "MarthaPlacement"
-	actor_placement.definition_path = MARTHA_DEFINITION_PATH
+	actor_placement.definition = MARTHA_DEFINITION
 	actor_placement.position = Vector2(400.0, 200.0)
 	actor_placement.initial_facing = ActorState.Facing.LEFT
 	var furniture_placement := FurniturePlacement.new()
 	furniture_placement.name = "ChestPlacement"
-	furniture_placement.definition_path = CHEST_DEFINITION_PATH
+	furniture_placement.definition = CHEST_DEFINITION
 	furniture_placement.position = Vector2(320.0, 180.0)
 
 	var actor_baker := ActorBaker.new()
@@ -101,14 +101,14 @@ func _test_placement_and_baker_registry() -> void:
 
 	var actor_data := actor_baker.bake(actor_placement, &"town_street")
 	_expect(actor_data["entity_type"] == "actor", "Actor Baking must emit explicit entity_type.")
-	_expect(actor_data["definition_path"] == MARTHA_DEFINITION_PATH, "Actor Baking must preserve definition_path.")
+	_expect(actor_data["definition_uid"] == MARTHA_DEFINITION_UID, "Actor Baking must emit ResourceUID.")
 	_expect(actor_data["location_id"] == "town_street", "Actor Baking must use owning Location ID.")
 	_expect(actor_data["local_position"] == [400.0, 200.0], "Actor Baking must serialize Node2D.position.")
 	_expect(actor_data["initial_facing"] == "left", "Actor Baking must serialize initial_facing.")
 
 	var furniture_data := furniture_baker.bake(furniture_placement, &"tavern")
 	_expect(furniture_data["entity_type"] == "furniture", "Furniture Baking must emit explicit entity_type.")
-	_expect(furniture_data["definition_path"] == CHEST_DEFINITION_PATH, "Furniture Baking must preserve definition_path.")
+	_expect(furniture_data["definition_uid"] == CHEST_DEFINITION_UID, "Furniture Baking must emit ResourceUID.")
 	_expect(furniture_data["location_id"] == "tavern", "Furniture Baking must use owning Location ID.")
 	_expect(furniture_data["local_position"] == [320.0, 180.0], "Furniture Baking must serialize Node2D.position.")
 	_expect(not furniture_data.has("entity_id"), "Baking Data must not contain a runtime UUID.")
@@ -133,10 +133,10 @@ func _test_real_world_baking(world_definition: WorldDefinitionRuntime) -> Array[
 	for entity_value: Variant in loaded_data:
 		entities.append(entity_value as Dictionary)
 	_expect(entities.size() == 3, "Real Tavern Scene must bake three FurniturePlacements.")
-	var expected_paths := [
-		"res://data/furniture/wooden_chest.json",
-		"res://data/furniture/sign.json",
-		"res://data/furniture/simple_bed.json",
+	var expected_uids := [
+		CHEST_DEFINITION_UID,
+		SIGN_DEFINITION_UID,
+		BED_DEFINITION_UID,
 	]
 	var expected_positions := [
 		[464.0, 208.0],
@@ -146,7 +146,7 @@ func _test_real_world_baking(world_definition: WorldDefinitionRuntime) -> Array[
 	for index in range(entities.size()):
 		var entity_data := entities[index]
 		_expect(entity_data["entity_type"] == "furniture", "Real Placement must bake as Furniture.")
-		_expect(entity_data["definition_path"] == expected_paths[index], "Scene order must remain stable.")
+		_expect(entity_data["definition_uid"] == expected_uids[index], "Scene order and ResourceUIDs must remain stable.")
 		_expect(entity_data["location_id"] == "tavern", "Placement Location must come from GridScene.")
 		_expect(entity_data["local_position"] == expected_positions[index], "Placement position must bake exactly.")
 		_expect(not entity_data.has("entity_id"), "Real Baking output must not contain UUIDs.")
@@ -200,7 +200,7 @@ func _test_entity_factories(baked_entities: Array[Dictionary]) -> void:
 
 	var actor_data := {
 		"entity_type": "actor",
-		"definition_path": MARTHA_DEFINITION_PATH,
+		"definition_uid": MARTHA_DEFINITION_UID,
 		"location_id": "town_street",
 		"local_position": [400.0, 200.0],
 		"initial_facing": "left",
@@ -209,8 +209,8 @@ func _test_entity_factories(baked_entities: Array[Dictionary]) -> void:
 	_expect(actor != null, "ActorEntityFactory must create Actor.")
 	if actor != null:
 		_expect(UuidValidator.is_valid_v4(actor.entity_id), "ActorEntityFactory must generate UUID v4.")
-		_expect(actor.definition.definition_id == MARTHA_DEFINITION_ID, "Actor Factory must preserve Definition identity.")
-		_expect(actor.definition.definition_id != actor.entity_id, "Actor Definition and Entity IDs must be independent.")
+		_expect(actor.definition == MARTHA_DEFINITION, "Actor Factory must load the ResourceUID Definition.")
+		_expect(_get_resource_uid(actor.definition) == MARTHA_DEFINITION_UID, "Actor Definition must preserve ResourceUID identity.")
 		_expect(actor.definition.display_name == "Martha", "ActorEntityFactory must load ActorDefinition.")
 		_expect(actor.state is ActorState, "ActorEntityFactory must create ActorState.")
 		_expect(actor.current_location_id == &"town_street", "ActorState must use creation location_id.")
@@ -224,8 +224,8 @@ func _test_entity_factories(baked_entities: Array[Dictionary]) -> void:
 	_expect(furniture != null, "FurnitureEntityFactory must create Furniture.")
 	if furniture != null:
 		_expect(UuidValidator.is_valid_v4(furniture.entity_id), "FurnitureEntityFactory must generate UUID v4.")
-		_expect(furniture.definition.definition_id == CHEST_DEFINITION_ID, "Furniture Factory must load Definition.")
-		_expect(furniture.definition.definition_id != furniture.entity_id, "Furniture Definition and Entity IDs must be independent.")
+		_expect(furniture.definition == CHEST_DEFINITION, "Furniture Factory must load ResourceUID Definition.")
+		_expect(_get_resource_uid(furniture.definition) == CHEST_DEFINITION_UID, "Furniture Definition must preserve ResourceUID identity.")
 		_expect(furniture.state is FurnitureState, "Furniture Factory must create FurnitureState.")
 		_expect(furniture.current_location_id == &"tavern", "FurnitureState must use creation location_id.")
 		_expect(furniture.local_position == Vector2(464.0, 208.0), "FurnitureState must use creation position.")
@@ -238,10 +238,11 @@ func _test_entity_factories(baked_entities: Array[Dictionary]) -> void:
 func _test_source_boundaries() -> void:
 	var game_source := FileAccess.get_file_as_string("res://scripts/game.gd")
 	_expect(not game_source.contains("FURNITURE_INSTANCES"), "Game must not contain fixed Furniture instances.")
-	_expect(not game_source.contains("wooden_chest.json"), "Game must not contain Furniture Definition paths.")
+	_expect(not game_source.contains("wooden_chest.tres"), "Game must not contain fixed Furniture Definition references.")
 	_expect(not game_source.contains("5543caf7"), "Game must not contain the old fixed Furniture UUID.")
 	var initial_source := FileAccess.get_file_as_string(INITIAL_DATA_PATH)
 	_expect(not initial_source.contains("entity_id"), "Initial Entity Data must not store runtime UUIDs.")
+	_expect(not initial_source.contains("definition_path"), "Initial Entity Data must not store Definition paths.")
 	var baker_source := FileAccess.get_file_as_string("res://scripts/baking/entity_baker.gd")
 	_expect(not baker_source.contains("EntityState"), "EntityBaker must not create EntityState.")
 	_expect(not baker_source.contains("Representation"), "EntityBaker must not create Representation.")
@@ -258,9 +259,9 @@ func _test_runtime_creation_and_representation(
 	root.add_child(game)
 	await process_frame
 	await physics_frame
-	var chest := _find_furniture(entity_registry, CHEST_DEFINITION_ID)
-	var sign := _find_furniture(entity_registry, SIGN_DEFINITION_ID)
-	var bed := _find_furniture(entity_registry, BED_DEFINITION_ID)
+	var chest := _find_furniture(entity_registry, CHEST_DEFINITION_UID)
+	var sign := _find_furniture(entity_registry, SIGN_DEFINITION_UID)
+	var bed := _find_furniture(entity_registry, BED_DEFINITION_UID)
 	_expect(chest != null and sign != null and bed != null, "Game must create all baked Furniture Entities.")
 	if chest == null or sign == null or bed == null:
 		game.queue_free()
@@ -310,12 +311,16 @@ func _test_runtime_creation_and_representation(
 
 func _find_furniture(
 	registry: EntityRegistryRuntime,
-	definition_id: StringName
+	definition_uid: String
 ) -> Furniture:
 	for entity in registry.get_entities():
-		if entity is Furniture and (entity as Furniture).definition.definition_id == definition_id:
+		if entity is Furniture and _get_resource_uid((entity as Furniture).definition) == definition_uid:
 			return entity as Furniture
 	return null
+
+
+func _get_resource_uid(resource: Resource) -> String:
+	return ResourceUID.id_to_text(ResourceLoader.get_resource_uid(resource.resource_path))
 
 
 func _get_furniture_representations(location: GridScene) -> Array[FurnitureRepresentation]:

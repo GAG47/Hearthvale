@@ -1,7 +1,7 @@
 {
 	"entities": [
 		{
-			"definition_path": "res://data/furniture/wooden_chest.json",
+			"definition_uid": "uid://d1t0crg266u0f",
 			"entity_type": "furniture",
 			"local_position": [
 				464.0,
@@ -10,7 +10,7 @@
 			"location_id": "tavern"
 		},
 		{
-			"definition_path": "res://data/furniture/sign.json",
+			"definition_uid": "uid://d0hdcbqvh7bfb",
 			"entity_type": "furniture",
 			"local_position": [
 				432.0,
@@ -19,7 +19,7 @@
 			"location_id": "tavern"
 		},
 		{
-			"definition_path": "res://data/furniture/simple_bed.json",
+			"definition_uid": "uid://cau5iorciyxt8",
 			"entity_type": "furniture",
 			"local_position": [
 				656.0,

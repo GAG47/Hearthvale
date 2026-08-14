@@ -111,21 +111,11 @@ func _update_visual() -> bool:
 
 
 func _load_visual_texture(p_furniture: Furniture) -> Texture2D:
-	var visual_ref := p_furniture.get_visual_ref()
-	if not ResourceLoader.exists(visual_ref):
-		push_error(
-			"Furniture '%s' visual_ref '%s' does not exist."
-			% [p_furniture.entity_id, visual_ref]
-		)
+	var visual_texture := p_furniture.get_visual()
+	if visual_texture == null:
+		push_error("Furniture '%s' has no Texture2D visual." % p_furniture.entity_id)
 		return null
-	var visual_resource := ResourceLoader.load(visual_ref)
-	if not visual_resource is Texture2D:
-		push_error(
-			"Furniture '%s' visual_ref '%s' is not a Texture2D."
-			% [p_furniture.entity_id, visual_ref]
-		)
-		return null
-	return visual_resource
+	return visual_texture
 
 
 func _on_furniture_state_changed() -> void:

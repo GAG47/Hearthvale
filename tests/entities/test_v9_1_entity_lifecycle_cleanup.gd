@@ -3,13 +3,13 @@ extends SceneTree
 const GAME_SCRIPT := preload("res://scripts/game.gd")
 const MAIN_SCENE := preload("res://scenes/main.tscn")
 const INITIAL_DATA_PATH := "res://data/world/initial_entities.json"
-const PLAYER_DEFINITION_PATH := "res://data/actors/player.json"
-const MARTHA_DEFINITION_PATH := "res://data/actors/martha.json"
-const CHEST_DEFINITION_PATH := "res://data/furniture/wooden_chest.json"
+const PLAYER_DEFINITION_PATH := "res://data/actors/player.tres"
+const MARTHA_DEFINITION_PATH := "res://data/actors/martha.tres"
+const CHEST_DEFINITION_PATH := "res://data/furniture/wooden_chest.tres"
 const CLI_SUCCESS_PATH := "user://v9_1_bake_cli_success.json"
-const PLAYER_DEFINITION_ID := &"5e05b833-0645-4c13-8713-4c8767a7efe3"
-const MARTHA_DEFINITION_ID := &"90da2d88-d049-4519-9e5c-e35136ff6a7d"
-const CHEST_DEFINITION_ID := &"7f45a0d2-2ff2-4f1c-8b7a-3d7d0dd5b8a1"
+const PLAYER_DEFINITION_UID := "uid://3dfe1o8emqpj"
+const MARTHA_DEFINITION_UID := "uid://dscpwfh6l65fh"
+const CHEST_DEFINITION_UID := "uid://d1t0crg266u0f"
 const BASELINE_ENTITY_ID := &"33333333-3333-4333-8333-333333333333"
 
 var _checks := 0
@@ -75,24 +75,22 @@ func _run_tests() -> void:
 
 
 func _test_definition_identity() -> void:
-	var player_definition := ActorDefinitionLoader.load_from_file(PLAYER_DEFINITION_PATH)
-	var martha_definition := ActorDefinitionLoader.load_from_file(MARTHA_DEFINITION_PATH)
-	var chest_definition := FurnitureDefinitionLoader.load_from_file(CHEST_DEFINITION_PATH)
+	var player_definition := load(PLAYER_DEFINITION_PATH) as ActorDefinition
+	var martha_definition := load(MARTHA_DEFINITION_PATH) as ActorDefinition
+	var chest_definition := load(CHEST_DEFINITION_PATH) as FurnitureDefinition
 	_expect(player_definition != null, "Player ActorDefinition must load.")
 	_expect(martha_definition != null, "Martha ActorDefinition must load.")
 	_expect(chest_definition != null, "Chest FurnitureDefinition must load.")
 	if player_definition != null:
-		_expect(player_definition.definition_id == PLAYER_DEFINITION_ID, "Player must preserve definition_id.")
-		_expect(UuidValidator.is_valid_v4(player_definition.definition_id), "Player definition_id must be UUID v4.")
+		_expect(_get_resource_uid(player_definition) == PLAYER_DEFINITION_UID, "Player must preserve ResourceUID.")
 	if martha_definition != null:
-		_expect(martha_definition.definition_id == MARTHA_DEFINITION_ID, "Martha must preserve definition_id.")
+		_expect(_get_resource_uid(martha_definition) == MARTHA_DEFINITION_UID, "Martha must preserve ResourceUID.")
 	if chest_definition != null:
-		_expect(chest_definition.definition_id == CHEST_DEFINITION_ID, "Furniture must preserve definition_id.")
-		_expect(UuidValidator.is_valid_v4(chest_definition.definition_id), "Furniture definition_id must be UUID v4.")
+		_expect(_get_resource_uid(chest_definition) == CHEST_DEFINITION_UID, "Furniture must preserve ResourceUID.")
 
 	var actor_data := {
 		"entity_type": "actor",
-		"definition_path": MARTHA_DEFINITION_PATH,
+		"definition_uid": MARTHA_DEFINITION_UID,
 		"location_id": "town_street",
 		"local_position": [400.0, 200.0],
 		"initial_facing": "left",
@@ -100,8 +98,8 @@ func _test_definition_identity() -> void:
 	var actor := ActorEntityFactory.new().create(actor_data) as Actor
 	_expect(actor != null, "ActorEntityFactory must create Actor.")
 	if actor != null:
-		_expect(actor.definition.definition_id == MARTHA_DEFINITION_ID, "Actor must use loaded Definition identity.")
-		_expect(actor.definition.definition_id != actor.entity_id, "Actor definition_id and entity_id must differ.")
+		_expect(_get_resource_uid(actor.definition) == MARTHA_DEFINITION_UID, "Actor must use loaded Definition identity.")
+		_expect(UuidValidator.is_valid_v4(actor.entity_id), "Actor must use independent entity_id UUID.")
 		_expect(actor.state.entity_id == actor.entity_id, "ActorState must use runtime entity_id.")
 	var factory_source := FileAccess.get_file_as_string("res://scripts/actors/actor_entity_factory.gd")
 	_expect(not factory_source.contains("ActorDefinition.new"), "ActorEntityFactory must not clone ActorDefinition.")
@@ -128,7 +126,7 @@ func _test_atomic_initialization_success(world_definition: WorldDefinitionRuntim
 			_expect(world_state.get_entity_state(entity.entity_id) == entity.state, "Committed Entity and State must stay paired.")
 			if entity is Furniture:
 				var furniture := entity as Furniture
-				_expect(furniture.definition.definition_id != furniture.entity_id, "Furniture IDs must represent distinct identities.")
+				_expect(not _get_resource_uid(furniture.definition).is_empty(), "Furniture must retain ResourceUID identity.")
 	game.free()
 	world_state.free()
 	entity_registry.free()
@@ -189,7 +187,7 @@ func _make_atomic_creation_data(count: int) -> Array[Dictionary]:
 	for index in range(count):
 		data.append({
 			"entity_type": "atomic_test",
-			"definition_path": "res://unused.json",
+			"definition_uid": "uid://unused",
 			"location_id": "tavern",
 			"local_position": [float(index * 16), 32.0],
 		})
@@ -241,12 +239,12 @@ func _test_player_identity_and_runtime() -> void:
 	await physics_frame
 	var controlled_actor_id: StringName = game.get("controlled_actor_id")
 	var player := entity_registry.get_entity(controlled_actor_id) as Actor
-	var definition := ActorDefinitionLoader.load_from_file(PLAYER_DEFINITION_PATH)
+	var definition := load(PLAYER_DEFINITION_PATH) as ActorDefinition
 	_expect(player != null and definition != null, "Current startup must create the Player Actor.")
 	if player != null and definition != null:
 		_expect(UuidValidator.is_valid_v4(player.entity_id), "Player entity_id must be UUID v4.")
-		_expect(player.entity_id != definition.definition_id, "Player entity_id must differ from Definition identity.")
-		_expect(player.definition.definition_id == definition.definition_id, "Player must use the loaded ActorDefinition.")
+		_expect(_get_resource_uid(player.definition) == PLAYER_DEFINITION_UID, "Player must keep Definition ResourceUID.")
+		_expect(player.definition == definition, "Player must use the loaded ActorDefinition Resource.")
 		_expect(world_state.get_entity_state(player.entity_id) == player.state, "Player State must register by entity_id.")
 		var controller := game.get_node_or_null("PlayerController") as PlayerController
 		_expect(controller != null and controller.controlled_actor == player, "PlayerController must still control Player.")
@@ -256,6 +254,10 @@ func _test_player_identity_and_runtime() -> void:
 		)
 	game.queue_free()
 	await process_frame
+
+
+func _get_resource_uid(resource: Resource) -> String:
+	return ResourceUID.id_to_text(ResourceLoader.get_resource_uid(resource.resource_path))
 
 
 func _expect(condition: bool, message: String) -> void:

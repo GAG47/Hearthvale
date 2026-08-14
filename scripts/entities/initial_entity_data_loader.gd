@@ -64,7 +64,7 @@ static func _validate_common_fields(
 	path: String,
 	index: int
 ) -> bool:
-	for field in ["entity_type", "definition_path", "location_id"]:
+	for field in ["entity_type", "definition_uid", "location_id"]:
 		if not entity_data.has(field) or not entity_data[field] is String:
 			push_error(
 				"Initial Entity Data '%s' entities[%d].%s must be a String."

@@ -1,6 +1,6 @@
 extends Node2D
 
-const PLAYER_DEFINITION_PATH := "res://data/actors/player.json"
+const PLAYER_DEFINITION: ActorDefinition = preload("res://data/actors/player.tres")
 const PLAYER_INITIAL_LOCATION_ID := &"tavern"
 const PLAYER_INITIAL_LOCAL_POSITION := Vector2(384.0, 256.0)
 const PLAYER_INITIAL_FACING := ActorState.Facing.DOWN
@@ -79,9 +79,9 @@ func request_location_change(edge_key: StringName) -> void:
 
 
 func _initialize_player_actor() -> Actor:
-	var definition := ActorDefinitionLoader.load_from_file(PLAYER_DEFINITION_PATH)
-	if definition == null:
-		push_error("Game could not load the Player ActorDefinition.")
+	var definition := PLAYER_DEFINITION
+	if definition == null or not definition.get_validation_warnings().is_empty():
+		push_error("Game requires a valid Player ActorDefinition Resource.")
 		return null
 	var entity_id := UuidGenerator.generate_v4()
 	if not UuidValidator.is_valid_v4(entity_id):
@@ -173,7 +173,7 @@ func _prepare_world_entities(initial_entities: Array) -> Variant:
 		var entity_type := StringName(entity_data["entity_type"] as String)
 		var factory := entity_factory_registry.get_factory(entity_type)
 		if factory == null:
-			return false
+			return null
 		var entity := factory.create(entity_data)
 		if entity == null:
 			push_error("Game could not create initial Entity type '%s'." % entity_type)

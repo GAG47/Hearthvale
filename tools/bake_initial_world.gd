@@ -113,7 +113,7 @@ static func _collect_placements(
 
 
 static func _validate_baked_entity(entity_data: Dictionary) -> bool:
-	for field in ["entity_type", "definition_path", "location_id"]:
+	for field in ["entity_type", "definition_uid", "location_id"]:
 		if not entity_data.has(field) or not entity_data[field] is String:
 			push_error("Baked Entity field '%s' must be a String." % field)
 			return false

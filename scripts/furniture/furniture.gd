@@ -57,12 +57,12 @@ func apply_action(action: WorldAction) -> ActionResult:
 	return result
 
 
-func get_visual_ref() -> String:
+func get_visual() -> Texture2D:
 	var openable_state := get_openable_state()
 	if openable_state != null and openable_state.is_open:
 		var config: Dictionary = definition.behaviors["openable"]
-		return config["open_visual_ref"] as String
-	return definition.visual_ref
+		return config["open_visual"] as Texture2D
+	return definition.visual
 
 
 func get_openable_state() -> OpenableState:

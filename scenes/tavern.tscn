@@ -1,10 +1,13 @@
-[gd_scene load_steps=6 format=4]
+[gd_scene load_steps=9 format=4]
 
 [ext_resource type="Script" path="res://scripts/location/grid_scene.gd" id="1_8dirj"]
 [ext_resource type="TileSet" path="res://data/world_tileset.tres" id="2_gwbas"]
 [ext_resource type="Script" path="res://scripts/location/location_exit.gd" id="3_yyr65"]
 [ext_resource type="Script" path="res://scripts/location/location_entry.gd" id="7_entry"]
 [ext_resource type="Script" path="res://scripts/placements/furniture_placement.gd" id="8_furniture_placement"]
+[ext_resource type="Resource" uid="uid://d1t0crg266u0f" path="res://data/furniture/wooden_chest.tres" id="9_chest"]
+[ext_resource type="Resource" uid="uid://d0hdcbqvh7bfb" path="res://data/furniture/sign.tres" id="10_sign"]
+[ext_resource type="Resource" uid="uid://cau5iorciyxt8" path="res://data/furniture/simple_bed.tres" id="11_bed"]
 
 [node name="Tavern" type="Node2D" unique_id=1256793428]
 script = ExtResource("1_8dirj")
@@ -76,14 +79,14 @@ text = "厨房"
 [node name="WoodenChest" type="Node2D" parent="EntityPlacements"]
 position = Vector2(464, 208)
 script = ExtResource("8_furniture_placement")
-definition_path = "res://data/furniture/wooden_chest.json"
+definition = ExtResource("9_chest")
 
 [node name="Sign" type="Node2D" parent="EntityPlacements"]
 position = Vector2(432, 240)
 script = ExtResource("8_furniture_placement")
-definition_path = "res://data/furniture/sign.json"
+definition = ExtResource("10_sign")
 
 [node name="SimpleBed" type="Node2D" parent="EntityPlacements"]
 position = Vector2(656, 128)
 script = ExtResource("8_furniture_placement")
-definition_path = "res://data/furniture/simple_bed.json"
+definition = ExtResource("11_bed")
