@@ -69,12 +69,15 @@ func _run_tests() -> void:
 		registry.register_entity(generic_entity),
 		"EntityRegistry must accept an otherwise unknown valid Entity subtype."
 	)
-	var action_result := WorldAction.new(&"test_action", actor, generic_entity).execute()
+	var logical_location := _create_logical_location(registry)
+	var action_result := WorldAction.new(
+		&"test_action", actor, generic_entity, logical_location
+	).execute()
 	_expect(
 		action_result.success and action_result.target_id == GENERIC_ENTITY_ID,
 		"WorldAction must execute the generic Entity Action protocol."
 	)
-	var unsupported_result := WorldAction.new(&"talk", actor, actor).execute()
+	var unsupported_result := WorldAction.new(&"talk", actor, actor, logical_location).execute()
 	_expect(
 		not unsupported_result.success
 		and unsupported_result.failure_code == &"target_action_unsupported",
@@ -94,7 +97,7 @@ func _run_tests() -> void:
 		openable_definition,
 		FurnitureState.new(OTHER_ENTITY_ID, &"tavern", Vector2(80.0, 48.0))
 	)
-	var open_result := WorldAction.new(&"open", actor, named_furniture).execute()
+	var open_result := WorldAction.new(&"open", actor, named_furniture, logical_location).execute()
 	_expect(
 		open_result.success and open_result.message == "测试柜打开了。",
 		"OpenableBehavior feedback must derive from FurnitureDefinition.display_name."
@@ -144,11 +147,25 @@ func _create_furniture(entity_id: StringName, location_id: StringName) -> Furnit
 	)
 
 
+func _create_logical_location(registry: EntityRegistryRuntime) -> LogicalLocation:
+	var data := LogicalLocationData.new()
+	data.location_id = &"tavern"
+	data.bounds = Rect2i(0, 0, 4, 4)
+	data.walkability.resize(16)
+	data.walkability.fill(1)
+	data.movement_costs.resize(16)
+	data.movement_costs.fill(1)
+	var location := LogicalLocation.new(data, registry)
+	location.rebuild_spatial_index()
+	return location
+
+
 func _disable_project_autoloads() -> void:
 	for autoload_name in [
 		"WorldDefinition",
 		"WorldState",
 		"EntityRegistry",
+		"LocationSpace",
 		"WorldTime",
 	]:
 		ProjectSettings.set_setting("autoload/%s" % autoload_name, null)

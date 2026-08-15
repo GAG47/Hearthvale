@@ -65,21 +65,20 @@ func get_occupied_grid_cells() -> Array[Vector2i]:
 	return furniture.get_occupied_grid_cells() if furniture != null else []
 
 
-func sync_state_from_representation() -> void:
+func sync_state_from_representation() -> bool:
 	if furniture == null or not is_instance_valid(current_location):
-		return
-	furniture.state.current_location_id = current_location.location_id
-	furniture.state.local_position = position
-
-
-func _ready() -> void:
-	if furniture != null and is_instance_valid(current_location):
-		current_location.register_furniture_representation(self)
+		return false
+	var location_space := get_node_or_null("/root/LocationSpace") as LocationSpaceRuntime
+	if location_space == null:
+		push_error("FurnitureRepresentation position sync requires LocationSpace.")
+		return false
+	if location_space.try_move_entity(furniture, current_location.location_id, position):
+		return true
+	position = furniture.local_position
+	return false
 
 
 func _exit_tree() -> void:
-	if is_instance_valid(current_location):
-		current_location.unregister_furniture_representation(self)
 	sync_state_from_representation()
 
 

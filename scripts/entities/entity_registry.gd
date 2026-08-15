@@ -1,6 +1,8 @@
 class_name EntityRegistryRuntime
 extends Node
 
+signal entities_committed(entities: Array[Entity])
+
 var _entities: Dictionary[StringName, Entity] = {}
 
 
@@ -9,6 +11,8 @@ func register_entity(entity: Entity) -> bool:
 		return false
 
 	_entities[entity.entity_id] = entity
+	var committed: Array[Entity] = [entity]
+	entities_committed.emit(committed)
 	return true
 
 
@@ -46,6 +50,8 @@ func register_entities(entities: Array[Entity]) -> bool:
 func commit_prepared_entities(entities: Array[Entity]) -> void:
 	for entity in entities:
 		_entities[entity.entity_id] = entity
+	if not entities.is_empty():
+		entities_committed.emit(entities)
 
 
 func has_entity(entity_id: StringName) -> bool:

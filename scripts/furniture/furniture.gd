@@ -70,16 +70,34 @@ func get_openable_state() -> OpenableState:
 
 
 func get_occupied_grid_cells() -> Array[Vector2i]:
-	var top_left := local_position - Vector2(definition.occupied_cells * GridScene.CELL_SIZE) * 0.5
+	return get_occupied_grid_cells_at(local_position)
+
+
+func get_occupied_grid_cells_at(target_local_position: Vector2) -> Array[Vector2i]:
+	var top_left := (
+		target_local_position
+		- Vector2(definition.occupied_cells * LogicalLocationData.CELL_SIZE) * 0.5
+	)
 	var anchor_cell := Vector2i(
-		floori(top_left.x / GridScene.CELL_SIZE),
-		floori(top_left.y / GridScene.CELL_SIZE)
+		floori(top_left.x / LogicalLocationData.CELL_SIZE),
+		floori(top_left.y / LogicalLocationData.CELL_SIZE)
 	)
 	var cells: Array[Vector2i] = []
+	for offset in get_footprint_offsets():
+		cells.append(anchor_cell + offset)
+	return cells
+
+
+func get_footprint_offsets() -> Array[Vector2i]:
+	var offsets: Array[Vector2i] = []
 	for y in range(definition.occupied_cells.y):
 		for x in range(definition.occupied_cells.x):
-			cells.append(anchor_cell + Vector2i(x, y))
-	return cells
+			offsets.append(Vector2i(x, y))
+	return offsets
+
+
+func is_blocking_movement() -> bool:
+	return definition != null and definition.blocks_movement
 
 
 func _create_behaviors() -> void:

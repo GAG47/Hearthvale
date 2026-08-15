@@ -14,11 +14,6 @@ func _ready() -> void:
 		push_error("WorldDefinition initialization failed; Location queries are unavailable.")
 		return
 	_index_definitions(definitions)
-	if not validate_world_scene_graph():
-		definitions_valid = false
-		push_error(
-			"WorldDefinition Scene consistency validation failed; Location queries are unavailable."
-		)
 
 
 func has_location(location_id: StringName) -> bool:
@@ -230,12 +225,6 @@ static func validate_definitions(definitions: Array[LocationDefinition]) -> bool
 		elif not ResourceLoader.exists(definition.scene_path, "PackedScene"):
 			push_error(
 				"Location '%s' scene_path '%s' does not exist as a PackedScene."
-				% [definition.location_id, definition.scene_path]
-			)
-			valid = false
-		elif load(definition.scene_path) as PackedScene == null:
-			push_error(
-				"Location '%s' scene_path '%s' could not be loaded as a PackedScene."
 				% [definition.location_id, definition.scene_path]
 			)
 			valid = false

@@ -20,8 +20,8 @@ var local_position: Vector2:
 var current_cell: Vector2i:
 	get:
 		return Vector2i(
-			floori(local_position.x / GridScene.CELL_SIZE),
-			floori(local_position.y / GridScene.CELL_SIZE)
+			floori(local_position.x / LogicalLocationData.CELL_SIZE),
+			floori(local_position.y / LogicalLocationData.CELL_SIZE)
 		)
 
 
@@ -56,4 +56,19 @@ func apply_action(action: WorldAction) -> ActionResult:
 
 
 func get_occupied_grid_cells() -> Array[Vector2i]:
-	return [current_cell]
+	return get_occupied_grid_cells_at(local_position)
+
+
+func get_occupied_grid_cells_at(target_local_position: Vector2) -> Array[Vector2i]:
+	return [_local_position_to_cell(target_local_position)]
+
+
+func is_blocking_movement() -> bool:
+	return true
+
+
+func _local_position_to_cell(target_local_position: Vector2) -> Vector2i:
+	return Vector2i(
+		floori(target_local_position.x / LogicalLocationData.CELL_SIZE),
+		floori(target_local_position.y / LogicalLocationData.CELL_SIZE)
+	)

@@ -25,6 +25,7 @@ var world_time: WorldTimeRuntime
 var world_definition: WorldDefinitionRuntime
 var world_state: WorldStateRuntime
 var entity_registry: EntityRegistryRuntime
+var location_space: LocationSpaceRuntime
 
 
 func _ready() -> void:
@@ -49,6 +50,10 @@ func _ready() -> void:
 	entity_registry = get_node_or_null("/root/EntityRegistry") as EntityRegistryRuntime
 	if entity_registry == null:
 		push_error("EntityRegistry Autoload is required before loading Game.")
+		return
+	location_space = get_node_or_null("/root/LocationSpace") as LocationSpaceRuntime
+	if location_space == null or not location_space.locations_valid:
+		push_error("A valid LocationSpace Autoload is required before loading Game.")
 		return
 
 	if not _initialize_world_entities():
@@ -239,7 +244,10 @@ func _replace_location(
 	var prepared_change := _prepare_location_change(location_id, from_location_id, edge)
 	if prepared_change.is_empty():
 		return false
-	_commit_location_change(prepared_change)
+	if not _commit_location_change(prepared_change):
+		var prepared_location := prepared_change["location"] as GridScene
+		prepared_location.free()
+		return false
 	return true
 
 
@@ -251,6 +259,18 @@ func _prepare_location_change(
 	var definition := world_definition.get_location(location_id)
 	if definition == null:
 		return {}
+	var logical_location := location_space.get_location(location_id)
+	if logical_location == null:
+		return {}
+	var entry_data: Dictionary = {}
+	if edge != null:
+		entry_data = logical_location.get_entry(edge.to_entry)
+		if entry_data.is_empty():
+			push_error(
+				"Location edge '%s/%s' targets missing Logical Entry '%s/%s'."
+				% [from_location_id, edge.edge_key, location_id, edge.to_entry]
+			)
+			return {}
 	var scene_path := definition.scene_path
 	var packed_scene := ResourceLoader.load(scene_path) as PackedScene
 	if packed_scene == null:
@@ -274,13 +294,6 @@ func _prepare_location_change(
 		next_location.free()
 		return {}
 
-	var entry: LocationEntry
-	if edge != null:
-		entry = world_definition.get_target_entry(next_location, from_location_id, edge)
-	if edge != null and entry == null:
-		next_location.free()
-		return {}
-
 	var moving_actor := player_controller.controlled_actor
 	if moving_actor == null and entity_registry.has_entity(controlled_actor_id):
 		moving_actor = entity_registry.get_entity(controlled_actor_id) as Actor
@@ -288,9 +301,25 @@ func _prepare_location_change(
 		push_error("Location '%s' cannot prepare without the controlled Actor." % location_id)
 		next_location.free()
 		return {}
-	var spawn_position := entry.position if entry != null else moving_actor.local_position
+	var spawn_position := (
+		entry_data["local_position"] as Vector2
+		if not entry_data.is_empty()
+		else moving_actor.local_position
+	)
+	var spawn_facing := (
+		entry_data["facing"] as ActorState.Facing
+		if not entry_data.is_empty()
+		else moving_actor.facing
+	)
+	if not location_space.can_move_entity(moving_actor, location_id, spawn_position):
+		push_error(
+			"Actor '%s' cannot enter logical Location '%s' at %s."
+			% [moving_actor.entity_id, location_id, spawn_position]
+		)
+		next_location.free()
+		return {}
 
-	var target_entities := entity_registry.get_entities_in_location(location_id)
+	var target_entities := logical_location.get_entities_in_location()
 	if not target_entities.has(moving_actor):
 		target_entities.append(moving_actor)
 	var prepared_player_representation: Node
@@ -337,32 +366,42 @@ func _prepare_location_change(
 		"location": next_location,
 		"moving_actor": moving_actor,
 		"spawn_position": spawn_position,
+		"spawn_facing": spawn_facing,
 		"player_representation": prepared_player_representation,
 	}
 
 
-func _commit_location_change(prepared_change: Dictionary) -> void:
+func _commit_location_change(prepared_change: Dictionary) -> bool:
 	var definition: LocationDefinition = prepared_change["definition"]
 	var next_location: GridScene = prepared_change["location"]
 	var moving_actor: Actor = prepared_change["moving_actor"]
 	var spawn_position: Vector2 = prepared_change["spawn_position"]
+	var spawn_facing: ActorState.Facing = prepared_change["spawn_facing"]
 	var next_player_representation: Node = prepared_change["player_representation"]
 	var previous_location := current_location
 
 	player_controller.finish_controlled_location_departure()
-	moving_actor.state.current_location_id = next_location.location_id
-	moving_actor.state.local_position = spawn_position
+	if not location_space.try_move_entity(moving_actor, next_location.location_id, spawn_position):
+		if is_instance_valid(player_controller.controlled_representation):
+			player_controller.controlled_representation.current_location = previous_location
+		push_error("Location Commit rejected the prepared Actor position.")
+		return false
+	(moving_actor.state as ActorState).facing = spawn_facing
 
 	world_root.add_child(next_location)
 	player_controller.activate_prepared_control(moving_actor, next_player_representation)
+	(next_player_representation as ActorRepresentation).facing = spawn_facing
 	current_location = next_location
-	player_controller.set_camera_bounds(current_location.get_world_rect())
+	player_controller.set_camera_bounds(
+		location_space.get_location(current_location.location_id).get_world_rect()
+	)
 	location_label.text = definition.display_name
 	action_result_label.text = ""
 
 	if is_instance_valid(previous_location):
 		world_root.remove_child(previous_location)
 		previous_location.queue_free()
+	return true
 
 
 func _on_player_action_completed(result: ActionResult) -> void:

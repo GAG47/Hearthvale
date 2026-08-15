@@ -1,39 +1,29 @@
 class_name InteractionTargetSelector
 extends RefCounted
 
-static func select_target(actor_representation: ActorRepresentation) -> Entity:
-	if not is_instance_valid(actor_representation) or not is_instance_valid(actor_representation.current_location):
+static func select_target(actor: Actor) -> Entity:
+	if actor == null:
 		return null
-
-	var query_cells: Array[Vector2i] = [
-		actor_representation.get_front_cell(),
-		actor_representation.current_cell,
-	]
-	for cell in query_cells:
-		var selected := _select_supported_entity(
-			actor_representation.get_entity() as Actor,
-			actor_representation.current_location.get_furniture_representations_at(cell)
-		)
-		if selected != null:
-			return selected
-
-	return null
-
-
-static func _select_supported_entity(
-	actor: Actor,
-	candidates: Array[FurnitureRepresentation]
-) -> Entity:
-	var selected: Furniture
-	for representation in candidates:
-		if not is_instance_valid(representation):
+	var location_space := _get_location_space()
+	if location_space == null or not location_space.has_location(actor.current_location_id):
+		return null
+	var location := location_space.get_location(actor.current_location_id)
+	var selected: Entity
+	for candidate in location.get_entities_in_location():
+		if candidate == actor:
 			continue
-		var candidate_entity := representation.get_entity()
-		if not candidate_entity is Furniture:
-			continue
-		var candidate := candidate_entity as Furniture
-		if candidate.get_supported_actions(actor).is_empty():
-			continue
-		if selected == null or String(candidate.entity_id) < String(selected.entity_id):
-			selected = candidate
+		for action_id in candidate.get_supported_actions(actor):
+			if location.is_actor_at_valid_use_slot(actor, candidate, action_id):
+				if selected == null or String(candidate.entity_id) < String(selected.entity_id):
+					selected = candidate
+				break
 	return selected
+
+
+static func _get_location_space() -> LocationSpaceRuntime:
+	var tree := Engine.get_main_loop() as SceneTree
+	return (
+		tree.root.get_node_or_null("LocationSpace") as LocationSpaceRuntime
+		if tree != null
+		else null
+	)

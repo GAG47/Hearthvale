@@ -34,6 +34,7 @@ edge_key = &"tavern_door"
 position = Vector2(576, 336)
 script = ExtResource("4_entry")
 entry_id = &"tavern_entrance"
+facing = 1
 
 [node name="TavernLabel" type="Label" parent="." unique_id=635595769]
 z_index = 2

@@ -4,12 +4,19 @@ extends RefCounted
 var action_id: StringName
 var actor: Actor
 var target: Entity
+var logical_location: LogicalLocation
 
 
-func _init(p_action_id: StringName, p_actor: Actor, p_target: Entity) -> void:
+func _init(
+	p_action_id: StringName,
+	p_actor: Actor,
+	p_target: Entity,
+	p_logical_location: LogicalLocation = null
+) -> void:
 	action_id = p_action_id
 	actor = p_actor
 	target = p_target
+	logical_location = p_logical_location
 
 
 func execute() -> ActionResult:

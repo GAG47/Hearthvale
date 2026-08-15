@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="LogicalLocationData" format=4]
+
+[ext_resource type="Script" path="res://scripts/location/logical_location_data.gd" id="1_xk0ul"]
+
+[resource]
+script = ExtResource("1_xk0ul")
+location_id = &"tavern"
+bounds = Rect2i(0, 0, 24, 16)
+walkability = PackedByteArray("AAAAAAAAAAAAAAABAQAAAAAAAAAAAAAAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAEBAAAAAAAAAAABAQEBAQEBAQEBAQEAAAEBAAEBAQEBAQEBAQEBAQEBAQEBAQEAAAEBAAEBAQEBAQEBAQEBAQEBAQEBAQEAAAEBAAEBAQEBAQEBAQEBAQABAQEBAQEAAAEBAQEBAAABAQEAAAEBAQABAAAAAAEAAAEBAQEBAAABAQEAAAEBAQABAQEBAQEAAAEBAQEBAQEBAQEBAQEBAQABAQEBAQEAAAEBAQEBAQEBAQEBAQEBAQABAQEAAAEAAAEBAQEBAQEBAQEBAQEBAQEBAQEAAAEAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAAAAAAAAAAAAAAAAAAAAAABAQAAAAAA")
+movement_costs = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0)
+entries = {
+&"back_door": {
+"cell": Vector2i(18, 13),
+"entry_id": &"back_door",
+"facing": 0,
+"local_position": Vector2(576, 432)
+},
+&"front_door": {
+"cell": Vector2i(12, 2),
+"entry_id": &"front_door",
+"facing": 1,
+"local_position": Vector2(384, 80)
+},
+&"start": {
+"cell": Vector2i(12, 8),
+"entry_id": &"start",
+"facing": 1,
+"local_position": Vector2(384, 256)
+}
+}
+exits = {
+&"back_door": {
+"cell_rect": Rect2i(17, 15, 2, 1),
+"edge_key": &"back_door"
+},
+&"front_door": {
+"cell_rect": Rect2i(11, 0, 2, 1),
+"edge_key": &"front_door"
+}
+}
+source_fingerprint = "5aeafb9ea1f0296d210ced160ed3662426847c4df0dd166443ce44039479f8b4"
+compiler_version = 1

@@ -199,7 +199,7 @@ func _run_tests() -> void:
 	_expect(yard != null and yard.location_id == &"tavern_yard", "Commit must update current_location.")
 	_expect(player.current_location_id == &"tavern_yard", "Commit must migrate ActorState location.")
 	_expect(player.local_position == Vector2(384.0, 80.0), "Commit must use target Entry position.")
-	_expect(player.facing == ActorState.Facing.LEFT, "Commit must preserve ActorState facing.")
+	_expect(player.facing == ActorState.Facing.DOWN, "Commit must apply the target logical Entry facing.")
 	_expect(
 		is_instance_valid(yard_representation)
 		and yard_representation != old_tavern_representation
@@ -210,8 +210,8 @@ func _run_tests() -> void:
 	_expect(not is_instance_valid(old_tavern), "Commit must release the old Location.")
 	_expect(not is_instance_valid(old_tavern_representation), "Commit must release old Representation.")
 	_expect(
-		_get_actor_visual_path(yard_representation) == player.definition.visual_left.resource_path,
-		"Prepared ActorRepresentation must preserve the four-direction visual."
+		_get_actor_visual_path(yard_representation) == player.definition.visual_down.resource_path,
+		"Prepared ActorRepresentation must apply the logical Entry facing visual."
 	)
 	var camera := controller.get_node_or_null("Camera2D") as Camera2D
 	_expect(

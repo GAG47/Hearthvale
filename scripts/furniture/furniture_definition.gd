@@ -29,6 +29,13 @@ const SUPPORTED_BEHAVIORS: Array[String] = ["sleepable", "openable", "inspectabl
 		blocks_movement = value
 		emit_changed()
 
+@export var use_slots: Array[UseSlotDefinition] = []:
+	set(value):
+		_disconnect_use_slots()
+		use_slots = value.duplicate()
+		_connect_use_slots()
+		emit_changed()
+
 
 func get_validation_warnings() -> PackedStringArray:
 	var warnings := PackedStringArray()
@@ -62,4 +69,44 @@ func get_validation_warnings() -> PackedStringArray:
 					or (config["text"] as String).strip_edges().is_empty()
 				):
 					warnings.append("FurnitureDefinition inspectable.text must be a non-empty String.")
+	var supported_actions := get_configured_action_ids()
+	for slot in use_slots:
+		if slot == null:
+			warnings.append("FurnitureDefinition use_slots must not contain null.")
+			continue
+		warnings.append_array(slot.get_validation_warnings())
+		for action_id in slot.supported_actions:
+			if not supported_actions.has(action_id):
+				warnings.append(
+					"FurnitureDefinition Use Slot action '%s' is not provided by its behaviors."
+					% action_id
+				)
 	return warnings
+
+
+func get_configured_action_ids() -> Array[StringName]:
+	var action_ids: Array[StringName] = []
+	if behaviors.has("sleepable"):
+		action_ids.append(&"sleep")
+	if behaviors.has("openable"):
+		action_ids.append(&"open")
+		action_ids.append(&"close")
+	if behaviors.has("inspectable"):
+		action_ids.append(&"inspect")
+	return action_ids
+
+
+func _connect_use_slots() -> void:
+	for slot in use_slots:
+		if slot != null and not slot.changed.is_connected(_on_use_slot_changed):
+			slot.changed.connect(_on_use_slot_changed)
+
+
+func _disconnect_use_slots() -> void:
+	for slot in use_slots:
+		if slot != null and slot.changed.is_connected(_on_use_slot_changed):
+			slot.changed.disconnect(_on_use_slot_changed)
+
+
+func _on_use_slot_changed() -> void:
+	emit_changed()

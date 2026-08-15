@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="LogicalLocationData" format=4]
+
+[ext_resource type="Script" path="res://scripts/location/logical_location_data.gd" id="1_nk3u3"]
+
+[resource]
+script = ExtResource("1_nk3u3")
+location_id = &"tavern_yard"
+bounds = Rect2i(0, 0, 24, 18)
+walkability = PackedByteArray("AAAAAAAAAAAAAAABAQAAAAAAAAAAAAAAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAEBAAAAAAABAQEBAQEBAQEBAQEBAQEAAAEBAAAAAAABAQEBAQEBAQEBAAAAAQEAAAEBAAAAAAABAQEBAQEBAQEBAAAAAQEAAAEBAAAAAAABAQEBAQEBAQEBAQEBAQEAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAEBAQEBAQEBAQEBAQEBAQEAAAEBAQEAAAEBAQEAAAEBAQEBAQEBAQEAAAEBAQEAAAEBAQEAAAEBAQEBAQEBAQEBAQEBAQEAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+movement_costs = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+entries = {
+&"tavern_entrance": {
+"cell": Vector2i(12, 2),
+"entry_id": &"tavern_entrance",
+"facing": 1,
+"local_position": Vector2(384, 80)
+}
+}
+exits = {
+&"tavern_door": {
+"cell_rect": Rect2i(11, 0, 2, 1),
+"edge_key": &"tavern_door"
+}
+}
+source_fingerprint = "f0dff72cb8b7885d05309c631ab104c95932dca16b53728bff91c645a8534964"
+compiler_version = 1

@@ -390,7 +390,7 @@ func _select_from(
 	facing: ActorState.Facing
 ) -> Entity:
 	_place_actor(representation, cell, facing)
-	return InteractionTargetSelector.select_target(representation)
+	return InteractionTargetSelector.select_target(representation.actor)
 
 
 func _place_actor(

@@ -1,7 +1,14 @@
-[gd_resource type="Resource" script_class="FurnitureDefinition" load_steps=3 format=3 uid="uid://cau5iorciyxt8"]
+[gd_resource type="Resource" script_class="FurnitureDefinition" load_steps=5 format=3 uid="uid://cau5iorciyxt8"]
 
 [ext_resource type="Script" path="res://scripts/furniture/furniture_definition.gd" id="1_definition"]
 [ext_resource type="Texture2D" path="res://assets/furniture/bed.svg" id="2_visual"]
+[ext_resource type="Script" path="res://scripts/location/use_slot_definition.gd" id="3_use_slot"]
+
+[sub_resource type="Resource" id="Resource_sleep_slot"]
+script = ExtResource("3_use_slot")
+relative_cell = Vector2i(-1, 0)
+required_facing = 3
+supported_actions = Array[StringName]([&"sleep"])
 
 [resource]
 script = ExtResource("1_definition")
@@ -12,3 +19,4 @@ behaviors = {
 }
 occupied_cells = Vector2i(1, 2)
 blocks_movement = true
+use_slots = Array[ExtResource("3_use_slot")]([SubResource("Resource_sleep_slot")])

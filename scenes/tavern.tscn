@@ -48,11 +48,13 @@ entry_id = &"start"
 position = Vector2(384, 80)
 script = ExtResource("7_entry")
 entry_id = &"front_door"
+facing = 1
 
 [node name="back_door" type="Marker2D" parent="EntryPoints" unique_id=373727254]
 position = Vector2(576, 432)
 script = ExtResource("7_entry")
 entry_id = &"back_door"
+facing = 0
 
 [node name="HallLabel" type="Label" parent="." unique_id=60444414]
 z_index = 2

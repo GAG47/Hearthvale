@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 WorldDefinition="*res://scripts/world_definition/world_definition.gd"
 WorldState="*res://scripts/world_state/world_state.gd"
 EntityRegistry="*res://scripts/entities/entity_registry.gd"
+LocationSpace="*res://scripts/location/location_space.gd"
 WorldTime="*res://scripts/world_time/world_time.gd"
 
 [display]
@@ -30,6 +31,10 @@ window/size/window_width_override=960
 window/size/window_height_override=540
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/location_bake_preflight/plugin.cfg")
 
 [input]
 

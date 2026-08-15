@@ -46,11 +46,13 @@ UI / 表现层呈现世界状态与结果
 
 ## 空间关系
 
-当前空间采用世界层与场景层两级关系。
+当前空间采用世界层、Location 逻辑层与 Scene 表现层三层关系。
 
 世界层由世界节点（Location）及节点间的直接连接组成。一个节点表示一个可以进入、活动和离开的地点；室内与室外节点遵循同一种空间关系，不建立两套地点体系。当前不增加 Region、国家或大陆等上层结构。
 
-场景层把一个世界节点表现为 2D 格子场景。格子是场景结构的最小单位，用于组织地面、建筑、障碍和出口，但不是角色移动的离散步长。角色在格子构成的空间中连续移动，并由碰撞限制可通行范围。
+每个 Location 的正式逻辑组成固定为 Static Grid、Entry / Exit 与 Entities。Static Grid 记录稳定的 `walkable` 与 `movement_cost`；Entities 通过 EntityState 和 Definition 产生当前占格。`cell → entity IDs` 的 Spatial Index 是可重建的运行时派生查询结构，不是 Location 的持久组成。Visual Decoration 只属于 Scene。
+
+Scene 层把一个 Location 表现为 2D 场景，负责 TileMap、视觉、碰撞、出口触发和 Representation 生命周期。格子不是角色移动的离散步长，角色仍可连续移动；但规则需要回答空间问题或提交位置变化时使用 Location Logical Space，而不把 TileMap、Scene Physics 或 Representation 当作逻辑权威。
 
 一个节点连接在概念上包含两个必要信息：目标节点，以及进入目标节点时对应的位置。连接是有向的；两个地点之间的双向通行由两条边分别表达，不从其中一条自动推断另一条。连接本身不负责旅行时间、路径搜索或更大范围的地图模拟。
 
@@ -63,6 +65,7 @@ WorldDefinition 是当前静态世界结构的统一来源，与保存运行时�
 - 稳定 `location_id`；
 - 正常可读的 `display_name`；
 - 承载该地点的 `scene_path`；
+- 对应烘焙产物的 `logical_data_path`；
 - 从该地点出发的 `outgoing_edges`。
 
 Location 是有向图节点，每个 LocationDefinition 管理自己的出边。每条边以仅在所属 Location 内唯一的 `edge_key` 识别，并只保存 `to_location` 与 `to_entry`。边不重复保存 `from_location`，也不预先包含旅行分钟、距离、成本或动态道路状态。
@@ -74,7 +77,7 @@ town_street --tavern_door--> tavern --back_door--> tavern_yard
 town_street <--front_door--- tavern <--tavern_door-- tavern_yard
 ```
 
-GridScene 继续声明自己的 `location_id` 并负责具体格子空间、入口坐标和出口触发位置。LocationEntry 以稳定 `entry_id` 标识场景内落点；LocationExit 只保存 `edge_key`，不保存目标 Scene 路径或目标 Entry。地点显示名与 Scene 映射来自 LocationDefinition，不在每个出口中重复。
+GridScene 继续声明自己的 `location_id`，LocationEntry 以稳定 `entry_id` 标识制作阶段入口并提供 Cell、local position 与 facing，LocationExit 只保存 `edge_key` 和触发区域。Location Graph 的边引用目标 `entry_id`；Entry 不反向保存来源 Location。正式运行时入口与出口查询来自 LogicalLocationData，不要求目标 Scene 已加载。
 
 玩家触发出口后的基础流程是：
 
@@ -84,17 +87,17 @@ GridScene 继续声明自己的 `location_id` 并负责具体格子空间、入�
 WorldDefinition 查询有向边
   ↓
 Prepare
-  ├─ 查询目标 LocationDefinition，加载并实例化目标 Scene
-  ├─ 验证 GridScene 身份、来源、出口和目标 LocationEntry
-  ├─ 计算迁移 Actor 的目标落点
-  ├─ 确认目标 Location 中需要表现的 Entity
+	├─ 查询目标 Logical Location 的 Entry、facing 与当前可用性
+	├─ 查询不依赖 Scene 的目标 Location Entities
+	├─ 加载并实例化目标 Scene，验证 GridScene 身份与来源
 	└─ 对每个 Entity 请求 EntityRepresentationRegistry
 	      ├─ 找到唯一支持该 Entity 的 EntityRepresentationFactory
 	      └─ Factory 创建并 Prepare 对应 Representation
           ↓ 全部成功
 Commit
-  ├─ 同步旧 ActorRepresentation 的最后位置
-  ├─ 修改迁移 ActorState 的 Location 与位置
+	├─ 同步旧 ActorRepresentation 的最后位置
+	├─ 通过 LocationSpace 提交 ActorState 的 Location、位置与 Entry facing
+	├─ 从旧 Spatial Index 移除并写入目标 Spatial Index
   ├─ 激活已经准备好的目标 Location 与 Representation
   ├─ PlayerController 换绑新的 ActorRepresentation
   ├─ 更新 current_location
@@ -103,11 +106,23 @@ Commit
 
 Location 切换采用 Prepare → Commit。Prepare 允许创建临时目标 Location 与 Representation，但不修改正式 WorldState 或 EntityState，不释放当前 Player Representation，不改变 PlayerController 控制对象、`current_location` 或旧 Location。Actor 四向视觉、家具视觉与碰撞结构、目标玩家表现等所有正常可能失败的准备检查也在这一阶段完成。目标 Location 中每个应被表现的 Entity 都必须恰好匹配一个 Factory；零匹配或多匹配都会使整个 Prepare 失败，不能静默跳过 Entity。任何 Prepare 失败只释放本次临时内容，旧 Location、WorldState 与控制关系从未被修改，因此不需要 rollback。
 
-只有 Prepare 全部成功才进入 Commit。Commit 使用已经验证和加载的内容完成正式 State 迁移与表现换绑，不再加载 Scene 或视觉资源，也不再查找 Entry 或执行 Representation 结构验证。Location 切换只重建 Representation，不重新创建 Entity、EntityState 或 BehaviorState。
+只有 Prepare 全部成功才进入 Commit。Commit 使用已经验证和加载的内容，通过统一位置修改边界完成 State 迁移、Spatial Index 同步与表现换绑，不再加载 Scene 或视觉资源，也不再查找 Entry 或执行 Representation 结构验证。Location 切换只重建 Representation，不重新创建 Entity、EntityState 或 BehaviorState。
 
-WorldDefinition 初始化继续校验 Location ID、Scene 资源、局部 edge key、目标 Location 和非空 Entry 标识，并加载全部 Location Scene 做静态图与实际场景的一致性验证。Scene 实例化后双向检查 LocationExit 与 outgoing edge：Scene 中每个 Exit 必须引用已定义边，Definition 中每条边也必须有实际 Exit；同时检查 Scene 身份、Scene 来源、Entry 唯一性，以及每条边的 `to_entry` 在目标 Location Scene 中真实存在。错误信息携带相应的 Location、edge、目标 Location 和 Entry，便于定位静态世界定义。
+WorldDefinition 初始化校验 Location ID、Scene 资源、局部 edge key、目标 Location 和非空 Entry 标识，但不再为了建立世界图而实例化所有 Location Scene。LocationSpace 加载已经烘焙的数据，并以 Logical Entry / Exit 校验每条边；实际 Scene 仅在激活时验证自身身份、来源和出口配置。
 
 Location Graph 当前只表达静态空间拓扑。NPC 路线、日程、离屏模拟、旅行时间、距离、道路封锁、天气影响、事件改路和世界地图 UI 尚未实现；未来系统可以查询该图，但不应把这些未确定职责提前塞入边定义。
+
+## Location Logical Space 与 Location Bake
+
+Location Scene 与 TileSet Custom Data 是 Static Grid 的制作源。参与逻辑空间的 Tile 明确提供 `walkable` 与 `movement_cost`，开发阶段的 headless Location Bake 将实际 Tile 最小包围范围、紧凑 walkability / movement-cost 数组以及 Entry / Exit 编译为 LogicalLocationData。bounds 外和 bounds 内没有有效 Logical Tile 的 Cell 都是 blocked；动态 Entity、State、Spatial Index、Use Slot 实际位置、Representation 与 Scene Node 不进入该 Resource。
+
+Location Bake 与 V9 Placement Bake 是两条独立链路：前者产生 Location 静态逻辑空间，后者产生初始 Entity 创建数据。Bake Preflight 使用 Location Scene 与其 TileSet 内容的 source fingerprint 加 compiler version 判断产物；未变化时跳过，只有对应源变化的 Location 重烘焙。失败返回非零结果，LocationSpace 也拒绝缺失、过期或版本不符的产物，不能静默使用旧数据。正式空间查询只读取 LogicalLocationData，不解析 TileMap。
+
+LocationSpace 为每个 Logical Location 持有可重建的 Spatial Index。EntityRegistry 完成注册后按 EntityState.current_location_id 与 Definition footprint 建立 `cell → entity IDs`；Scene 加载和卸载不创建、删除或决定这个索引。它统一回答 bounds、静态可走性、movement cost、当前可走性、Cell 中的 Entity、Entity 占格、Location Entity、Action 支持和 Use Slot 查询。
+
+`EntityState.local_position` 是位置的唯一持久真相，`current_cell` 与实际 occupied cells 都由它推导。现有 FurnitureDefinition 的矩形 `occupied_cells` 经统一 footprint-offset 规则展开，多格 Furniture 的全部 Cell 都进入索引。位置变化必须经过 LocationSpace 的 propose → 静态网格与当前 occupancy 验证 → State Commit → Spatial Index 更新边界，行为或 Representation 不直接写 `local_position`。
+
+Use Slot 表达 Actor 真正执行 Action 时所在的 Cell，不等同于 Entity 自身的 occupied cells。FurnitureDefinition 可配置 `relative_cell`、`required_facing` 与 `supported_actions`，相对原点统一为 footprint 左上角；床使用显式 sleep Slot。没有显式配置的储物箱、告示牌等对象从 footprint 周围生成默认相邻 Slot。有效 Slot 必须位于 bounds 内、静态可走且未被其他 blocking Entity 占据。V10 不实现寻路、预约、Slot Entrance 或坐下/躺下 Transition。
 
 ## 地图结构与 Entity
 
@@ -195,14 +210,14 @@ Entity 类型与 Representation 类型之间的对应关系属于 Representation
 
 Representation 的统一是职责和创建流程统一，不是 Godot Node 继承结构统一。系统不建立公共 `EntityRepresentation extends Node` 基类；ActorRepresentation 继续使用 CharacterBody2D，FurnitureRepresentation 继续使用 Node2D，未来类型可以选择符合自身空间职责的 Node。当前 Representation 通过共同约定提供绑定的 Entity，Scene 空间选择完成后必须取得逻辑 Entity 再交给 Action，WorldAction 不操作 Representation。
 
-每个 GridScene 只维护当前已加载 FurnitureRepresentation 的格子索引。FurnitureRepresentation 根据绑定 Furniture 的占用范围登记到每个格子，离开场景时注销。这个索引用于 Scene 空间命中，不是 EntityRegistry 或 WorldState；Selector 命中 Representation 后必须返回其逻辑 Furniture。
+GridScene 和 FurnitureRepresentation 不再维护用于规则查询的 Scene 局部家具索引。InteractionTargetSelector 与 WorldAction 通过 LocationSpace 的 Entity、Spatial Index 和 Use Slot 查询选择及验证逻辑目标，因此 Scene 卸载不会改变交互空间结果。
 
 ## Location、Scene 与运行时 World State
 
 Scene、Location 与 World State 表达不同职责：
 
 - Location 是世界中的逻辑地点，以稳定 `location_id` 识别，并作为空间归属、格子索引和局部查询边界；
-- Godot Scene 是该 Location 当前被加载后承担显示、碰撞、交互和场景行为的运行时表现；
+- Godot Scene 是该 Location 当前被加载后承担显示、物理碰撞、出口触发和 Representation 生命周期的运行时表现；
 - World State 是独立于 Location Scene 生命周期持续存在的动态世界事实。
 
 世界身份使用稳定逻辑 ID。Location 继续使用 `location_id`；ActorDefinition 与 FurnitureDefinition 是 Godot Custom Resource，其静态资产身份由 Godot ResourceUID 管理，不再维护自定义 `definition_id`。每个世界中的具体 Entity 实例使用独立 UUID v4 `entity_id`。ResourceUID 回答“哪一份静态 Definition 资产”，`entity_id` 回答“当前存档世界中的哪一个实例”，两者不能互相代用。Entity UUID 不编码名称、类型、Location、职业、用途、生成顺序或状态，创建后不变；UUID Generator 只生成 Entity UUID，格式验证是独立职责。
@@ -211,7 +226,7 @@ Definition 与 State 保持分离。Initial Entity Data 通过 `definition_uid` 
 
 WorldState 是随当前游戏运行持续存在的 Autoload，以 `entity_id → EntityState` 统一保存 Entity 的动态状态，当前实际类型包括 ActorState 与 FurnitureState，并继续独立保存 WorldTimeState。它不加载 Definition、不创建 Entity，也不解释家具行为。Scene Node 被释放不代表逻辑实体或世界事实删除：Location 重载会创建新的 Representation，绑定 EntityRegistry 中同一 Entity 及 WorldState 中同一 State。
 
-Location 的格子索引仍是当前已加载 Scene 的局部查询结构，不是 World State。当前运行时 WorldState 也不是磁盘存档；未来 Save / Load 应序列化这份世界事实结构，而不是建立另一套权威。当前不实现文件格式、版本迁移或存档槽。
+Location Spatial Index 独立于已加载 Scene，且只是由 EntityState、Definition 与 EntityRegistry 重建的运行时派生数据，不进入 WorldState 或存档。当前运行时 WorldState 也不是磁盘存档；未来 Save / Load 应序列化世界事实并在加载后重建索引，而不是保存第二份占格真相。当前不实现文件格式、版本迁移或存档槽。
 
 ## 统一世界时间
 
@@ -227,32 +242,32 @@ WorldState 持有 WorldTimeState，使它与其他运行时世界事实一样跨
 
 ## Actor、Furniture、Behavior 与表现
 
-Actor extends Entity，并关联 ActorDefinition Resource 与 ActorState。ActorDefinition 当前保存 `display_name` 和 `visual_up/down/left/right` 四个 Texture2D 引用，资产身份由 ResourceUID 提供；ActorState 在公共 EntityState 上增加四方向 `facing`。ActorEntityFactory 直接使用按 UID 加载的 ActorDefinition，并为 Actor / ActorState 生成独立 `entity_id`。ActorPlacement Preview 与 ActorRepresentation 都从同一 Resource 读取对应 facing 视觉；卸载前 Representation 把 Scene 中的连续位置同步回同一个 State。
+Actor extends Entity，并关联 ActorDefinition Resource 与 ActorState。ActorDefinition 当前保存 `display_name` 和 `visual_up/down/left/right` 四个 Texture2D 引用，资产身份由 ResourceUID 提供；ActorState 在公共 EntityState 上增加四方向 `facing`。ActorEntityFactory 直接使用按 UID 加载的 ActorDefinition，并为 Actor / ActorState 生成独立 `entity_id`。ActorPlacement Preview 与 ActorRepresentation 都从同一 Resource 读取对应 facing 视觉；Representation 的连续位置通过 LocationSpace 的统一提交边界同步到同一个 State。
 
 Furniture extends Entity，并关联可共享的 FurnitureDefinition Resource、实例独享的 FurnitureState 和一组轻量 Behavior。FurnitureDefinition 的 ResourceUID 标识静态资产，Furniture / FurnitureState 的 `entity_id` 标识世界实例。床、储物箱、告示牌都是 `.tres` Custom Resource，不存在 Bed、Chest、Sign 逻辑子类。SleepableBehavior、OpenableBehavior、InspectableBehavior 分别封装当前睡眠、开关与查看规则；`is_open` 属于 `FurnitureState.behavior_states.openable` 中的 OpenableState，关闭与开启视觉是 Definition 中的 Texture2D 引用，Behavior 对象不保存具体家具实例状态。FurniturePlacement Preview 与 FurnitureRepresentation 读取同一 Definition visual，Behavior 的通用反馈从 FurnitureDefinition.display_name 取得名称。
 
-所有家具共用 FurnitureRepresentation Scene。它只绑定已有 Furniture，按 Definition / State 设置视觉、位置、占位碰撞，并把自身登记到当前 GridScene 的空间索引；它不生成 UUID，不创建或注册 Entity / State，也不判断 Action。OpenableState 变化后 Representation 只负责刷新视觉。离开酒馆会释放这些 Node，重新进入时创建的新 Representation 会绑定原 Furniture、原 FurnitureState 与其中同一个 OpenableState，因此直接恢复开启状态。
+所有家具共用 FurnitureRepresentation Scene。它只绑定已有 Furniture，按 Definition / State 设置视觉、位置和表现层占位碰撞；逻辑占格由 LocationSpace 从 Furniture 与 State 派生。它不生成 UUID，不创建或注册 Entity / State，也不判断 Action。OpenableState 变化后 Representation 只负责刷新视觉。离开酒馆会释放这些 Node，重新进入时创建的新 Representation 会绑定原 Furniture、原 FurnitureState 与其中同一个 OpenableState，因此直接恢复开启状态。
 
 PlayerController 独立持有当前受控 Actor 和它在已加载 Location 中的 ActorRepresentation，继续负责输入、连续移动、交互意图、结果信号和 Camera。当前 Player Definition 是具有 ResourceUID 的 ActorDefinition `.tres`，Session 启动流程另行生成 Player Actor / ActorState 的 `entity_id`。角色与 Camera 跟随在物理帧更新，并使用 2D 物理插值平滑渲染；Location 切换后 Controller 绑定同一 Actor 的新 Representation。Actor 与 ActorRepresentation 不保存 Player 类型标记，Player 只表示当前控制权。Martha ActorDefinition Resource 仍可加载，但在通用 NPC 初始化出现前不创建 Runtime Entity、State 或 Representation。
 
 ## 当前交互与行为关系
 
-玩家按下统一交互输入时，PlayerController 请求 InteractionTargetSelector 先查询当前受控 ActorRepresentation facing 方向的相邻格，再查询其当前格。查询使用当前 Location 的 FurnitureRepresentation 格子索引，不遍历 SceneTree；命中 Representation 后取出逻辑 Furniture，并按稳定 `entity_id` 选择一个支持行为的 Entity 返回。这一过程只负责确定意图目标，不让家具分别监听输入，也不是 Action 合法性的唯一防线。
+玩家按下统一交互输入时，PlayerController 把当前受控 Actor 交给 InteractionTargetSelector。Selector 查询 Actor 所属 Logical Location 中支持 Action 的 Entity，并检查 Actor 是否已经位于该 Entity 当前有效的 Use Slot 及 required facing；候选按稳定 `entity_id` 选择。查询不遍历 SceneTree，也不依赖 Representation 或 Scene Physics。这一过程只负责确定意图目标，不让家具分别监听输入，也不是 Action 合法性的唯一防线。
 
 选中目标后的当前基础关系是：
 
 ```text
 PlayerController 把玩家输入转化为移动或交互意图
   ↓
-ActorRepresentation 绑定 Actor、执行当前 Scene 中的空间移动并同步状态
+ActorRepresentation 绑定 Actor、执行当前 Scene 中的连续移动
   ↓
-Location / GridScene 维护自身格子中的 FurnitureRepresentation
+LocationSpace 验证并提交 EntityState 位置、同步 Spatial Index
   ↓
-InteractionTargetSelector 从 Representation 命中取得逻辑 Entity
+InteractionTargetSelector 通过 Logical Location + Use Slot 取得逻辑 Entity
   ↓
 WorldAction 表达逻辑 Actor、行为身份和 Entity 目标
   ↓
-公共空间规则验证同一 Location 与当前格 / facing 相邻格
+公共空间规则验证同一 Location 与当前有效 Use Slot / facing
   ↓
 Entity 的 Action 目标协议进行检查与执行
   ↓
@@ -267,7 +282,7 @@ ActionResult（success / failure、消息与失败代码）
 HUD / UI 显示 ActionResult
 ```
 
-公共空间规则属于 WorldAction 执行链，依赖逻辑 EntityState 验证 Actor 与 Entity 目标有效、属于同一个 Location，并且目标占据 Actor 当前格或 facing 相邻格；通过后，WorldAction 只调用 Entity 的 `check_action()` 与 `apply_action()`。Entity 默认拒绝，Furniture override 后委派 Behavior；WorldAction 不认识 Furniture 或任何其他目标子类。Scene / Physics 只参与目标命中，Action 不操作 FurnitureRepresentation。即使未来 NPC、AI 或其他系统绕过玩家 Selector 直接创建 WorldAction，非法空间行为也不能修改目标状态。
+公共空间规则属于 WorldAction 执行链，依赖逻辑 EntityState 与 Logical Location 验证 Actor 和目标有效、属于同一个 Location，并且 Actor 位于目标 Action 当前有效的 Use Slot 且 facing 正确；通过后，WorldAction 只调用 Entity 的 `check_action()` 与 `apply_action()`。Entity 默认拒绝，Furniture override 后委派 Behavior；WorldAction 不认识 Furniture 或任何其他目标子类。Action 不操作 Scene Physics 或 FurnitureRepresentation。非玩家调用可以显式传入 LogicalLocation 上下文，仍使用相同规则。
 
 行为合法性判断与执行保持分离。PlayerController 只从目标 Entity 请求 primary action、产生玩家意图并发出结果，不强转具体目标，也不直接修改家具状态或更新交互结果 UI。空间拒绝同样返回正式 ActionResult 和明确失败代码。合法 open / close 修改权威 OpenableState，Representation 只根据同一状态更新视觉。正式结果不只服务玩家画面；未来 NPC 或 AI 发起行为时，也应能得到相同的成功、失败和原因信息。
 

@@ -70,11 +70,17 @@ func finish_location_departure() -> void:
 	current_location = null
 
 
-func sync_state_from_representation() -> void:
+func sync_state_from_representation() -> bool:
 	if actor == null or not is_instance_valid(current_location):
-		return
-	actor.state.current_location_id = current_location.location_id
-	actor.state.local_position = position
+		return false
+	var location_space := get_node_or_null("/root/LocationSpace") as LocationSpaceRuntime
+	if location_space == null:
+		push_error("ActorRepresentation position sync requires LocationSpace.")
+		return false
+	if location_space.try_move_entity(actor, current_location.location_id, position):
+		return true
+	position = actor.local_position
+	return false
 
 
 func get_front_cell() -> Vector2i:

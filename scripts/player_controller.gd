@@ -106,7 +106,7 @@ func request_interaction() -> ActionResult:
 		return unavailable_result
 
 	controlled_representation.sync_state_from_representation()
-	var target := InteractionTargetSelector.select_target(controlled_representation)
+	var target := InteractionTargetSelector.select_target(controlled_actor)
 	if target == null:
 		var no_target_result := ActionResult.failed(&"interact", &"", "前方没有可交互的对象。")
 		action_completed.emit(no_target_result)
@@ -122,7 +122,13 @@ func request_interaction() -> ActionResult:
 		action_completed.emit(no_action_result)
 		return no_action_result
 
-	var action := WorldAction.new(action_id, controlled_actor, target)
+	var location_space := get_node_or_null("/root/LocationSpace") as LocationSpaceRuntime
+	var logical_location := (
+		location_space.get_location(controlled_actor.current_location_id)
+		if location_space != null and location_space.has_location(controlled_actor.current_location_id)
+		else null
+	)
+	var action := WorldAction.new(action_id, controlled_actor, target, logical_location)
 	var result := action.execute()
 	action_completed.emit(result)
 	return result
