@@ -84,21 +84,22 @@ func _load_logical_locations() -> bool:
 		return false
 	var valid := true
 	for definition in _world_definition.get_locations():
-		var fingerprint := LogicalLocationCompiler.compute_source_fingerprint(definition.scene_path)
-		if fingerprint.is_empty() or LogicalLocationCompiler.needs_bake(definition, fingerprint):
-			push_error(
-				"LogicalLocationData for '%s' is missing or stale. Run the Location Bake preflight."
-				% definition.location_id
-			)
-			valid = false
-			continue
 		var data := ResourceLoader.load(
 			definition.logical_data_path,
 			"LogicalLocationData",
 			ResourceLoader.CACHE_MODE_IGNORE
 		) as LogicalLocationData
-		if data == null or data.location_id != definition.location_id:
-			push_error("Location '%s' has invalid LogicalLocationData." % definition.location_id)
+		if data == null:
+			push_error(
+				"Location '%s' could not load LogicalLocationData '%s'."
+				% [definition.location_id, definition.logical_data_path]
+			)
+			valid = false
+			continue
+		var warnings := data.get_runtime_validation_warnings(definition.location_id)
+		if not warnings.is_empty():
+			for warning in warnings:
+				push_error("Location '%s': %s" % [definition.location_id, warning])
 			valid = false
 			continue
 		_locations[definition.location_id] = LogicalLocation.new(data, _entity_registry)

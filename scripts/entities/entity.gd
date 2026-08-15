@@ -39,6 +39,10 @@ func get_primary_action(actor: Actor) -> StringName:
 	return actions[0] if not actions.is_empty() else &""
 
 
+func get_explicit_use_slot_definitions() -> Array[UseSlotDefinition]:
+	return []
+
+
 func check_action(action: WorldAction) -> ActionRuleDecision:
 	return ActionRuleDecision.reject(
 		"目标实体不支持“%s”行为。" % action.action_id,

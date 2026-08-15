@@ -2,9 +2,22 @@
 class_name LogicalLocationCompiler
 extends RefCounted
 
-const COMPILER_VERSION := 1
+const COMPILER_VERSION := LogicalLocationData.CURRENT_COMPILER_VERSION
 const WALKABLE_LAYER := &"walkable"
 const MOVEMENT_COST_LAYER := &"movement_cost"
+
+
+static func run_preflight(
+	definitions: Array[LocationDefinition],
+	force := false
+) -> bool:
+	var success := true
+	for definition in definitions:
+		if not bake_definition(definition, force):
+			success = false
+	if success:
+		success = validate_baked_graph(definitions)
+	return success
 
 
 static func bake_definition(definition: LocationDefinition, force := false) -> bool:
@@ -142,12 +155,18 @@ static func compile_scene(scene_path: String, fingerprint := "") -> LogicalLocat
 	var tile_layers: Array[TileMapLayer] = []
 	_collect_tile_layers(location, tile_layers)
 	if tile_layers.is_empty():
-		push_error("Location Bake Scene '%s' contains no TileMapLayer." % scene_path)
+		push_error(
+			"Location Bake Scene '%s' contains no TileMapLayer marked participates_in_static_grid."
+			% scene_path
+		)
 		location.free()
 		return null
 
 	var cell_values: Dictionary[Vector2i, Dictionary] = {}
 	for layer in tile_layers:
+		if not _validate_layer_grid(location, layer, scene_path):
+			location.free()
+			return null
 		if not _collect_layer_cells(location, layer, cell_values, scene_path):
 			location.free()
 			return null
@@ -341,6 +360,45 @@ static func _collect_layer_cells(
 	return true
 
 
+static func _validate_layer_grid(
+	location: GridScene,
+	layer: TileMapLayer,
+	scene_path: String
+) -> bool:
+	var tile_set := layer.tile_set
+	if tile_set == null:
+		push_error("Location Bake TileMapLayer '%s' in '%s' has no TileSet." % [layer.name, scene_path])
+		return false
+	var required_tile_size := Vector2i.ONE * LogicalLocationData.CELL_SIZE
+	if tile_set.tile_size != required_tile_size:
+		push_error(
+			"Location Bake TileMapLayer '%s' in '%s' uses tile_size %s; expected %s."
+			% [layer.name, scene_path, tile_set.tile_size, required_tile_size]
+		)
+		return false
+	var origin := location.to_local(layer.to_global(Vector2.ZERO))
+	var x_axis := (
+		location.to_local(layer.to_global(Vector2(LogicalLocationData.CELL_SIZE, 0)))
+		- origin
+	)
+	var y_axis := (
+		location.to_local(layer.to_global(Vector2(0, LogicalLocationData.CELL_SIZE)))
+		- origin
+	)
+	if (
+		not x_axis.is_equal_approx(Vector2(LogicalLocationData.CELL_SIZE, 0))
+		or not y_axis.is_equal_approx(Vector2(0, LogicalLocationData.CELL_SIZE))
+		or not is_equal_approx(origin.x / LogicalLocationData.CELL_SIZE, round(origin.x / LogicalLocationData.CELL_SIZE))
+		or not is_equal_approx(origin.y / LogicalLocationData.CELL_SIZE, round(origin.y / LogicalLocationData.CELL_SIZE))
+	):
+		push_error(
+			"Location Bake TileMapLayer '%s' in '%s' must share the unrotated, unscaled, Cell-aligned logical grid."
+			% [layer.name, scene_path]
+		)
+		return false
+	return true
+
+
 static func _calculate_bounds(cells: Array) -> Rect2i:
 	var minimum: Vector2i = cells[0]
 	var maximum := minimum
@@ -372,9 +430,16 @@ static func _position_to_cell(position: Vector2) -> Vector2i:
 
 static func _collect_tile_layers(node: Node, layers: Array[TileMapLayer]) -> void:
 	for child in node.get_children():
-		if child is TileMapLayer:
+		if child is TileMapLayer and _layer_participates_in_static_grid(child as TileMapLayer):
 			layers.append(child as TileMapLayer)
 		_collect_tile_layers(child, layers)
+
+
+static func _layer_participates_in_static_grid(layer: TileMapLayer) -> bool:
+	for property: Dictionary in layer.get_property_list():
+		if property["name"] == &"participates_in_static_grid":
+			return layer.get("participates_in_static_grid") == true
+	return false
 
 
 static func _collect_location_entries(node: Node, entries: Array[LocationEntry]) -> void:

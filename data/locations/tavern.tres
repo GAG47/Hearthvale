@@ -38,5 +38,5 @@ exits = {
 "edge_key": &"front_door"
 }
 }
-source_fingerprint = "5aeafb9ea1f0296d210ced160ed3662426847c4df0dd166443ce44039479f8b4"
-compiler_version = 1
+source_fingerprint = "c12fc32f98139022759c889e5e2605fe82ca020f2bd4441e6baef0833bfa6159"
+compiler_version = 2

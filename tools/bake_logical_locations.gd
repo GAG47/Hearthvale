@@ -12,12 +12,10 @@ func _run() -> void:
 		quit(1)
 		return
 	var force := OS.get_cmdline_user_args().has("--force")
-	var success := true
-	for definition in world_definition.get_locations():
-		if not LogicalLocationCompiler.bake_definition(definition, force):
-			success = false
-	if success and not LogicalLocationCompiler.validate_baked_graph(world_definition.get_locations()):
-		success = false
+	var success := LogicalLocationCompiler.run_preflight(
+		world_definition.get_locations(),
+		force
+	)
 	if success:
 		print("Location Bake preflight completed successfully.")
 		quit(0)

@@ -10,14 +10,9 @@ func _build() -> bool:
 		world_definition.free()
 		return false
 
-	var success := true
-	for definition in world_definition.get_locations():
-		if not LogicalLocationCompiler.bake_definition(definition):
-			success = false
-	if success:
-		success = LogicalLocationCompiler.validate_baked_graph(
-			world_definition.get_locations()
-		)
+	var success := LogicalLocationCompiler.run_preflight(
+		world_definition.get_locations()
+	)
 	world_definition.free()
 	if not success:
 		push_error("Editor Run stopped because Location Bake Preflight failed.")

@@ -114,15 +114,15 @@ Location Graph 当前只表达静态空间拓扑。NPC 路线、日程、离屏�
 
 ## Location Logical Space 与 Location Bake
 
-Location Scene 与 TileSet Custom Data 是 Static Grid 的制作源。参与逻辑空间的 Tile 明确提供 `walkable` 与 `movement_cost`，开发阶段的 headless Location Bake 将实际 Tile 最小包围范围、紧凑 walkability / movement-cost 数组以及 Entry / Exit 编译为 LogicalLocationData。bounds 外和 bounds 内没有有效 Logical Tile 的 Cell 都是 blocked；动态 Entity、State、Spatial Index、Use Slot 实际位置、Representation 与 Scene Node 不进入该 Resource。
+Location Scene 与 TileSet Custom Data 是 Static Grid 的制作源。只有明确标记 `participates_in_static_grid = true` 的 TileMapLayer 参与逻辑编译，并提供 `walkable` 与 `movement_cost`；视觉装饰层默认排除，不要求逻辑 Custom Data。多个参与层共享同一按 Cell 对齐的逻辑坐标系，重叠 Cell 以 blocked 优先合并。开发阶段的 headless Location Bake 将实际参与 Tile 的最小包围范围、紧凑 walkability / movement-cost 数组以及 Entry / Exit 编译为 LogicalLocationData。bounds 外和 bounds 内没有有效 Logical Tile 的 Cell 都是 blocked；动态 Entity、State、Spatial Index、Use Slot 实际位置、Representation 与 Scene Node 不进入该 Resource。
 
-Location Bake 与 V9 Placement Bake 是两条独立链路：前者产生 Location 静态逻辑空间，后者产生初始 Entity 创建数据。Bake Preflight 使用 Location Scene 与其 TileSet 内容的 source fingerprint 加 compiler version 判断产物；未变化时跳过，只有对应源变化的 Location 重烘焙。失败返回非零结果，LocationSpace 也拒绝缺失、过期或版本不符的产物，不能静默使用旧数据。正式空间查询只读取 LogicalLocationData，不解析 TileMap。
+Location Bake 与 V9 Placement Bake 是两条独立链路：前者产生 Location 静态逻辑空间，后者产生初始 Entity 创建数据。Bake Preflight 使用 Location Scene 与其 TileSet 内容的 source fingerprint 加 compiler version 判断产物；未变化时跳过，只有对应源变化的 Location 重烘焙。Editor Run、CLI Test 与 CLI Build 的标准入口都会先执行 Preflight，失败即停止。source fingerprint 和 stale 判断不进入运行时；LocationSpace 只读取 LogicalLocationData，并校验资源存在、Location 身份、compiler version 与烘焙结构，不打开 `.tscn`、TileSet 或解析 TileMap。
 
 LocationSpace 为每个 Logical Location 持有可重建的 Spatial Index。EntityRegistry 完成注册后按 EntityState.current_location_id 与 Definition footprint 建立 `cell → entity IDs`；Scene 加载和卸载不创建、删除或决定这个索引。它统一回答 bounds、静态可走性、movement cost、当前可走性、Cell 中的 Entity、Entity 占格、Location Entity、Action 支持和 Use Slot 查询。
 
 `EntityState.local_position` 是位置的唯一持久真相，`current_cell` 与实际 occupied cells 都由它推导。现有 FurnitureDefinition 的矩形 `occupied_cells` 经统一 footprint-offset 规则展开，多格 Furniture 的全部 Cell 都进入索引。位置变化必须经过 LocationSpace 的 propose → 静态网格与当前 occupancy 验证 → State Commit → Spatial Index 更新边界，行为或 Representation 不直接写 `local_position`。
 
-Use Slot 表达 Actor 真正执行 Action 时所在的 Cell，不等同于 Entity 自身的 occupied cells。FurnitureDefinition 可配置 `relative_cell`、`required_facing` 与 `supported_actions`，相对原点统一为 footprint 左上角；床使用显式 sleep Slot。没有显式配置的储物箱、告示牌等对象从 footprint 周围生成默认相邻 Slot。有效 Slot 必须位于 bounds 内、静态可走且未被其他 blocking Entity 占据。V10 不实现寻路、预约、Slot Entrance 或坐下/躺下 Transition。
+Use Slot 表达 Actor 真正执行 Action 时所在的 Cell。Entity 可以通过最小空间能力接口提供显式 UseSlotDefinition；当前 FurnitureDefinition 配置 `relative_cell`、`required_facing` 与 `supported_actions`，相对原点统一为 footprint 左上角。显式/默认选择按 Action 独立判断，某 Action 有显式 Slot 不会阻止其他 Action 生成默认 Slot。默认 Slot 包含 footprint 周围；非 blocking 的交互对象也允许 occupied Cell 作为脚下 Slot，blocking Entity 则不生成 footprint 内默认 Slot。有效 Slot 必须位于 bounds 内、静态可走且未被其他 blocking Entity 占据。V10 不实现寻路、预约、Slot Entrance 或坐下/躺下 Transition。
 
 ## 地图结构与 Entity
 

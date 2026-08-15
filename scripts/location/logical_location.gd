@@ -115,13 +115,36 @@ func get_entity_use_slots(
 	if occupied_cells.is_empty():
 		return []
 	var footprint_origin := _get_footprint_origin(occupied_cells)
-	if entity is Furniture and not (entity as Furniture).definition.use_slots.is_empty():
-		return _get_explicit_use_slots(
-			entity as Furniture,
-			footprint_origin,
-			action_id
-		)
-	return _get_default_use_slots(entity, occupied_cells, supported_actions, action_id)
+	var requested_actions := supported_actions
+	if not action_id.is_empty():
+		requested_actions = [action_id]
+	var slots_by_key: Dictionary[String, EntityUseSlot] = {}
+	for requested_action in requested_actions:
+		var matching_definitions: Array[UseSlotDefinition] = []
+		for definition in entity.get_explicit_use_slot_definitions():
+			if definition != null and definition.supported_actions.has(requested_action):
+				matching_definitions.append(definition)
+		var action_slots: Array[EntityUseSlot]
+		if matching_definitions.is_empty():
+			action_slots = _get_default_use_slots(
+				entity,
+				occupied_cells,
+				requested_action
+			)
+		else:
+			action_slots = _get_explicit_use_slots(
+				entity,
+				matching_definitions,
+				footprint_origin,
+				requested_action
+			)
+		_merge_use_slots(slots_by_key, action_slots, requested_action)
+	var keys := slots_by_key.keys()
+	keys.sort()
+	var slots: Array[EntityUseSlot] = []
+	for key_value: Variant in keys:
+		slots.append(slots_by_key[key_value])
+	return slots
 
 
 func get_valid_entity_use_slots(
@@ -210,22 +233,19 @@ func get_world_rect() -> Rect2:
 
 
 func _get_explicit_use_slots(
-	furniture: Furniture,
+	entity: Entity,
+	definitions: Array[UseSlotDefinition],
 	footprint_origin: Vector2i,
 	action_id: StringName
 ) -> Array[EntityUseSlot]:
 	var slots: Array[EntityUseSlot] = []
-	for definition in furniture.definition.use_slots:
-		if definition == null:
-			continue
-		if not action_id.is_empty() and not definition.supported_actions.has(action_id):
-			continue
+	for definition in definitions:
 		slots.append(
 			EntityUseSlot.new(
-				furniture.entity_id,
+				entity.entity_id,
 				footprint_origin + definition.relative_cell,
 				definition.required_facing,
-				definition.supported_actions,
+				[action_id],
 				true
 			)
 		)
@@ -235,12 +255,9 @@ func _get_explicit_use_slots(
 func _get_default_use_slots(
 	entity: Entity,
 	occupied_cells: Array[Vector2i],
-	supported_actions: Array[StringName],
 	action_id: StringName
 ) -> Array[EntityUseSlot]:
-	var slot_actions := supported_actions
-	if not action_id.is_empty():
-		slot_actions = [action_id]
+	var slot_actions: Array[StringName] = [action_id]
 	var occupied_lookup: Dictionary[Vector2i, bool] = {}
 	for cell in occupied_cells:
 		occupied_lookup[cell] = true
@@ -266,12 +283,50 @@ func _get_default_use_slots(
 					slot_actions,
 					false
 				)
+	if not entity.is_blocking_movement():
+		var facings: Array[ActorState.Facing] = [
+			ActorState.Facing.UP,
+			ActorState.Facing.DOWN,
+			ActorState.Facing.LEFT,
+			ActorState.Facing.RIGHT,
+		]
+		for occupied_cell in occupied_cells:
+			for required_facing in facings:
+				var key := "%d:%d:%d" % [occupied_cell.y, occupied_cell.x, required_facing]
+				if not slots_by_key.has(key):
+					slots_by_key[key] = EntityUseSlot.new(
+						entity.entity_id,
+						occupied_cell,
+						required_facing,
+						slot_actions,
+						false
+					)
 	var keys := slots_by_key.keys()
 	keys.sort()
 	var slots: Array[EntityUseSlot] = []
 	for key_value: Variant in keys:
 		slots.append(slots_by_key[key_value])
 	return slots
+
+
+func _merge_use_slots(
+	slots_by_key: Dictionary[String, EntityUseSlot],
+	new_slots: Array[EntityUseSlot],
+	action_id: StringName
+) -> void:
+	for slot in new_slots:
+		var key := "%d:%d:%d:%d" % [
+			slot.cell.y,
+			slot.cell.x,
+			slot.required_facing,
+			1 if slot.explicitly_defined else 0,
+		]
+		if slots_by_key.has(key):
+			var existing := slots_by_key[key]
+			if not existing.supported_actions.has(action_id):
+				existing.supported_actions.append(action_id)
+		else:
+			slots_by_key[key] = slot
 
 
 func _get_footprint_origin(cells: Array[Vector2i]) -> Vector2i:

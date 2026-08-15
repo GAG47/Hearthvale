@@ -22,5 +22,5 @@ exits = {
 "edge_key": &"tavern_door"
 }
 }
-source_fingerprint = "d03ca9c87ac6613853ebe53491bb582d7fb4cc4a61ee916cd8b72dbf302070e5"
-compiler_version = 1
+source_fingerprint = "8cf58e9fa5f5e5791b14524b19564b659b8c4cf8b731556fbdd7d8fb22c1a287"
+compiler_version = 2

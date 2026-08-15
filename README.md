@@ -27,11 +27,14 @@ scripts/  游戏脚本
 
 使用 Godot 4.7.1 导入或打开根目录下的 `project.godot`，然后运行项目。
 
-Godot Editor 点击运行前会自动执行 Location Bake Preflight；修改 Location Scene 或 TileSet 逻辑 Custom Data 后会按需重烘焙，未变化的 Location 自动跳过。命令行测试或构建使用同一 headless Preflight：
+Godot Editor 点击运行前会自动执行 Location Bake Preflight；修改 Location Scene 或 TileSet 逻辑 Custom Data 后会按需重烘焙，未变化的 Location 自动跳过。命令行测试和构建的标准入口也会先自动执行同一 Preflight，失败时不会继续：
 
 ```bash
-godot --headless --path . --script res://tools/bake_logical_locations.gd
+tools/run_tests.sh
+tools/build.sh <Godot build/export arguments>
 ```
+
+需要单独维护烘焙产物时，可运行 `godot --headless --path . --script res://tools/bake_logical_locations.gd`。
 
 使用 `WASD` 或方向键移动玩家；走入场景边缘的门口即可进入相连地点。面对附近的家具按 `E` 进行交互。
 
