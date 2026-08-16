@@ -11,7 +11,7 @@ const CELL_SIZE := 32
 var _furniture_representations_by_cell: Dictionary = {}
 var world_identity_registered := false
 var world_state: WorldStateRuntime
-var world_definition: WorldDefinitionRuntime
+var location: LocationRuntime
 var _activation_prepared := false
 
 
@@ -22,40 +22,41 @@ func _enter_tree() -> void:
 		_activation_prepared = false
 		return
 
-	world_definition = get_node_or_null("/root/WorldDefinition") as WorldDefinitionRuntime
-	if world_definition == null:
-		push_error("WorldDefinition Autoload is required before loading a Location.")
-		return
-	if not world_definition.validate_loaded_location(self, location_id):
-		return
-
 	world_state = get_node_or_null("/root/WorldState") as WorldStateRuntime
 	if world_state == null:
 		push_error("WorldState Autoload is required before loading a Location.")
+		return
+	if location == null or not location.is_valid() or location.instance_id != location_id:
+		push_error("Only a valid Location Runtime may activate a generated Location Scene.")
 		return
 	world_identity_registered = world_state.register_location(self)
 
 
 func prepare_activation(
-	p_world_definition: WorldDefinitionRuntime,
 	p_world_state: WorldStateRuntime,
-	requested_location_id: StringName
+	requested_location: LocationRuntime
 ) -> bool:
 	if is_inside_tree():
 		push_error("A loaded Location cannot be prepared for activation again.")
 		return false
-	if p_world_definition == null or p_world_state == null:
-		push_error("Location activation requires WorldDefinition and WorldState.")
+	if p_world_state == null or requested_location == null or not requested_location.is_valid():
+		push_error("Location activation requires a Location Runtime and WorldState.")
 		return false
-	if not p_world_definition.validate_loaded_location(self, requested_location_id):
+	if location != requested_location or location_id != requested_location.instance_id:
+		push_error("Generated Scene does not represent the requested Location instance.")
 		return false
 	if not p_world_state.can_register_location(self):
 		return false
 
-	world_definition = p_world_definition
 	world_state = p_world_state
 	_activation_prepared = true
 	return true
+
+
+func configure(p_location: LocationRuntime) -> void:
+	location = p_location
+	location_id = p_location.instance_id if p_location != null else &""
+	grid_size = p_location.definition.grid_size if p_location != null else Vector2i.ONE
 
 
 func _exit_tree() -> void:

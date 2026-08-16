@@ -44,6 +44,12 @@ static func load_from_file(path: String) -> FurnitureDefinition:
 	var visual_ref := _read_texture_path(data, "visual_ref", path)
 	if definition_id.is_empty() or display_name.is_empty() or visual_ref.is_empty():
 		return null
+	if not UuidValidator.is_valid_v4(StringName(definition_id)):
+		push_error(
+			"FurnitureDefinitionLoader '%s' field 'definition_id' is not a valid UUID v4: '%s'."
+			% [path, definition_id]
+		)
+		return null
 
 	if not data.has("behaviors") or not data["behaviors"] is Dictionary:
 		push_error("FurnitureDefinitionLoader '%s' field 'behaviors' must be a Dictionary." % path)

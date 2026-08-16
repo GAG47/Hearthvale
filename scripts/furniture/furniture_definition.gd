@@ -1,12 +1,27 @@
 class_name FurnitureDefinition
-extends RefCounted
+extends Definition
 
-var definition_id: StringName
-var display_name: String
-var visual_ref: String
-var behaviors: Dictionary
-var occupied_cells: Vector2i
-var blocks_movement: bool
+var _display_name: String
+var _visual_ref: String
+var _behaviors: Dictionary
+var _occupied_cells: Vector2i
+var _blocks_movement: bool
+
+var display_name: String:
+	get:
+		return _display_name
+var visual_ref: String:
+	get:
+		return _visual_ref
+var behaviors: Dictionary:
+	get:
+		return _behaviors.duplicate(true)
+var occupied_cells: Vector2i:
+	get:
+		return _occupied_cells
+var blocks_movement: bool:
+	get:
+		return _blocks_movement
 
 
 func _init(
@@ -17,9 +32,25 @@ func _init(
 	p_occupied_cells: Vector2i,
 	p_blocks_movement: bool
 ) -> void:
-	definition_id = p_definition_id
-	display_name = p_display_name
-	visual_ref = p_visual_ref
-	behaviors = p_behaviors.duplicate(true)
-	occupied_cells = p_occupied_cells
-	blocks_movement = p_blocks_movement
+	super(p_definition_id)
+	_display_name = p_display_name
+	_visual_ref = p_visual_ref
+	_behaviors = p_behaviors.duplicate(true)
+	_occupied_cells = p_occupied_cells
+	_blocks_movement = p_blocks_movement
+
+
+func get_definition_type() -> StringName:
+	return &"furniture"
+
+
+func to_data() -> Dictionary:
+	return {
+		"type": String(get_definition_type()),
+		"definition_id": String(definition_id),
+		"display_name": display_name,
+		"visual_ref": visual_ref,
+		"behaviors": behaviors.duplicate(true),
+		"occupied_cells": [occupied_cells.x, occupied_cells.y],
+		"blocks_movement": blocks_movement,
+	}

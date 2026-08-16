@@ -13,6 +13,10 @@ func _init(p_definition: ActorDefinition, p_state: ActorState) -> void:
 	definition = p_definition
 
 
+func get_definition() -> Definition:
+	return definition
+
+
 func get_front_cell() -> Vector2i:
 	return current_cell + get_facing_cell_offset()
 

@@ -4,9 +4,9 @@ extends Node2D
 var furniture: Furniture
 var current_location: GridScene
 
-var entity_id: StringName:
+var instance_id: StringName:
 	get:
-		return furniture.entity_id if furniture != null else &""
+		return furniture.instance_id if furniture != null else &""
 
 
 func get_entity() -> Entity:
@@ -33,7 +33,7 @@ func prepare_furniture(
 	if p_furniture.current_location_id != location.location_id:
 		push_error(
 			"Furniture '%s' belongs to Location '%s', but its representation was requested in '%s'."
-			% [p_furniture.entity_id, p_furniture.current_location_id, location.location_id]
+			% [p_furniture.instance_id, p_furniture.current_location_id, location.location_id]
 		)
 		return false
 
@@ -115,14 +115,14 @@ func _load_visual_texture(p_furniture: Furniture) -> Texture2D:
 	if not ResourceLoader.exists(visual_ref):
 		push_error(
 			"Furniture '%s' visual_ref '%s' does not exist."
-			% [p_furniture.entity_id, visual_ref]
+			% [p_furniture.instance_id, visual_ref]
 		)
 		return null
 	var visual_resource := ResourceLoader.load(visual_ref)
 	if not visual_resource is Texture2D:
 		push_error(
 			"Furniture '%s' visual_ref '%s' is not a Texture2D."
-			% [p_furniture.entity_id, visual_ref]
+			% [p_furniture.instance_id, visual_ref]
 		)
 		return null
 	return visual_resource

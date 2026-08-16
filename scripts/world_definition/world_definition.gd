@@ -1,353 +1,319 @@
 class_name WorldDefinitionRuntime
 extends Node
 
-var definitions_valid := false
+const PROJECT_WORLD_DATA_PATH := "res://data/world/project_world.json"
+const ACTOR_DEFINITION_PATHS: Array[String] = [
+	"res://data/actors/player.json",
+	"res://data/actors/martha.json",
+]
+const FURNITURE_DEFINITION_PATHS: Array[String] = [
+	"res://data/furniture/wooden_chest.json",
+	"res://data/furniture/sign.json",
+	"res://data/furniture/simple_bed.json",
+]
 
-var _locations: Dictionary[StringName, LocationDefinition] = {}
-var _edges_by_location: Dictionary[StringName, Dictionary] = {}
+var definitions_valid := false
+var definition_registry: DefinitionRegistryRuntime
+
+var _definition_ids_by_location: Dictionary[StringName, StringName] = {}
+var _location_ids_by_project_key: Dictionary[StringName, StringName] = {}
+var _project_location_instance_specs: Array[Dictionary] = []
 
 
 func _ready() -> void:
-	var definitions := _create_current_world_definitions()
-	definitions_valid = validate_definitions(definitions)
+	definition_registry = get_node_or_null("/root/DefinitionRegistry") as DefinitionRegistryRuntime
+	if definition_registry == null:
+		push_error("WorldDefinition requires the DefinitionRegistry Autoload.")
+		return
+	if not _register_project_entity_definitions():
+		return
+	var project_world := ProjectWorldDataLoader.load_from_file(PROJECT_WORLD_DATA_PATH)
+	if project_world.is_empty():
+		return
+	for definition in project_world["definitions"]:
+		if not definition_registry.register_project_definition(definition):
+			return
+	for spec in project_world["instances"]:
+		_project_location_instance_specs.append(spec.duplicate())
+		_definition_ids_by_location[spec["instance_id"]] = spec["definition_id"]
+		_location_ids_by_project_key[spec["key"]] = spec["instance_id"]
+	definitions_valid = validate_world_data()
 	if not definitions_valid:
 		push_error("WorldDefinition initialization failed; Location queries are unavailable.")
-		return
-	_index_definitions(definitions)
-	if not validate_world_scene_graph():
-		definitions_valid = false
-		push_error(
-			"WorldDefinition Scene consistency validation failed; Location queries are unavailable."
-		)
 
 
 func has_location(location_id: StringName) -> bool:
-	return definitions_valid and _locations.has(location_id)
+	return definitions_valid and _definition_ids_by_location.has(location_id)
 
 
-func get_location(location_id: StringName) -> LocationDefinition:
-	if not definitions_valid:
-		push_error("Cannot query location_id '%s': WorldDefinition is invalid." % location_id)
+func get_project_location_id(key: StringName) -> StringName:
+	if not _location_ids_by_project_key.has(key):
+		push_error("WorldDefinition has no project Location key '%s'." % key)
+		return &""
+	return _location_ids_by_project_key[key]
+
+
+func get_project_location_instance_specs() -> Array[Dictionary]:
+	return _project_location_instance_specs.duplicate(true)
+
+
+func get_location_definition(location_id: StringName) -> LocationDefinition:
+	if not has_location(location_id):
+		push_error("WorldDefinition has no Location instance_id '%s'." % location_id)
 		return null
-	if not _locations.has(location_id):
-		push_error("WorldDefinition has no LocationDefinition for location_id '%s'." % location_id)
+	return (
+		definition_registry.get_definition(_definition_ids_by_location[location_id])
+		as LocationDefinition
+	)
+
+
+func get_location(location_id: StringName) -> LocationRuntime:
+	var location_definition := get_location_definition(location_id)
+	if location_definition == null:
 		return null
-	return _locations[location_id]
-
-
-func get_scene_path(location_id: StringName) -> String:
-	var definition := get_location(location_id)
-	return definition.scene_path if definition != null else ""
+	var world_state := get_node_or_null("/root/WorldState") as WorldStateRuntime
+	var entity_registry := get_node_or_null("/root/EntityRegistry") as EntityRegistryRuntime
+	if world_state == null or entity_registry == null:
+		push_error("Location Runtime requires WorldState and EntityRegistry.")
+		return null
+	var state := world_state.get_location_state(location_id)
+	if state == null:
+		push_error("Location instance_id '%s' has no LocationState." % location_id)
+		return null
+	var location := LocationRuntime.new(
+		location_definition,
+		state,
+		definition_registry,
+		entity_registry
+	)
+	return location if location.is_valid() else null
 
 
 func get_outgoing_edges(location_id: StringName) -> Array[LocationEdgeDefinition]:
-	var definition := get_location(location_id)
-	return definition.outgoing_edges.duplicate() if definition != null else []
+	var location := get_location(location_id)
+	return location.get_current_edges() if location != null else []
 
 
 func get_edge(location_id: StringName, edge_key: StringName) -> LocationEdgeDefinition:
-	if get_location(location_id) == null:
+	var location := get_location(location_id)
+	if location == null:
 		return null
-	var edges: Dictionary = _edges_by_location[location_id]
-	if not edges.has(edge_key):
+	var edge := location.get_edge(edge_key)
+	if edge == null:
 		push_error(
-			"Location '%s' has no outgoing edge with edge_key '%s'."
+			"Location '%s' has no enabled outgoing edge with edge_key '%s'."
 			% [location_id, edge_key]
 		)
-		return null
-	return edges[edge_key] as LocationEdgeDefinition
-
-
-func validate_loaded_location(location: GridScene, requested_location_id: StringName) -> bool:
-	var definition := get_location(requested_location_id)
-	if definition == null:
-		return false
-	if location == null:
-		push_error(
-			"Location '%s' expected Scene '%s', but it did not instantiate as GridScene."
-			% [requested_location_id, definition.scene_path]
-		)
-		return false
-	if location.location_id != requested_location_id:
-		push_error(
-			"Requested location_id '%s' from Scene '%s', but the loaded GridScene declares location_id '%s'."
-			% [requested_location_id, definition.scene_path, location.location_id]
-		)
-		return false
-	if not location.scene_file_path.is_empty() and location.scene_file_path != definition.scene_path:
-		push_error(
-			"Location '%s' is defined by Scene '%s', but loaded Scene source is '%s'."
-			% [requested_location_id, definition.scene_path, location.scene_file_path]
-		)
-		return false
-
-	var valid := _validate_location_entries(location)
-	var scene_exit_edge_keys: Dictionary[StringName, bool] = {}
-	for location_exit in _find_location_exits(location):
-		if not location_exit.edge_key.is_empty():
-			scene_exit_edge_keys[location_exit.edge_key] = true
-		if get_edge(requested_location_id, location_exit.edge_key) == null:
-			push_error(
-				"Scene '%s' for location_id '%s' contains LocationExit edge_key '%s', but that outgoing edge is not defined."
-				% [definition.scene_path, requested_location_id, location_exit.edge_key]
-			)
-			valid = false
-
-	for edge in definition.outgoing_edges:
-		if not scene_exit_edge_keys.has(edge.edge_key):
-			push_error(
-				"LocationDefinition for location_id '%s' contains outgoing edge_key '%s', but Scene '%s' has no corresponding LocationExit."
-				% [requested_location_id, edge.edge_key, definition.scene_path]
-			)
-			valid = false
-	return valid
-
-
-func validate_world_scene_graph() -> bool:
-	if not definitions_valid:
-		push_error("Cannot validate Location Scenes while WorldDefinition is invalid.")
-		return false
-
-	var valid := true
-	var loaded_locations: Dictionary[StringName, GridScene] = {}
-	for definition_value in _locations.values():
-		var definition := definition_value as LocationDefinition
-		var packed_scene := load(definition.scene_path) as PackedScene
-		if packed_scene == null:
-			push_error(
-				"Location '%s' scene_path '%s' could not be loaded during Scene consistency validation."
-				% [definition.location_id, definition.scene_path]
-			)
-			valid = false
-			continue
-
-		var location := packed_scene.instantiate() as GridScene
-		if location == null:
-			push_error(
-				"Location '%s' scene_path '%s' did not instantiate as GridScene during Scene consistency validation."
-				% [definition.location_id, definition.scene_path]
-			)
-			valid = false
-			continue
-
-		loaded_locations[definition.location_id] = location
-		if not validate_loaded_location(location, definition.location_id):
-			valid = false
-
-	for definition_value in _locations.values():
-		var definition := definition_value as LocationDefinition
-		for edge in definition.outgoing_edges:
-			var target_location := loaded_locations.get(edge.to_location) as GridScene
-			if target_location == null:
-				push_error(
-					"Location edge '%s/%s' targets location_id '%s' with to_entry '%s', but the target Scene was not available for validation."
-					% [
-						definition.location_id,
-						edge.edge_key,
-						edge.to_location,
-						edge.to_entry,
-					]
-				)
-				valid = false
-				continue
-			if get_target_entry(target_location, definition.location_id, edge) == null:
-				valid = false
-
-	for location in loaded_locations.values():
-		(location as GridScene).free()
-	return valid
+	return edge
 
 
 func get_target_entry(
-	target_location: GridScene,
+	target_location: LocationRuntime,
 	from_location_id: StringName,
 	edge: LocationEdgeDefinition
-) -> LocationEntry:
+) -> LocationEntryAnchor:
 	if target_location == null or edge == null:
 		return null
-	if target_location.location_id != edge.to_location:
+	if target_location.instance_id != edge.target_location_id:
 		push_error(
-			"Location edge '%s/%s' targets location_id '%s' and to_entry '%s', but loaded location_id is '%s'."
-			% [
-				from_location_id,
-				edge.edge_key,
-				edge.to_location,
-				edge.to_entry,
-				target_location.location_id,
-			]
+			"Location edge '%s/%s' targets instance_id '%s', but prepared Location is '%s'."
+			% [from_location_id, edge.edge_key, edge.target_location_id, target_location.instance_id]
 		)
 		return null
-
-	var entry := target_location.get_location_entry(edge.to_entry)
+	var entry := target_location.get_entry(edge.target_entry_id)
 	if entry == null:
 		push_error(
-			"Location edge '%s/%s' targets location_id '%s' with to_entry '%s', but Scene '%s' has no such LocationEntry."
-			% [
-				from_location_id,
-				edge.edge_key,
-				edge.to_location,
-				edge.to_entry,
-				target_location.scene_file_path,
-			]
+			"Location edge '%s/%s' targets instance_id '%s' with entry_id '%s', but no such Entry Anchor exists."
+			% [from_location_id, edge.edge_key, edge.target_location_id, edge.target_entry_id]
 		)
 	return entry
 
 
-static func validate_definitions(definitions: Array[LocationDefinition]) -> bool:
-	var valid := true
-	var known_locations: Dictionary[StringName, LocationDefinition] = {}
+func register_generated_location(
+	definition: LocationDefinition,
+	state: LocationState
+) -> bool:
+	if definition == null or state == null or state.definition_id != definition.definition_id:
+		push_error("Generated Location registration requires matching Definition and State.")
+		return false
+	if not UuidValidator.is_valid_v4(state.instance_id) or has_location(state.instance_id):
+		push_error("Generated Location instance_id '%s' is invalid or already used." % state.instance_id)
+		return false
+	var world_state := get_node_or_null("/root/WorldState") as WorldStateRuntime
+	if world_state == null or world_state.has_location_state(state.instance_id):
+		return false
+	if not _validate_location_definition(definition, false):
+		return false
+	if not definition_registry.register_generated_definition(definition):
+		return false
+	if not world_state.register_location_state(state):
+		return false
+	_definition_ids_by_location[state.instance_id] = definition.definition_id
+	return true
 
-	for definition in definitions:
+
+func validate_world_data() -> bool:
+	var valid := true
+	var known_locations: Dictionary[StringName, bool] = {}
+	for spec in _project_location_instance_specs:
+		var instance_id: StringName = spec["instance_id"]
+		var definition_id: StringName = spec["definition_id"]
+		if (
+			not UuidValidator.is_valid_v4(instance_id)
+			or not UuidValidator.is_valid_v4(definition_id)
+			or known_locations.has(instance_id)
+		):
+			push_error("Invalid or duplicate project Location instance_id '%s'." % instance_id)
+			valid = false
+			continue
+		known_locations[instance_id] = true
+		var definition := definition_registry.get_definition(definition_id) as LocationDefinition
+		if definition == null or not _validate_location_definition(definition, true):
+			valid = false
+
+	for spec in _project_location_instance_specs:
+		var definition := (
+			definition_registry.get_definition(spec["definition_id"]) as LocationDefinition
+		)
 		if definition == null:
-			push_error("WorldDefinition contains a null LocationDefinition.")
-			valid = false
-			continue
-		if definition.location_id.is_empty():
-			push_error("Every LocationDefinition requires a non-empty location_id.")
-			valid = false
-			continue
-		if known_locations.has(definition.location_id):
-			push_error("Duplicate LocationDefinition location_id '%s'." % definition.location_id)
-			valid = false
-			continue
-		known_locations[definition.location_id] = definition
-
-		if definition.display_name.is_empty():
-			push_error("Location '%s' requires a non-empty display_name." % definition.location_id)
-			valid = false
-		if definition.scene_path.is_empty():
-			push_error("Location '%s' requires a non-empty scene_path." % definition.location_id)
-			valid = false
-		elif not ResourceLoader.exists(definition.scene_path, "PackedScene"):
-			push_error(
-				"Location '%s' scene_path '%s' does not exist as a PackedScene."
-				% [definition.location_id, definition.scene_path]
-			)
-			valid = false
-		elif load(definition.scene_path) as PackedScene == null:
-			push_error(
-				"Location '%s' scene_path '%s' could not be loaded as a PackedScene."
-				% [definition.location_id, definition.scene_path]
-			)
-			valid = false
-
-		var known_edge_keys: Dictionary[StringName, bool] = {}
-		for edge in definition.outgoing_edges:
-			if edge == null:
-				push_error("Location '%s' contains a null outgoing edge." % definition.location_id)
-				valid = false
-				continue
-			if edge.edge_key.is_empty():
-				push_error(
-					"Location '%s' has an outgoing edge with an empty edge_key (to_location '%s', to_entry '%s')."
-					% [definition.location_id, edge.to_location, edge.to_entry]
-				)
-				valid = false
-			elif known_edge_keys.has(edge.edge_key):
-				push_error(
-					"Location '%s' defines duplicate edge_key '%s' (to_location '%s', to_entry '%s')."
-					% [definition.location_id, edge.edge_key, edge.to_location, edge.to_entry]
-				)
-				valid = false
-			else:
-				known_edge_keys[edge.edge_key] = true
-			if edge.to_location.is_empty():
-				push_error(
-					"Location '%s' edge_key '%s' requires a non-empty to_location (to_entry '%s')."
-					% [definition.location_id, edge.edge_key, edge.to_entry]
-				)
-				valid = false
-			if edge.to_entry.is_empty():
-				push_error(
-					"Location '%s' edge_key '%s' to_location '%s' requires a non-empty to_entry."
-					% [definition.location_id, edge.edge_key, edge.to_location]
-				)
-				valid = false
-
-	for definition in definitions:
-		if definition == null or definition.location_id.is_empty():
 			continue
 		for edge in definition.outgoing_edges:
-			if edge == null or edge.to_location.is_empty():
-				continue
-			if not known_locations.has(edge.to_location):
+			if not known_locations.has(edge.target_location_id):
 				push_error(
-					"Location '%s' edge_key '%s' targets unknown to_location '%s' with to_entry '%s'."
-					% [definition.location_id, edge.edge_key, edge.to_location, edge.to_entry]
+					"Location Definition '%s' edge '%s' targets unknown Location instance_id '%s'."
+					% [definition.definition_id, edge.edge_key, edge.target_location_id]
 				)
 				valid = false
-
+				continue
+			var target_definition_id := _definition_ids_by_location[edge.target_location_id]
+			var target_definition := (
+				definition_registry.get_definition(target_definition_id) as LocationDefinition
+			)
+			if target_definition == null or not _has_entry(target_definition, edge.target_entry_id):
+				push_error(
+					"Location Definition '%s' edge '%s' targets missing Entry '%s'."
+					% [definition.definition_id, edge.edge_key, edge.target_entry_id]
+				)
+				valid = false
 	return valid
 
 
-func _index_definitions(definitions: Array[LocationDefinition]) -> void:
-	for definition in definitions:
-		_locations[definition.location_id] = definition
-		var edges: Dictionary[StringName, LocationEdgeDefinition] = {}
-		for edge in definition.outgoing_edges:
-			edges[edge.edge_key] = edge
-		_edges_by_location[definition.location_id] = edges
-
-
-func _create_current_world_definitions() -> Array[LocationDefinition]:
-	var tavern_edges: Array[LocationEdgeDefinition] = [
-		LocationEdgeDefinition.new(&"front_door", &"town_street", &"tavern_entrance"),
-		LocationEdgeDefinition.new(&"back_door", &"tavern_yard", &"tavern_entrance"),
-	]
-	var street_edges: Array[LocationEdgeDefinition] = [
-		LocationEdgeDefinition.new(&"tavern_door", &"tavern", &"front_door"),
-	]
-	var yard_edges: Array[LocationEdgeDefinition] = [
-		LocationEdgeDefinition.new(&"tavern_door", &"tavern", &"back_door"),
-	]
-
-	var definitions: Array[LocationDefinition] = [
-		LocationDefinition.new(&"tavern", "酒馆", "res://scenes/tavern.tscn", tavern_edges),
-		LocationDefinition.new(
-			&"town_street",
-			"小镇街道",
-			"res://scenes/town_street.tscn",
-			street_edges
-		),
-		LocationDefinition.new(
-			&"tavern_yard",
-			"酒馆后院",
-			"res://scenes/tavern_yard.tscn",
-			yard_edges
-		),
-	]
-	return definitions
-
-
-func _validate_location_entries(location: GridScene) -> bool:
+func _validate_location_definition(definition: LocationDefinition, require_complete_ground: bool) -> bool:
 	var valid := true
-	var known_entry_ids: Dictionary[StringName, bool] = {}
-	for entry in location.get_location_entries():
-		if entry.entry_id.is_empty():
-			push_error(
-				"Location '%s' Scene '%s' contains a LocationEntry with an empty entry_id."
-				% [location.location_id, location.scene_file_path]
-			)
+	if (
+		not UuidValidator.is_valid_v4(definition.definition_id)
+		or definition.display_name.strip_edges().is_empty()
+		or definition.grid_size.x <= 0
+		or definition.grid_size.y <= 0
+	):
+		push_error("LocationDefinition '%s' has invalid identity, name, or grid size." % definition.definition_id)
+		return false
+	if require_complete_ground and definition.ground_layer.size() != definition.grid_size.x * definition.grid_size.y:
+		push_error(
+			"LocationDefinition '%s' Ground Layer does not cover its complete grid."
+			% definition.definition_id
+		)
+		valid = false
+	for cell in definition.ground_layer:
+		if not _cell_in_grid(cell, definition.grid_size):
 			valid = false
-		elif known_entry_ids.has(entry.entry_id):
-			push_error(
-				"Location '%s' Scene '%s' contains duplicate LocationEntry entry_id '%s'."
-				% [location.location_id, location.scene_file_path, entry.entry_id]
-			)
+		var ground := definition_registry.get_definition(definition.ground_layer[cell])
+		if not ground is GroundDefinition:
+			push_error("Location Ground cell %s does not reference GroundDefinition." % cell)
 			valid = false
+
+	var edge_ids: Dictionary[StringName, bool] = {}
+	var edge_keys: Dictionary[StringName, bool] = {}
+	for edge in definition.outgoing_edges:
+		if (
+			edge == null
+			or not UuidValidator.is_valid_v4(edge.edge_id)
+			or edge.edge_key.is_empty()
+			or not UuidValidator.is_valid_v4(edge.target_location_id)
+			or edge.target_entry_id.is_empty()
+			or edge_ids.has(edge.edge_id)
+			or edge_keys.has(edge.edge_key)
+		):
+			push_error("LocationDefinition '%s' has an invalid or duplicate edge." % definition.definition_id)
+			valid = false
+			continue
+		edge_ids[edge.edge_id] = true
+		edge_keys[edge.edge_key] = true
+
+	var placement_ids: Dictionary[StringName, bool] = {}
+	for placement in definition.structure_placements:
+		if (
+			placement == null
+			or not UuidValidator.is_valid_v4(placement.placement_id)
+			or placement_ids.has(placement.placement_id)
+			or not StructurePlacement.VALID_ORIENTATIONS.has(placement.orientation)
+		):
+			push_error("LocationDefinition '%s' has an invalid StructurePlacement." % definition.definition_id)
+			valid = false
+			continue
+		placement_ids[placement.placement_id] = true
+		var structure := definition_registry.get_definition(placement.definition_id)
+		if not structure is StructureDefinition or structure.occupied_cells.is_empty():
+			push_error("StructurePlacement '%s' does not reference StructureDefinition." % placement.placement_id)
+			valid = false
+
+	for placement in definition.decoration_placements:
+		if (
+			placement == null
+			or not UuidValidator.is_valid_v4(placement.placement_id)
+			or placement_ids.has(placement.placement_id)
+		):
+			push_error("LocationDefinition '%s' has an invalid DecorationPlacement." % definition.definition_id)
+			valid = false
+			continue
+		placement_ids[placement.placement_id] = true
+		if not definition_registry.get_definition(placement.definition_id) is DecorationDefinition:
+			push_error("DecorationPlacement '%s' does not reference DecorationDefinition." % placement.placement_id)
+			valid = false
+
+	var entry_ids: Dictionary[StringName, bool] = {}
+	var exit_keys: Dictionary[StringName, bool] = {}
+	for anchor in definition.anchors:
+		if anchor is LocationEntryAnchor:
+			var entry := anchor as LocationEntryAnchor
+			if entry.entry_id.is_empty() or entry_ids.has(entry.entry_id) or not _cell_in_grid(entry.cell, definition.grid_size):
+				push_error("LocationDefinition '%s' has an invalid Entry Anchor." % definition.definition_id)
+				valid = false
+			entry_ids[entry.entry_id] = true
+		elif anchor is LocationExitAnchor:
+			var exit := anchor as LocationExitAnchor
+			if exit.edge_key.is_empty() or exit_keys.has(exit.edge_key) or not edge_keys.has(exit.edge_key):
+				push_error("LocationDefinition '%s' has an invalid Exit Anchor." % definition.definition_id)
+				valid = false
+			exit_keys[exit.edge_key] = true
 		else:
-			known_entry_ids[entry.entry_id] = true
+			push_error("LocationDefinition '%s' has an unsupported Anchor." % definition.definition_id)
+			valid = false
+	for edge_key in edge_keys:
+		if not exit_keys.has(edge_key):
+			push_error("Location edge_key '%s' has no local Exit Anchor." % edge_key)
+			valid = false
 	return valid
 
 
-func _find_location_exits(root: Node) -> Array[LocationExit]:
-	var exits: Array[LocationExit] = []
-	_collect_location_exits(root, exits)
-	return exits
+func _register_project_entity_definitions() -> bool:
+	for path in ACTOR_DEFINITION_PATHS:
+		var definition := ActorDefinitionLoader.load_from_file(path)
+		if definition == null or not definition_registry.register_project_definition(definition):
+			return false
+	for path in FURNITURE_DEFINITION_PATHS:
+		var definition := FurnitureDefinitionLoader.load_from_file(path)
+		if definition == null or not definition_registry.register_project_definition(definition):
+			return false
+	return true
 
 
-func _collect_location_exits(node: Node, exits: Array[LocationExit]) -> void:
-	for child in node.get_children():
-		if child is LocationExit:
-			exits.append(child as LocationExit)
-		_collect_location_exits(child, exits)
+static func _cell_in_grid(cell: Vector2i, grid_size: Vector2i) -> bool:
+	return cell.x >= 0 and cell.y >= 0 and cell.x < grid_size.x and cell.y < grid_size.y
+
+
+static func _has_entry(definition: LocationDefinition, entry_id: StringName) -> bool:
+	for anchor in definition.anchors:
+		if anchor is LocationEntryAnchor and (anchor as LocationEntryAnchor).entry_id == entry_id:
+			return true
+	return false

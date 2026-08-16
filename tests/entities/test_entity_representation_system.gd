@@ -11,15 +11,15 @@ var _failures := 0
 class MatchingFactory:
 	extends EntityRepresentationFactory
 
-	var supported_entity_id: StringName
+	var supported_instance_id: StringName
 
 
-	func _init(p_supported_entity_id: StringName) -> void:
-		supported_entity_id = p_supported_entity_id
+	func _init(p_supported_instance_id: StringName) -> void:
+		supported_instance_id = p_supported_instance_id
 
 
 	func supports(entity: Entity) -> bool:
-		return entity != null and entity.entity_id == supported_entity_id
+		return entity != null and entity.instance_id == supported_instance_id
 
 
 	func prepare(
@@ -48,8 +48,9 @@ func _run_tests() -> void:
 	var actor := Actor.new(
 		actor_definition,
 		ActorState.new(
-			actor_definition.entity_id,
-			&"tavern",
+			&"11111111-1111-4111-8111-111111111111",
+			actor_definition.definition_id,
+			&"55555555-5555-4555-8555-555555555555",
 			Vector2(96.0, 128.0),
 			ActorState.Facing.LEFT
 		)
@@ -58,12 +59,13 @@ func _run_tests() -> void:
 		furniture_definition,
 		FurnitureState.new(
 			&"77777777-7777-4777-8777-777777777777",
-			&"tavern",
+			furniture_definition.definition_id,
+			&"55555555-5555-4555-8555-555555555555",
 			Vector2(160.0, 192.0)
 		)
 	)
 	var target_location := GridScene.new()
-	target_location.location_id = &"tavern"
+	target_location.location_id = &"55555555-5555-4555-8555-555555555555"
 
 	_test_concrete_factories(actor, furniture, target_location)
 	_test_registry_matching(actor, furniture)
@@ -149,7 +151,7 @@ func _test_registry_matching(actor: Actor, furniture: Furniture) -> void:
 	_expect(empty_registry.get_factory(actor) == null, "Zero Factory matches must fail.")
 
 	var exact_registry := EntityRepresentationRegistry.new()
-	var exact_factory := MatchingFactory.new(actor.entity_id)
+	var exact_factory := MatchingFactory.new(actor.instance_id)
 	_expect(exact_registry.register_factory(exact_factory), "A valid Factory must register.")
 	_expect(
 		exact_registry.get_factory(actor) == exact_factory,
@@ -157,8 +159,8 @@ func _test_registry_matching(actor: Actor, furniture: Furniture) -> void:
 	)
 
 	var ambiguous_registry := EntityRepresentationRegistry.new()
-	ambiguous_registry.register_factory(MatchingFactory.new(actor.entity_id))
-	ambiguous_registry.register_factory(MatchingFactory.new(actor.entity_id))
+	ambiguous_registry.register_factory(MatchingFactory.new(actor.instance_id))
+	ambiguous_registry.register_factory(MatchingFactory.new(actor.instance_id))
 	_expect(
 		ambiguous_registry.get_factory(actor) == null,
 		"Multiple Factory matches must fail instead of using registration order."
@@ -227,12 +229,13 @@ func _test_missing_factory_prepare_safety() -> void:
 	var old_state_facing := player.facing
 	var old_active_locations: Dictionary = world_state.get("_active_locations")
 	var old_active_reference := old_active_locations[old_location.location_id] as WeakRef
-	var edge := world_definition.get_edge(&"tavern", &"back_door")
+	var tavern_id := world_definition.get_project_location_id(&"tavern")
+	var edge := world_definition.get_edge(tavern_id, &"back_door")
 	game.set("representation_registry", EntityRepresentationRegistry.new())
 	var change_result: Variant = game.call(
 		"_replace_location",
-		edge.to_location,
-		&"tavern",
+		edge.target_location_id,
+		tavern_id,
 		edge
 	)
 

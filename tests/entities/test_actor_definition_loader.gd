@@ -41,8 +41,8 @@ func _init() -> void:
 	for fixture_name in [
 		"malformed_json.json",
 		"root_not_dictionary.json",
-		"missing_entity_id.json",
-		"entity_id_wrong_type.json",
+		"missing_definition_id.json",
+		"definition_id_wrong_type.json",
 		"invalid_v4_uuid.json",
 		"missing_display_name.json",
 		"display_name_wrong_type.json",
@@ -75,6 +75,7 @@ func _init() -> void:
 
 func _disable_project_autoloads() -> void:
 	for autoload_name in [
+		"DefinitionRegistry",
 		"WorldDefinition",
 		"WorldState",
 		"EntityRegistry",
@@ -85,7 +86,7 @@ func _disable_project_autoloads() -> void:
 
 func _test_valid_definition(
 	path: String,
-	expected_entity_id: StringName,
+	expected_definition_id: StringName,
 	expected_display_name: String,
 	expected_visuals: Dictionary
 ) -> void:
@@ -95,8 +96,8 @@ func _test_valid_definition(
 		return
 
 	_expect(
-		definition.entity_id == expected_entity_id,
-		"%s should preserve entity_id." % path
+		definition.definition_id == expected_definition_id,
+		"%s should preserve definition_id." % path
 	)
 	_expect(
 		definition.display_name == expected_display_name,

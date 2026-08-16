@@ -20,6 +20,10 @@ func _init(p_definition: FurnitureDefinition, p_state: FurnitureState) -> void:
 	_create_behaviors()
 
 
+func get_definition() -> Definition:
+	return definition
+
+
 func get_supported_actions(actor: Actor) -> Array[StringName]:
 	var actions: Array[StringName] = []
 	for behavior in behaviors:
@@ -48,7 +52,7 @@ func apply_action(action: WorldAction) -> ActionResult:
 	if behavior == null:
 		return ActionResult.failed(
 			action.action_id,
-			entity_id,
+			instance_id,
 			"%s 无法执行该行为。" % definition.display_name
 		)
 	var result := behavior.apply_action(action)
@@ -94,7 +98,7 @@ func _create_behaviors() -> void:
 					if not furniture_state.behavior_states[OPENABLE_BEHAVIOR_ID] is OpenableState:
 						push_error(
 							"Furniture '%s' behavior state '%s' must be OpenableState."
-							% [entity_id, OPENABLE_BEHAVIOR_ID]
+							% [instance_id, OPENABLE_BEHAVIOR_ID]
 						)
 						continue
 				else:

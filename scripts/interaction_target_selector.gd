@@ -34,6 +34,6 @@ static func _select_supported_entity(
 		var candidate := candidate_entity as Furniture
 		if candidate.get_supported_actions(actor).is_empty():
 			continue
-		if selected == null or String(candidate.entity_id) < String(selected.entity_id):
+		if selected == null or String(candidate.instance_id) < String(selected.instance_id):
 			selected = candidate
 	return selected

@@ -7,6 +7,11 @@ const ACTOR_ID := &"11111111-1111-4111-8111-111111111111"
 const FURNITURE_ID := &"00000000-0000-4000-8000-000000000001"
 const GENERIC_ENTITY_ID := &"22222222-2222-4222-8222-222222222222"
 const OTHER_ENTITY_ID := &"33333333-3333-4333-8333-333333333333"
+const ACTOR_DEFINITION_ID := &"44444444-4444-4444-8444-444444444441"
+const FURNITURE_DEFINITION_ID := &"44444444-4444-4444-8444-444444444442"
+const GENERIC_DEFINITION_ID := &"44444444-4444-4444-8444-444444444443"
+const OTHER_DEFINITION_ID := &"44444444-4444-4444-8444-444444444444"
+const LOCATION_ID := &"55555555-5555-4555-8555-555555555555"
 
 var _checks := 0
 var _failures := 0
@@ -23,25 +28,29 @@ func _run_tests() -> void:
 	_expect(registry.get_entities().is_empty(), "A new EntityRegistry must not create Entities.")
 	_expect(not registry.register_entity(null), "A null Entity must be rejected.")
 
-	var actor := _create_actor(ACTOR_ID, &"tavern")
+	var actor := _create_actor(ACTOR_ID, LOCATION_ID)
 	_expect(actor is Entity, "Actor must extend Entity.")
 	_expect(registry.register_entity(actor), "A valid Actor must register.")
 	_expect(registry.has_entity(ACTOR_ID), "has_entity must find the Actor.")
 	_expect(registry.get_entity(ACTOR_ID) == actor, "get_entity must return the same Actor.")
-	_expect(not registry.register_entity(actor), "A duplicate entity_id must be rejected.")
+	_expect(not registry.register_entity(actor), "A duplicate instance_id must be rejected.")
 
 	var mismatched_state := ActorState.new(
-		GENERIC_ENTITY_ID, &"tavern", Vector2(64.0, 32.0), ActorState.Facing.RIGHT
+		GENERIC_ENTITY_ID,
+		GENERIC_DEFINITION_ID,
+		LOCATION_ID,
+		Vector2(64.0, 32.0),
+		ActorState.Facing.RIGHT
 	)
 	var mismatched_entity := TEST_ACTION_ENTITY.new(mismatched_state)
-	mismatched_state.entity_id = OTHER_ENTITY_ID
+	mismatched_state.definition_id = OTHER_DEFINITION_ID
 	_expect(
 		not registry.register_entity(mismatched_entity),
-		"Entity and EntityState IDs must match."
+		"Entity Definition and EntityState definition_id must match."
 	)
 
 	var invalid_entity := TEST_ACTION_ENTITY.new(
-		ActorState.new(&"not-a-uuid", &"tavern", Vector2.ZERO)
+		ActorState.new(&"not-a-uuid", GENERIC_DEFINITION_ID, LOCATION_ID, Vector2.ZERO)
 	)
 	_expect(
 		not registry.register_entity(invalid_entity),
@@ -52,7 +61,7 @@ func _run_tests() -> void:
 		"An Entity without EntityState must be rejected."
 	)
 
-	var furniture := _create_furniture(FURNITURE_ID, &"tavern")
+	var furniture := _create_furniture(FURNITURE_ID, LOCATION_ID)
 	_expect(furniture is Entity, "Furniture must extend Entity.")
 	_expect(registry.register_entity(furniture), "A valid Furniture must register.")
 	_expect(registry.get_entity(FURNITURE_ID) == furniture, "Registry must return Furniture.")
@@ -60,7 +69,8 @@ func _run_tests() -> void:
 	var generic_entity := TEST_ACTION_ENTITY.new(
 		ActorState.new(
 			GENERIC_ENTITY_ID,
-			&"tavern",
+			GENERIC_DEFINITION_ID,
+			LOCATION_ID,
 			Vector2(64.0, 32.0),
 			ActorState.Facing.RIGHT
 		)
@@ -82,7 +92,7 @@ func _run_tests() -> void:
 	)
 	var named_furniture := Furniture.new(
 		FurnitureDefinition.new(
-			&"test_openable",
+			OTHER_DEFINITION_ID,
 			"测试柜",
 			"res://assets/furniture/chest_closed.svg",
 			{
@@ -93,7 +103,12 @@ func _run_tests() -> void:
 			Vector2i.ONE,
 			true
 		),
-		FurnitureState.new(OTHER_ENTITY_ID, &"tavern", Vector2(80.0, 48.0))
+		FurnitureState.new(
+			OTHER_ENTITY_ID,
+			OTHER_DEFINITION_ID,
+			LOCATION_ID,
+			Vector2(80.0, 48.0)
+		)
 	)
 	var open_result := WorldAction.new(&"open", actor, named_furniture).execute()
 	_expect(
@@ -114,9 +129,9 @@ func _run_tests() -> void:
 		and entities.has(actor)
 		and entities.has(generic_entity)
 		and entities == registry.get_entities(),
-		"get_entities must return stable entity_id order."
+		"get_entities must return stable instance_id order."
 	)
-	var tavern_entities := registry.get_entities_in_location(&"tavern")
+	var tavern_entities := registry.get_entities_in_location(LOCATION_ID)
 	_expect(tavern_entities.size() == 3, "Location queries must include every Entity subtype.")
 	_expect(
 		registry.get_entities_in_location(&"unknown").is_empty(),
@@ -125,11 +140,12 @@ func _run_tests() -> void:
 	registry.free()
 
 
-func _create_actor(entity_id: StringName, location_id: StringName) -> Actor:
+func _create_actor(instance_id: StringName, location_id: StringName) -> Actor:
 	return Actor.new(
-		ActorDefinition.new(entity_id, "Test Actor", _create_test_visuals()),
+		ActorDefinition.new(ACTOR_DEFINITION_ID, "Test Actor", _create_test_visuals()),
 		ActorState.new(
-			entity_id,
+			instance_id,
+			ACTOR_DEFINITION_ID,
 			location_id,
 			Vector2(32.0, 32.0),
 			ActorState.Facing.RIGHT
@@ -137,9 +153,9 @@ func _create_actor(entity_id: StringName, location_id: StringName) -> Actor:
 	)
 
 
-func _create_furniture(entity_id: StringName, location_id: StringName) -> Furniture:
+func _create_furniture(instance_id: StringName, location_id: StringName) -> Furniture:
 	var definition := FurnitureDefinition.new(
-		&"test_furniture",
+		FURNITURE_DEFINITION_ID,
 		"Test Furniture",
 		"res://assets/furniture/sign.svg",
 		{},
@@ -148,7 +164,12 @@ func _create_furniture(entity_id: StringName, location_id: StringName) -> Furnit
 	)
 	return Furniture.new(
 		definition,
-		FurnitureState.new(entity_id, location_id, Vector2(96.0, 96.0))
+		FurnitureState.new(
+			instance_id,
+			FURNITURE_DEFINITION_ID,
+			location_id,
+			Vector2(96.0, 96.0)
+		)
 	)
 
 
@@ -163,6 +184,7 @@ func _create_test_visuals() -> Dictionary[String, String]:
 
 func _disable_project_autoloads() -> void:
 	for autoload_name in [
+		"DefinitionRegistry",
 		"WorldDefinition",
 		"WorldState",
 		"EntityRegistry",

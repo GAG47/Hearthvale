@@ -7,31 +7,31 @@ var _entities: Dictionary[StringName, Entity] = {}
 func register_entity(entity: Entity) -> bool:
 	if not _validate_entity(entity):
 		return false
-	if _entities.has(entity.entity_id):
-		push_error("EntityRegistry already contains entity_id '%s'." % entity.entity_id)
+	if _entities.has(entity.instance_id):
+		push_error("EntityRegistry already contains instance_id '%s'." % entity.instance_id)
 		return false
 
-	_entities[entity.entity_id] = entity
+	_entities[entity.instance_id] = entity
 	return true
 
 
-func has_entity(entity_id: StringName) -> bool:
-	return _entities.has(entity_id)
+func has_entity(instance_id: StringName) -> bool:
+	return _entities.has(instance_id)
 
 
-func get_entity(entity_id: StringName) -> Entity:
-	if not _entities.has(entity_id):
-		push_error("EntityRegistry has no Entity with entity_id '%s'." % entity_id)
+func get_entity(instance_id: StringName) -> Entity:
+	if not _entities.has(instance_id):
+		push_error("EntityRegistry has no Entity with instance_id '%s'." % instance_id)
 		return null
-	return _entities[entity_id]
+	return _entities[instance_id]
 
 
 func get_entities() -> Array[Entity]:
 	var entities: Array[Entity] = []
-	var entity_ids := _entities.keys()
-	entity_ids.sort()
-	for entity_id in entity_ids:
-		entities.append(_entities[entity_id])
+	var instance_ids := _entities.keys()
+	instance_ids.sort()
+	for instance_id in instance_ids:
+		entities.append(_entities[instance_id])
 	return entities
 
 
@@ -50,15 +50,37 @@ func _validate_entity(entity: Entity) -> bool:
 	if entity.state == null:
 		push_error("Entity registration requires an EntityState.")
 		return false
-	if not UuidValidator.is_valid_v4(entity.entity_id):
+	if not UuidValidator.is_valid_v4(entity.instance_id):
 		push_error(
-			"Entity entity_id '%s' is not a valid UUID v4." % entity.entity_id
+			"Entity instance_id '%s' is not a valid UUID v4." % entity.instance_id
 		)
 		return false
-	if entity.state.entity_id != entity.entity_id:
+	if not UuidValidator.is_valid_v4(entity.definition_id):
 		push_error(
-			"Entity ID '%s' does not match EntityState ID '%s'."
-			% [entity.entity_id, entity.state.entity_id]
+			"Entity definition_id '%s' is not a valid UUID v4." % entity.definition_id
 		)
 		return false
+	var definition := entity.get_definition()
+	if definition == null or definition.definition_id != entity.definition_id:
+		push_error(
+			"Entity instance_id '%s' does not match its Definition and EntityState definition_id '%s'."
+			% [entity.instance_id, entity.definition_id]
+		)
+		return false
+	var definition_registry: DefinitionRegistryRuntime
+	if is_inside_tree():
+		definition_registry = get_node_or_null("/root/DefinitionRegistry") as DefinitionRegistryRuntime
+	if definition_registry != null:
+		if not definition_registry.has_definition(entity.definition_id):
+			push_error(
+				"Entity instance_id '%s' references unregistered definition_id '%s'."
+				% [entity.instance_id, entity.definition_id]
+			)
+			return false
+		if definition_registry.get_definition(entity.definition_id) != definition:
+			push_error(
+				"Entity instance_id '%s' must use the DefinitionRegistry object for definition_id '%s'."
+				% [entity.instance_id, entity.definition_id]
+			)
+			return false
 	return true

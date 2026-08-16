@@ -37,13 +37,13 @@ func get_factory(entity: Entity) -> EntityRepresentationFactory:
 	if match_count == 0:
 		push_error(
 			"Entity '%s' has no registered Representation Factory."
-			% entity.entity_id
+			% entity.instance_id
 		)
 		return null
 	if match_count > 1:
 		push_error(
 			"Entity '%s' matches %d Representation Factories; exactly one is required."
-			% [entity.entity_id, match_count]
+			% [entity.instance_id, match_count]
 		)
 		return null
 	return matched_factory

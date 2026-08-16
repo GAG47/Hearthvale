@@ -1,5 +1,5 @@
 {
-	"definition_id": "invalid",
+	"definition_id": "c0000000-0000-4000-8000-000000000004",
 	"display_name": "Invalid",
 	"visual_ref": "res://assets/furniture/sign.svg",
 	"behaviors": {},

@@ -36,5 +36,5 @@ func prepare(
 	):
 		representation.free()
 		return null
-	representation.name = "Furniture_%s" % String(furniture.entity_id).substr(0, 8)
+	representation.name = "Furniture_%s" % String(furniture.instance_id).substr(0, 8)
 	return representation

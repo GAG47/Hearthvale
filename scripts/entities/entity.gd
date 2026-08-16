@@ -3,11 +3,14 @@ class_name Entity
 extends RefCounted
 
 var state: EntityState
-var _entity_id: StringName
 
-var entity_id: StringName:
+var instance_id: StringName:
 	get:
-		return _entity_id
+		return state.instance_id if state != null else &""
+
+var definition_id: StringName:
+	get:
+		return state.definition_id if state != null else &""
 
 var current_location_id: StringName:
 	get:
@@ -27,7 +30,10 @@ var current_cell: Vector2i:
 
 func _init(p_state: EntityState) -> void:
 	state = p_state
-	_entity_id = state.entity_id if state != null else &""
+
+
+func get_definition() -> Definition:
+	return null
 
 
 func get_supported_actions(_actor: Actor) -> Array[StringName]:
@@ -49,7 +55,7 @@ func check_action(action: WorldAction) -> ActionRuleDecision:
 func apply_action(action: WorldAction) -> ActionResult:
 	return ActionResult.failed(
 		action.action_id,
-		entity_id,
+		instance_id,
 		"目标实体无法执行该行为。",
 		&"target_action_unsupported"
 	)

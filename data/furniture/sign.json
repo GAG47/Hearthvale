@@ -1,5 +1,5 @@
 {
-	"definition_id": "sign",
+	"definition_id": "a0000000-0000-4000-8000-000000000002",
 	"display_name": "告示牌",
 	"visual_ref": "res://assets/furniture/sign.svg",
 	"behaviors": {

@@ -11,6 +11,7 @@ const CHEST_ENTITY_ID := &"5543caf7-2a10-4a40-84de-3a39ffdf670e"
 const SIGN_ENTITY_ID := &"1d67bbf9-edc2-4264-a861-8bd3e3e61e15"
 const BED_ENTITY_ID := &"a6ae5842-8c6d-4df2-9b80-a271b5496716"
 const SECOND_CHEST_ENTITY_ID := &"44444444-4444-4444-8444-444444444444"
+const PLAYER_INSTANCE_ID := &"90000000-0000-4000-8000-000000000001"
 
 var _checks := 0
 var _failures := 0
@@ -24,9 +25,10 @@ func _init() -> void:
 func _run_tests() -> void:
 	var registry := root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
 	var world_state := root.get_node_or_null("WorldState") as WorldStateRuntime
+	var world_definition := root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
 	_expect(registry != null, "The EntityRegistry Autoload must exist.")
 	_expect(world_state != null, "The WorldState Autoload must exist.")
-	if registry == null or world_state == null:
+	if registry == null or world_state == null or world_definition == null:
 		_finish()
 		return
 
@@ -57,7 +59,7 @@ func _run_tests() -> void:
 		return
 
 	controller.action_completed.connect(_on_action_completed)
-	var player := registry.get_entity(player_definition.entity_id) as Actor
+	var player := registry.get_entity(PLAYER_INSTANCE_ID) as Actor
 	_expect(player != null, "Game must register the Player Actor as an Entity.")
 	if player == null:
 		game.queue_free()
@@ -67,16 +69,16 @@ func _run_tests() -> void:
 
 	_expect(player is Entity, "Actor must extend Entity.")
 	_expect(
-		game.get("controlled_actor_id") == player_definition.entity_id,
-		"Game controlled_actor_id must come from player.json."
+		game.get("controlled_actor_instance_id") == PLAYER_INSTANCE_ID,
+		"Game controlled_actor_instance_id must be the independent Player instance UUID."
 	)
 	_expect(
-		world_state.get_entity_state(player.entity_id) == player.state,
+		world_state.get_entity_state(player.instance_id) == player.state,
 		"WorldState and Player Actor must hold the same ActorState object."
 	)
 	_expect(player.state is ActorState, "Player must hold ActorState through Entity.state.")
 	_expect(
-		player.definition.entity_id == player_definition.entity_id
+		player.definition.definition_id == player_definition.definition_id
 		and player.definition.display_name == player_definition.display_name
 		and player.definition.visuals == player_definition.visuals,
 		"The runtime Player ActorDefinition must preserve all player.json fields."
@@ -90,26 +92,28 @@ func _run_tests() -> void:
 		},
 		"The Player ActorDefinition must preserve all four directional visuals."
 	)
-	_expect(player.current_location_id == &"tavern", "Player must start in Tavern.")
+	var tavern_id := world_definition.get_project_location_id(&"tavern")
+	var yard_id := world_definition.get_project_location_id(&"tavern_yard")
+	_expect(player.current_location_id == tavern_id, "Player must start in Tavern.")
 	_expect(
 		player.local_position == Vector2(384.0, 256.0),
 		"Player must preserve its existing initial local_position."
 	)
 	_expect(player.facing == ActorState.Facing.DOWN, "Player must start facing DOWN.")
 	_expect(
-		not registry.has_entity(martha_definition.entity_id),
+		not registry.has_entity(martha_definition.definition_id),
 		"Martha must remain definition-only in the current runtime."
 	)
 	_expect(
-		not world_state.has_entity_state(martha_definition.entity_id),
+		not world_state.has_entity_state(martha_definition.definition_id),
 		"Martha must not receive an ActorState."
 	)
 	_expect(registry.get_entities().size() == 4, "Player and three Furniture Entities must exist.")
 	_expect(world_state.get_entity_states().size() == 4, "WorldState must hold four EntityStates.")
 
-	var chest := _expect_furniture(registry, world_state, CHEST_ENTITY_ID, &"wooden_chest")
-	var sign := _expect_furniture(registry, world_state, SIGN_ENTITY_ID, &"sign")
-	var bed := _expect_furniture(registry, world_state, BED_ENTITY_ID, &"simple_bed")
+	var chest := _expect_furniture(registry, world_state, CHEST_ENTITY_ID, &"a0000000-0000-4000-8000-000000000001")
+	var sign := _expect_furniture(registry, world_state, SIGN_ENTITY_ID, &"a0000000-0000-4000-8000-000000000002")
+	var bed := _expect_furniture(registry, world_state, BED_ENTITY_ID, &"a0000000-0000-4000-8000-000000000003")
 	if chest == null or sign == null or bed == null:
 		game.queue_free()
 		await process_frame
@@ -136,7 +140,12 @@ func _run_tests() -> void:
 	)
 	var second_chest := Furniture.new(
 		chest.definition,
-		FurnitureState.new(SECOND_CHEST_ENTITY_ID, &"tavern", Vector2.ZERO)
+		FurnitureState.new(
+			SECOND_CHEST_ENTITY_ID,
+			chest.definition.definition_id,
+			tavern_id,
+			Vector2.ZERO
+		)
 	)
 	var second_openable_state := second_chest.get_openable_state()
 	_expect(
@@ -249,7 +258,7 @@ func _run_tests() -> void:
 	await _wait_for_transition(game)
 
 	var yard_representation := controller.controlled_representation
-	_expect(player.current_location_id == &"tavern_yard", "Location change must update ActorState.")
+	_expect(player.current_location_id == yard_id, "Location change must update ActorState.")
 	_expect(
 		is_instance_valid(yard_representation) and yard_representation != old_actor_representation,
 		"Location change must bind a new ActorRepresentation."
@@ -292,7 +301,7 @@ func _run_tests() -> void:
 	await _wait_for_transition(game)
 	var returned_tavern := game.get("current_location") as GridScene
 	var returned_chest_representation := _find_furniture_representation(returned_tavern, CHEST_ENTITY_ID)
-	_expect(player.current_location_id == &"tavern", "Player ActorState must return to Tavern.")
+	_expect(player.current_location_id == tavern_id, "Player ActorState must return to Tavern.")
 	_expect(is_instance_valid(returned_chest_representation), "Tavern reload must recreate Chest Representation.")
 	_expect(returned_chest_representation.furniture == chest, "Recreated Representation must bind the same Chest Entity.")
 	_expect(
@@ -317,18 +326,18 @@ func _run_tests() -> void:
 func _expect_furniture(
 	registry: EntityRegistryRuntime,
 	world_state: WorldStateRuntime,
-	entity_id: StringName,
+	instance_id: StringName,
 	expected_definition_id: StringName
 ) -> Furniture:
-	var furniture := registry.get_entity(entity_id) as Furniture
-	_expect(furniture != null, "Furniture '%s' must be registered." % entity_id)
+	var furniture := registry.get_entity(instance_id) as Furniture
+	_expect(furniture != null, "Furniture '%s' must be registered." % instance_id)
 	if furniture == null:
 		return null
 	_expect(furniture is Entity, "Furniture must extend Entity.")
 	_expect(furniture.state is FurnitureState, "Furniture must hold FurnitureState.")
 	_expect(furniture.definition.definition_id == expected_definition_id, "Furniture must use its data Definition.")
 	_expect(
-		world_state.get_entity_state(entity_id) == furniture.state,
+		world_state.get_entity_state(instance_id) == furniture.state,
 		"WorldState and Furniture must hold the same EntityState object."
 	)
 	return furniture
@@ -391,7 +400,10 @@ func _get_actor_representations(location: GridScene) -> Array[ActorRepresentatio
 	var representations: Array[ActorRepresentation] = []
 	if not is_instance_valid(location):
 		return representations
-	for child in location.get_children():
+	var representation_root := location.get_node_or_null("EntityRepresentationRoot")
+	if representation_root == null:
+		return representations
+	for child in representation_root.get_children():
 		if child is ActorRepresentation:
 			representations.append(child as ActorRepresentation)
 	return representations
@@ -401,7 +413,10 @@ func _get_furniture_representations(location: GridScene) -> Array[FurnitureRepre
 	var representations: Array[FurnitureRepresentation] = []
 	if not is_instance_valid(location):
 		return representations
-	for child in location.get_children():
+	var representation_root := location.get_node_or_null("EntityRepresentationRoot")
+	if representation_root == null:
+		return representations
+	for child in representation_root.get_children():
 		if child is FurnitureRepresentation:
 			representations.append(child as FurnitureRepresentation)
 	return representations
@@ -409,10 +424,10 @@ func _get_furniture_representations(location: GridScene) -> Array[FurnitureRepre
 
 func _find_furniture_representation(
 	location: GridScene,
-	entity_id: StringName
+	instance_id: StringName
 ) -> FurnitureRepresentation:
 	for representation in _get_furniture_representations(location):
-		if representation.entity_id == entity_id:
+		if representation.instance_id == instance_id:
 			return representation
 	return null
 

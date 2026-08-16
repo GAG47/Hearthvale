@@ -1,5 +1,5 @@
 {
-	"definition_id": "wooden_chest",
+	"definition_id": "a0000000-0000-4000-8000-000000000001",
 	"display_name": "储物箱",
 	"visual_ref": "res://assets/furniture/chest_closed.svg",
 	"behaviors": {

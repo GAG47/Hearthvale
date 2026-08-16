@@ -44,7 +44,7 @@ func can_take_control(actor: Actor, representation: Node) -> bool:
 	if actor_representation.get_entity() != actor:
 		push_error(
 			"PlayerController cannot bind Actor '%s' to a Representation for Actor '%s'."
-			% [actor.entity_id, actor_representation.entity_id]
+			% [actor.instance_id, actor_representation.instance_id]
 		)
 		return false
 	return true
@@ -116,7 +116,7 @@ func request_interaction() -> ActionResult:
 	if action_id.is_empty():
 		var no_action_result := ActionResult.failed(
 			&"interact",
-			target.entity_id,
+			target.instance_id,
 			"目标实体当前没有可用行为。"
 		)
 		action_completed.emit(no_action_result)

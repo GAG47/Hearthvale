@@ -33,18 +33,18 @@ func apply_action(action: WorldAction) -> ActionResult:
 	if world_time == null:
 		return ActionResult.failed(
 			action.action_id,
-			action.target.entity_id,
+			action.target.instance_id,
 			"世界时间系统当前不可用。",
 			&"world_time_unavailable"
 		)
 	if not world_time.advance_to_next_day_at(SLEEP_WAKE_HOUR, SLEEP_WAKE_MINUTE):
 		return ActionResult.failed(
 			action.action_id,
-			action.target.entity_id,
+			action.target.instance_id,
 			"睡眠未能推进世界时间。",
 			&"world_time_advance_failed"
 		)
-	return ActionResult.succeeded(action.action_id, action.target.entity_id, "你睡到了第二天 08:00。")
+	return ActionResult.succeeded(action.action_id, action.target.instance_id, "你睡到了第二天 08:00。")
 
 
 func _get_world_time() -> WorldTimeRuntime:

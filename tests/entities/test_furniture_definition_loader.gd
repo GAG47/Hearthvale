@@ -10,21 +10,21 @@ func _init() -> void:
 	_disable_project_autoloads()
 	_test_definition(
 		"res://data/furniture/simple_bed.json",
-		&"simple_bed",
+		&"a0000000-0000-4000-8000-000000000003",
 		"床",
 		"sleepable",
 		Vector2i(1, 2)
 	)
 	_test_definition(
 		"res://data/furniture/wooden_chest.json",
-		&"wooden_chest",
+		&"a0000000-0000-4000-8000-000000000001",
 		"储物箱",
 		"openable",
 		Vector2i.ONE
 	)
 	_test_definition(
 		"res://data/furniture/sign.json",
-		&"sign",
+		&"a0000000-0000-4000-8000-000000000002",
 		"告示牌",
 		"inspectable",
 		Vector2i.ONE
@@ -62,6 +62,7 @@ func _test_definition(
 
 func _disable_project_autoloads() -> void:
 	for autoload_name in [
+		"DefinitionRegistry",
 		"WorldDefinition",
 		"WorldState",
 		"EntityRegistry",

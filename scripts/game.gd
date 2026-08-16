@@ -1,34 +1,36 @@
 extends Node2D
 
 const PLAYER_DEFINITION_PATH := "res://data/actors/player.json"
-const PLAYER_INITIAL_LOCATION_ID := &"tavern"
+const PLAYER_INSTANCE_ID := &"90000000-0000-4000-8000-000000000001"
+const PLAYER_INITIAL_LOCATION_KEY := &"tavern"
 const PLAYER_INITIAL_LOCAL_POSITION := Vector2(384.0, 256.0)
 const PLAYER_INITIAL_FACING := ActorState.Facing.DOWN
 const FURNITURE_INSTANCES: Array[Dictionary] = [
 	{
-		"entity_id": &"5543caf7-2a10-4a40-84de-3a39ffdf670e",
+		"instance_id": &"5543caf7-2a10-4a40-84de-3a39ffdf670e",
 		"definition_path": "res://data/furniture/wooden_chest.json",
-		"location_id": &"tavern",
+		"location_key": &"tavern",
 		"local_position": Vector2(464.0, 208.0),
 	},
 	{
-		"entity_id": &"1d67bbf9-edc2-4264-a861-8bd3e3e61e15",
+		"instance_id": &"1d67bbf9-edc2-4264-a861-8bd3e3e61e15",
 		"definition_path": "res://data/furniture/sign.json",
-		"location_id": &"tavern",
+		"location_key": &"tavern",
 		"local_position": Vector2(432.0, 240.0),
 	},
 	{
-		"entity_id": &"a6ae5842-8c6d-4df2-9b80-a271b5496716",
+		"instance_id": &"a6ae5842-8c6d-4df2-9b80-a271b5496716",
 		"definition_path": "res://data/furniture/simple_bed.json",
-		"location_id": &"tavern",
+		"location_key": &"tavern",
 		"local_position": Vector2(656.0, 128.0),
 	},
 ]
 
 var current_location: GridScene
 var transition_in_progress := false
-var controlled_actor_id := &""
+var controlled_actor_instance_id := &""
 var representation_registry := EntityRepresentationRegistry.create_default()
+var location_scene_builder := LocationSceneBuilder.new()
 
 @onready var world_root: Node2D = $WorldRoot
 @onready var player_controller: PlayerController = $PlayerController
@@ -43,6 +45,7 @@ var world_time: WorldTimeRuntime
 var world_definition: WorldDefinitionRuntime
 var world_state: WorldStateRuntime
 var entity_registry: EntityRegistryRuntime
+var definition_registry: DefinitionRegistryRuntime
 
 
 func _ready() -> void:
@@ -67,6 +70,10 @@ func _ready() -> void:
 	entity_registry = get_node_or_null("/root/EntityRegistry") as EntityRegistryRuntime
 	if entity_registry == null:
 		push_error("EntityRegistry Autoload is required before loading Game.")
+		return
+	definition_registry = get_node_or_null("/root/DefinitionRegistry") as DefinitionRegistryRuntime
+	if definition_registry == null:
+		push_error("DefinitionRegistry Autoload is required before loading Game.")
 		return
 
 	if not _initialize_furniture_entities():
@@ -97,54 +104,69 @@ func request_location_change(edge_key: StringName) -> void:
 
 
 func _initialize_player_actor() -> Actor:
-	var definition := ActorDefinitionLoader.load_from_file(PLAYER_DEFINITION_PATH)
-	if definition == null:
+	var loaded_definition := ActorDefinitionLoader.load_from_file(PLAYER_DEFINITION_PATH)
+	if loaded_definition == null:
 		push_error("Game could not load the Player ActorDefinition.")
 		return null
+	var definition := (
+		definition_registry.get_definition(loaded_definition.definition_id) as ActorDefinition
+	)
+	if definition == null:
+		return null
+	var initial_location_id := world_definition.get_project_location_id(PLAYER_INITIAL_LOCATION_KEY)
 
 	var state := ActorState.new(
-		definition.entity_id,
-		PLAYER_INITIAL_LOCATION_ID,
+		PLAYER_INSTANCE_ID,
+		definition.definition_id,
+		initial_location_id,
 		PLAYER_INITIAL_LOCAL_POSITION,
 		PLAYER_INITIAL_FACING
 	)
 	if not world_state.register_entity_state(state):
 		push_error(
-			"Game could not register the Player ActorState for entity_id '%s'."
-			% definition.entity_id
+			"Game could not register the Player ActorState for instance_id '%s'."
+			% state.instance_id
 		)
 		return null
 
 	var actor := Actor.new(definition, state)
 	if not entity_registry.register_entity(actor):
 		push_error(
-			"Game could not register the Player Actor for entity_id '%s'."
-			% definition.entity_id
+			"Game could not register the Player Actor for instance_id '%s'."
+			% state.instance_id
 		)
 		return null
 
-	controlled_actor_id = definition.entity_id
+	controlled_actor_instance_id = state.instance_id
 	return actor
 
 
 func _initialize_furniture_entities() -> bool:
 	for instance_data in FURNITURE_INSTANCES:
 		var definition_path: String = instance_data["definition_path"]
-		var definition := FurnitureDefinitionLoader.load_from_file(definition_path)
-		if definition == null:
+		var loaded_definition := FurnitureDefinitionLoader.load_from_file(definition_path)
+		if loaded_definition == null:
 			push_error("Game could not load FurnitureDefinition '%s'." % definition_path)
 			return false
+		var definition := (
+			definition_registry.get_definition(loaded_definition.definition_id)
+			as FurnitureDefinition
+		)
+		if definition == null:
+			return false
+		var location_id := world_definition.get_project_location_id(instance_data["location_key"])
 		var state := FurnitureState.new(
-			instance_data["entity_id"],
-			instance_data["location_id"],
+			instance_data["instance_id"],
+			definition.definition_id,
+			location_id,
 			instance_data["local_position"]
 		)
 		if not world_state.register_entity_state(state):
-			push_error("Game could not register FurnitureState '%s'." % state.entity_id)
+			push_error("Game could not register FurnitureState '%s'." % state.instance_id)
 			return false
 		var furniture := Furniture.new(definition, state)
 		if not entity_registry.register_entity(furniture):
-			push_error("Game could not register Furniture '%s'." % state.entity_id)
+			push_error("Game could not register Furniture '%s'." % state.instance_id)
 			return false
 	return true
 
@@ -153,14 +175,14 @@ func _perform_location_change(
 	from_location_id: StringName,
 	edge: LocationEdgeDefinition
 ) -> void:
-	var changed := _replace_location(edge.to_location, from_location_id, edge)
+	var changed := _replace_location(edge.target_location_id, from_location_id, edge)
 	if is_instance_valid(player_controller.controlled_representation):
 		player_controller.set_physics_process(true)
 
 	if not changed:
 		push_error(
-			"Could not follow Location edge '%s/%s' to location_id '%s' at to_entry '%s'."
-			% [from_location_id, edge.edge_key, edge.to_location, edge.to_entry]
+			"Could not follow Location edge '%s/%s' to location_id '%s' at target_entry_id '%s'."
+			% [from_location_id, edge.edge_key, edge.target_location_id, edge.target_entry_id]
 		)
 
 	await get_tree().physics_frame
@@ -184,78 +206,38 @@ func _prepare_location_change(
 	from_location_id: StringName,
 	edge: LocationEdgeDefinition
 ) -> Dictionary:
-	var definition := world_definition.get_location(location_id)
-	if definition == null:
-		return {}
-	var scene_path := definition.scene_path
-	var packed_scene := ResourceLoader.load(scene_path) as PackedScene
-	if packed_scene == null:
-		push_error(
-			"Location '%s' scene_path '%s' could not be loaded as a PackedScene."
-			% [location_id, scene_path]
-		)
+	var location := world_definition.get_location(location_id)
+	if location == null:
 		return {}
 
-	var scene_instance := packed_scene.instantiate()
-	var next_location := scene_instance as GridScene
-	if next_location == null:
-		push_error(
-			"Location '%s' scene_path '%s' did not instantiate as GridScene."
-			% [location_id, scene_path]
-		)
-		if is_instance_valid(scene_instance):
-			scene_instance.free()
-		return {}
-	if not next_location.prepare_activation(world_definition, world_state, location_id):
-		next_location.free()
-		return {}
-
-	var entry: LocationEntry
+	var entry: LocationEntryAnchor
 	if edge != null:
-		entry = world_definition.get_target_entry(next_location, from_location_id, edge)
+		entry = world_definition.get_target_entry(location, from_location_id, edge)
 	if edge != null and entry == null:
-		next_location.free()
 		return {}
 
 	var moving_actor := player_controller.controlled_actor
-	if moving_actor == null and entity_registry.has_entity(controlled_actor_id):
-		moving_actor = entity_registry.get_entity(controlled_actor_id) as Actor
+	if moving_actor == null and entity_registry.has_entity(controlled_actor_instance_id):
+		moving_actor = entity_registry.get_entity(controlled_actor_instance_id) as Actor
 	if moving_actor == null:
 		push_error("Location '%s' cannot prepare without the controlled Actor." % location_id)
+		return {}
+	var spawn_position := entry.get_local_position() if entry != null else moving_actor.local_position
+	var spawn_facing := entry.facing if entry != null else moving_actor.facing
+	var prepared_scene := location_scene_builder.prepare_scene(
+		location,
+		representation_registry,
+		moving_actor,
+		spawn_position
+	)
+	if prepared_scene.is_empty():
+		return {}
+	var next_location: GridScene = prepared_scene["scene"]
+	if not next_location.prepare_activation(world_state, location):
 		next_location.free()
 		return {}
-	var spawn_position := entry.position if entry != null else moving_actor.local_position
-
-	var target_entities := entity_registry.get_entities_in_location(location_id)
-	if not target_entities.has(moving_actor):
-		target_entities.append(moving_actor)
-	var prepared_player_representation: Node
-	for entity in target_entities:
-		var factory := representation_registry.get_factory(entity)
-		if factory == null:
-			next_location.free()
-			return {}
-		var target_local_position := (
-			spawn_position if entity == moving_actor else entity.local_position
-		)
-		var representation := factory.prepare(
-			entity,
-			next_location,
-			target_local_position
-		)
-		if representation == null:
-			next_location.free()
-			return {}
-		next_location.add_child(representation)
-		if entity.entity_id == controlled_actor_id:
-			if prepared_player_representation != null:
-				push_error(
-					"Location '%s' prepared more than one controlled Representation."
-					% location_id
-				)
-				next_location.free()
-				return {}
-			prepared_player_representation = representation
+	var representations: Dictionary = prepared_scene["representations"]
+	var prepared_player_representation := representations.get(controlled_actor_instance_id) as Node
 
 	if prepared_player_representation == null:
 		push_error(
@@ -269,10 +251,12 @@ func _prepare_location_change(
 		return {}
 
 	return {
-		"definition": definition,
+		"definition": location.definition,
+		"location_runtime": location,
 		"location": next_location,
 		"moving_actor": moving_actor,
 		"spawn_position": spawn_position,
+		"spawn_facing": spawn_facing,
 		"player_representation": prepared_player_representation,
 	}
 
@@ -282,12 +266,16 @@ func _commit_location_change(prepared_change: Dictionary) -> void:
 	var next_location: GridScene = prepared_change["location"]
 	var moving_actor: Actor = prepared_change["moving_actor"]
 	var spawn_position: Vector2 = prepared_change["spawn_position"]
+	var spawn_facing: ActorState.Facing = prepared_change["spawn_facing"]
 	var next_player_representation: Node = prepared_change["player_representation"]
 	var previous_location := current_location
 
 	player_controller.finish_controlled_location_departure()
 	moving_actor.state.current_location_id = next_location.location_id
 	moving_actor.state.local_position = spawn_position
+	(moving_actor.state as ActorState).facing = spawn_facing
+	if next_player_representation is ActorRepresentation:
+		(next_player_representation as ActorRepresentation).facing = spawn_facing
 
 	world_root.add_child(next_location)
 	player_controller.activate_prepared_control(moving_actor, next_player_representation)

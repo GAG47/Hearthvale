@@ -31,4 +31,4 @@ func check_action(action: WorldAction) -> ActionRuleDecision:
 
 
 func apply_action(action: WorldAction) -> ActionResult:
-	return ActionResult.succeeded(action.action_id, action.target.entity_id, text)
+	return ActionResult.succeeded(action.action_id, action.target.instance_id, text)

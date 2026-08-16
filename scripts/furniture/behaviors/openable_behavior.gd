@@ -44,7 +44,7 @@ func apply_action(action: WorldAction) -> ActionResult:
 	if openable_state == null:
 		return ActionResult.failed(
 			action.action_id,
-			furniture.entity_id,
+			furniture.instance_id,
 			"%s 没有有效的 OpenableState。" % furniture.definition.display_name,
 			&"behavior_state_unavailable"
 		)
@@ -53,16 +53,16 @@ func apply_action(action: WorldAction) -> ActionResult:
 		ACTION_OPEN:
 			openable_state.is_open = true
 			return ActionResult.succeeded(
-				action.action_id, furniture.entity_id, "%s打开了。" % display_name
+				action.action_id, furniture.instance_id, "%s打开了。" % display_name
 			)
 		ACTION_CLOSE:
 			openable_state.is_open = false
 			return ActionResult.succeeded(
-				action.action_id, furniture.entity_id, "%s关闭了。" % display_name
+				action.action_id, furniture.instance_id, "%s关闭了。" % display_name
 			)
 		_:
 			return ActionResult.failed(
 				action.action_id,
-				furniture.entity_id,
+				furniture.instance_id,
 				"%s 无法执行该行为。" % display_name
 			)

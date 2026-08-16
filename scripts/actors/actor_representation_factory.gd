@@ -32,5 +32,5 @@ func prepare(
 	if not representation.prepare_actor(actor, location, target_local_position):
 		representation.free()
 		return null
-	representation.name = "Actor_%s" % String(actor.entity_id).substr(0, 8)
+	representation.name = "Actor_%s" % String(actor.instance_id).substr(0, 8)
 	return representation
