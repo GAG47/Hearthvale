@@ -36,14 +36,3 @@ func _init(
 
 func get_definition_type() -> StringName:
 	return &"ground"
-
-
-func to_data() -> Dictionary:
-	return {
-		"type": String(get_definition_type()),
-		"definition_id": String(definition_id),
-		"key": String(key),
-		"walkable": walkable,
-		"movement_cost": movement_cost,
-		"presentation": presentation.duplicate(true),
-	}

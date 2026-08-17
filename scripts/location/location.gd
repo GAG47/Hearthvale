@@ -51,6 +51,18 @@ func get_ground_definition(cell: Vector2i) -> GroundDefinition:
 	return definition_registry.get_definition(definition_id) as GroundDefinition
 
 
+func get_current_ground() -> Dictionary[Vector2i, GroundDefinition]:
+	var cells: Dictionary[Vector2i, GroundDefinition] = {}
+	var current_cells: Dictionary[Vector2i, bool] = {}
+	for cell in definition.ground_layer:
+		current_cells[cell] = true
+	for cell in state.ground_overrides:
+		current_cells[cell] = true
+	for cell in current_cells:
+		cells[cell] = get_ground_definition(cell)
+	return cells
+
+
 func get_current_decorations() -> Array[DecorationPlacement]:
 	var placements: Array[DecorationPlacement] = []
 	for placement in definition.decoration_placements:
@@ -67,6 +79,10 @@ func get_current_structures() -> Array[StructurePlacement]:
 			placements.append(placement)
 	placements.append_array(state.added_structures)
 	return placements
+
+
+func get_current_anchors() -> Array[LocationAnchor]:
+	return definition.anchors.duplicate()
 
 
 func get_structure_cells(placement: StructurePlacement) -> Array[Vector2i]:
@@ -147,6 +163,6 @@ func is_cell_walkable(cell: Vector2i) -> bool:
 		if structure != null and structure.blocks_movement:
 			return false
 	for entity in get_entities_at(cell):
-		if entity is Furniture and (entity as Furniture).definition.blocks_movement:
+		if entity.blocks_movement():
 			return false
 	return true

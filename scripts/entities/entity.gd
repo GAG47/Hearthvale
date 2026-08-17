@@ -22,10 +22,7 @@ var local_position: Vector2:
 
 var current_cell: Vector2i:
 	get:
-		return Vector2i(
-			floori(local_position.x / GridScene.CELL_SIZE),
-			floori(local_position.y / GridScene.CELL_SIZE)
-		)
+		return GridSpace.local_position_to_cell(local_position)
 
 
 func _init(p_state: EntityState) -> void:
@@ -63,3 +60,7 @@ func apply_action(action: WorldAction) -> ActionResult:
 
 func get_occupied_grid_cells() -> Array[Vector2i]:
 	return [current_cell]
+
+
+func blocks_movement() -> bool:
+	return false

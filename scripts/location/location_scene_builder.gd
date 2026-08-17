@@ -1,6 +1,8 @@
 class_name LocationSceneBuilder
 extends RefCounted
 
+const WORLD_TILE_SET: TileSet = preload("res://data/world_tileset.tres")
+
 func prepare_scene(
 	location: LocationRuntime,
 	representation_registry: EntityRepresentationRegistry,
@@ -52,9 +54,11 @@ func _build_ground(scene: GridScene, location: LocationRuntime) -> bool:
 	layer.z_index = -10
 	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	layer.collision_enabled = false
+	layer.tile_set = WORLD_TILE_SET
 	scene.add_child(layer)
-	for cell in location.definition.ground_layer:
-		var ground := location.get_ground_definition(cell)
+	var current_ground := location.get_current_ground()
+	for cell in current_ground:
+		var ground := current_ground[cell]
 		if ground == null or not _set_tile_from_presentation(layer, cell, ground.presentation):
 			push_error("Could not build Ground cell %s for Location '%s'." % [cell, location.instance_id])
 			return false
@@ -77,7 +81,7 @@ func _build_decorations(scene: GridScene, location: LocationRuntime) -> bool:
 			&"label":
 				var label := Label.new()
 				label.name = "Decoration_%s" % String(placement.placement_id).substr(0, 8)
-				label.position = Vector2(placement.cell * GridScene.CELL_SIZE) + placement.local_offset
+				label.position = GridSpace.cell_to_local_position(placement.cell, placement.local_offset)
 				label.z_index = 2
 				label.text = String(definition.presentation.get("text", ""))
 				label.add_theme_font_size_override(
@@ -95,6 +99,7 @@ func _build_decorations(scene: GridScene, location: LocationRuntime) -> bool:
 					tile_layer = TileMapLayer.new()
 					tile_layer.name = "TileDecorations"
 					tile_layer.collision_enabled = false
+					tile_layer.tile_set = WORLD_TILE_SET
 					root.add_child(tile_layer)
 				if not _set_tile_from_presentation(tile_layer, placement.cell, definition.presentation):
 					return false
@@ -108,6 +113,7 @@ func _build_structures(scene: GridScene, location: LocationRuntime) -> bool:
 	var layer := TileMapLayer.new()
 	layer.name = "StructureLayer"
 	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	layer.tile_set = WORLD_TILE_SET
 	scene.add_child(layer)
 	for placement in location.get_current_structures():
 		var definition := (
@@ -128,9 +134,7 @@ func _build_structures(scene: GridScene, location: LocationRuntime) -> bool:
 			var world_cell := placement.origin_cell + StructurePlacement.transform_cell(
 				local_cell, placement.orientation
 			)
-			var tile_presentation := tile.duplicate(true)
-			tile_presentation["tile_set_path"] = definition.presentation.get("tile_set_path", "")
-			if not _set_tile_from_presentation(layer, world_cell, tile_presentation):
+			if not _set_tile_from_presentation(layer, world_cell, tile):
 				return false
 	return true
 
@@ -139,7 +143,7 @@ func _build_anchors(scene: GridScene, location: LocationRuntime) -> void:
 	var entry_root := Node2D.new()
 	entry_root.name = "EntryPoints"
 	scene.add_child(entry_root)
-	for anchor in location.definition.anchors:
+	for anchor in location.get_current_anchors():
 		if anchor is LocationEntryAnchor:
 			var entry_anchor := anchor as LocationEntryAnchor
 			var entry := LocationEntry.new()
@@ -162,17 +166,6 @@ func _set_tile_from_presentation(
 	cell: Vector2i,
 	presentation: Dictionary
 ) -> bool:
-	var tile_set_path := String(presentation.get("tile_set_path", ""))
-	if tile_set_path.is_empty() or not ResourceLoader.exists(tile_set_path, "TileSet"):
-		return false
-	var tile_set := ResourceLoader.load(tile_set_path) as TileSet
-	if tile_set == null:
-		return false
-	if layer.tile_set == null:
-		layer.tile_set = tile_set
-	elif layer.tile_set != tile_set:
-		push_error("One generated TileMapLayer cannot mix multiple TileSets.")
-		return false
 	var atlas_coords := _vector2i(presentation.get("atlas_coords", []))
 	layer.set_cell(
 		cell,

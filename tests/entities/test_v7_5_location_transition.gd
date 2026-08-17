@@ -127,7 +127,7 @@ func _run_tests() -> void:
 		and yard.get_node_or_null("DecorationLayer") is Node2D
 		and yard.get_node_or_null("StructureLayer") is TileMapLayer
 		and yard.get_node_or_null("EntityRepresentationRoot") is Node2D,
-		"Prepared Location Scene must contain all generated Representation layers."
+		"Prepared Location Scene must contain all built Representation layers."
 	)
 	_expect(
 		world_state.get_entity_states().size() == state_count

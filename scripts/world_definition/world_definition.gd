@@ -129,29 +129,6 @@ func get_target_entry(
 	return entry
 
 
-func register_generated_location(
-	definition: LocationDefinition,
-	state: LocationState
-) -> bool:
-	if definition == null or state == null or state.definition_id != definition.definition_id:
-		push_error("Generated Location registration requires matching Definition and State.")
-		return false
-	if not UuidValidator.is_valid_v4(state.instance_id) or has_location(state.instance_id):
-		push_error("Generated Location instance_id '%s' is invalid or already used." % state.instance_id)
-		return false
-	var world_state := get_node_or_null("/root/WorldState") as WorldStateRuntime
-	if world_state == null or world_state.has_location_state(state.instance_id):
-		return false
-	if not _validate_location_definition(definition, false):
-		return false
-	if not definition_registry.register_generated_definition(definition):
-		return false
-	if not world_state.register_location_state(state):
-		return false
-	_definition_ids_by_location[state.instance_id] = definition.definition_id
-	return true
-
-
 func validate_world_data() -> bool:
 	var valid := true
 	var known_locations: Dictionary[StringName, bool] = {}

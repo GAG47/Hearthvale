@@ -36,17 +36,3 @@ func _init(
 
 func get_definition_type() -> StringName:
 	return &"structure"
-
-
-func to_data() -> Dictionary:
-	var serialized_cells: Array = []
-	for cell in occupied_cells:
-		serialized_cells.append([cell.x, cell.y])
-	return {
-		"type": String(get_definition_type()),
-		"definition_id": String(definition_id),
-		"key": String(key),
-		"occupied_cells": serialized_cells,
-		"blocks_movement": blocks_movement,
-		"presentation": presentation.duplicate(true),
-	}

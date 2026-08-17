@@ -69,6 +69,6 @@ func _update_collision() -> void:
 
 func _get_pixel_rect() -> Rect2:
 	return Rect2(
-		Vector2(cell_rect.position * GridScene.CELL_SIZE),
-		Vector2(cell_rect.size * GridScene.CELL_SIZE)
+		GridSpace.cell_to_local_position(cell_rect.position),
+		GridSpace.grid_size_to_local_size(cell_rect.size)
 	)

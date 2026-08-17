@@ -24,7 +24,7 @@ func _init(
 	p_entry_id: StringName,
 	p_cell: Vector2i,
 	p_facing: ActorState.Facing,
-	p_local_offset: Vector2 = Vector2.ONE * GridScene.CELL_SIZE * 0.5
+	p_local_offset: Vector2 = Vector2.ONE * GridSpace.CELL_SIZE * 0.5
 ) -> void:
 	_entry_id = p_entry_id
 	_cell = p_cell
@@ -33,18 +33,8 @@ func _init(
 
 
 func get_local_position() -> Vector2:
-	return Vector2(cell * GridScene.CELL_SIZE) + local_offset
+	return GridSpace.cell_to_local_position(cell, local_offset)
 
 
 func get_anchor_type() -> StringName:
 	return &"entry"
-
-
-func to_data() -> Dictionary:
-	return {
-		"type": String(get_anchor_type()),
-		"entry_id": String(entry_id),
-		"cell": [cell.x, cell.y],
-		"facing": facing,
-		"local_offset": [local_offset.x, local_offset.y],
-	}

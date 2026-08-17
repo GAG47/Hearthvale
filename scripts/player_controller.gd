@@ -106,7 +106,7 @@ func request_interaction() -> ActionResult:
 		return unavailable_result
 
 	controlled_representation.sync_state_from_representation()
-	var target := InteractionTargetSelector.select_target(controlled_representation)
+	var target := InteractionTargetSelector.select_target(controlled_actor)
 	if target == null:
 		var no_target_result := ActionResult.failed(&"interact", &"", "前方没有可交互的对象。")
 		action_completed.emit(no_target_result)

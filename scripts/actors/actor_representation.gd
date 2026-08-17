@@ -28,10 +28,7 @@ var current_cell: Vector2i:
 		if current_location == null:
 			return Vector2i.ZERO
 		var representation_local_position := current_location.to_local(global_position)
-		return Vector2i(
-			floori(representation_local_position.x / GridScene.CELL_SIZE),
-			floori(representation_local_position.y / GridScene.CELL_SIZE)
-		)
+		return GridSpace.local_position_to_cell(representation_local_position)
 
 
 func get_entity() -> Entity:

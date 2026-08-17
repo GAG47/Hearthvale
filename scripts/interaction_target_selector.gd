@@ -1,19 +1,22 @@
 class_name InteractionTargetSelector
 extends RefCounted
 
-static func select_target(actor_representation: ActorRepresentation) -> Entity:
-	if not is_instance_valid(actor_representation) or not is_instance_valid(actor_representation.current_location):
+static func select_target(actor: Actor) -> Entity:
+	if actor == null or actor.current_location_id.is_empty():
+		return null
+	var world_definition := Engine.get_main_loop().root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
+	if world_definition == null:
+		return null
+	var location := world_definition.get_location(actor.current_location_id)
+	if location == null:
 		return null
 
 	var query_cells: Array[Vector2i] = [
-		actor_representation.get_front_cell(),
-		actor_representation.current_cell,
+		actor.get_front_cell(),
+		actor.current_cell,
 	]
 	for cell in query_cells:
-		var selected := _select_supported_entity(
-			actor_representation.get_entity() as Actor,
-			actor_representation.current_location.get_furniture_representations_at(cell)
-		)
+		var selected := _select_supported_entity(actor, location.get_entities_at(cell))
 		if selected != null:
 			return selected
 
@@ -22,16 +25,12 @@ static func select_target(actor_representation: ActorRepresentation) -> Entity:
 
 static func _select_supported_entity(
 	actor: Actor,
-	candidates: Array[FurnitureRepresentation]
+	candidates: Array[Entity]
 ) -> Entity:
-	var selected: Furniture
-	for representation in candidates:
-		if not is_instance_valid(representation):
+	var selected: Entity
+	for candidate in candidates:
+		if candidate == null or candidate == actor:
 			continue
-		var candidate_entity := representation.get_entity()
-		if not candidate_entity is Furniture:
-			continue
-		var candidate := candidate_entity as Furniture
 		if candidate.get_supported_actions(actor).is_empty():
 			continue
 		if selected == null or String(candidate.instance_id) < String(selected.instance_id):

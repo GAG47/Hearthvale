@@ -42,15 +42,3 @@ func _init(
 
 func get_definition_type() -> StringName:
 	return &"furniture"
-
-
-func to_data() -> Dictionary:
-	return {
-		"type": String(get_definition_type()),
-		"definition_id": String(definition_id),
-		"display_name": display_name,
-		"visual_ref": visual_ref,
-		"behaviors": behaviors.duplicate(true),
-		"occupied_cells": [occupied_cells.x, occupied_cells.y],
-		"blocks_movement": blocks_movement,
-	}

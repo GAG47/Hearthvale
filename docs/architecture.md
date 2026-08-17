@@ -38,14 +38,14 @@ AI 可以生成内容或提出行动建议，但不拥有规则权威。AI 输�
 ```text
 ActorDefinition + ActorState → Actor → ActorRepresentation
 FurnitureDefinition + FurnitureState → Furniture → FurnitureRepresentation
-LocationDefinition + LocationState → LocationRuntime → generated GridScene
+LocationDefinition + LocationState → LocationRuntime → GridScene Representation
 ```
 
 Definition 创建并进入 Registry 后没有运行时更新入口。床损坏、家具开启、Actor 移动、地面改变或道路禁用等变化全部进入对应 State，而不修改 Definition。
 
 ## DefinitionRegistry
 
-DefinitionRegistry 是 `definition_id → Definition` 的唯一运行时解析入口。Project Definition 和 Generated Definition 只在生产、首次加载与持久化阶段不同；注册完成后，查询、模拟、SceneBuilder、Entity 和交互系统都通过同一个 Registry 取得 Definition，不分叉运行逻辑。
+DefinitionRegistry 是 `definition_id → Definition` 的唯一运行时解析入口。当前 Registry 只登记项目数据中真实存在的 Project Definitions；查询、SceneBuilder、Entity 和交互系统都通过同一个 Registry 取得 Definition。
 
 Project Definitions 当前包括：
 
@@ -54,9 +54,7 @@ Project Definitions 当前包括：
 - GroundDefinition、DecorationDefinition 与 StructureDefinition；
 - Tavern、Town Street 与 Tavern Yard 的 LocationDefinition。
 
-Generated Definition 使用同一 UUID 命名空间和同一注册校验。Registry 可以把 Generated Definitions 序列化为完整 Definition 数据并恢复。未来生成器应直接产生 LocationDefinition，分配 Definition UUID，注册后创建 LocationState；不能先生成临时 Scene 再反向转换为世界数据。
-
-正式恢复依赖持久化的 Generated Definition 本身，而不是只依赖 generator seed。未来可以附带 generator ID、版本和 seed 作为来源信息，但算法变化不能改变旧世界已经生成的结果。
+V9 不提供 Generated Definition、Generated Location、PCG Registry、Definition 持久化或恢复接口。PCG 的数据、注册和持久化边界留到存在真实系统时重新设计。
 
 ## Location 的正式组成
 
@@ -147,13 +145,13 @@ GridScene
 └─ EntityRepresentationRoot
 ```
 
-LocationSceneBuilder 从 GroundDefinition、DecorationDefinition 与 StructureDefinition 读取逻辑及表现规格，逐层创建静态空间。它不按具体 Entity 类型创建 Actor 或 Furniture Node；Entity 表现仍由 V8 的 EntityRepresentationRegistry 与唯一匹配的 EntityRepresentationFactory 准备。
+LocationSceneBuilder 只消费 LocationRuntime 已合并出的当前 Ground、Decorations、Structures 与 Anchors，再从对应 Definition 读取表现规格并逐层创建静态空间。它不按具体 Entity 类型创建 Actor 或 Furniture Node；Entity 表现仍由 V8 的 EntityRepresentationRegistry 与唯一匹配的 EntityRepresentationFactory 准备。Ground、Decoration 与 Structure Layer 各自使用固定 TileSet，具体 Definition 只选择其中的 Tile。
 
 现有 Tavern、Town Street 与 Tavern Yard 的世界事实已迁移到 `data/world/project_world.json`。三份固定地图 `.tscn` 已删除；LocationDefinition 没有 `scene_path`，Game 也不加载地点 PackedScene。SceneTree、TileMapLayer、Collision 与 Marker 都是可丢弃的下游表现。
 
 离开 Location 会销毁 GridScene 及其中的 Entity Representations，但不会删除 LocationDefinition、LocationState、Entity 或 EntityState。再次进入时，系统从当前 LocationRuntime 完整重建 Scene，并让 Factory 把已有 Entity 绑定到新的 Representation。
 
-本架构没有 Scene → Authoring → Baking → World Data 路线，也没有 fingerprint、bake cache、preflight、Scene Placement Baking 或 Location Baking。项目世界数据和未来 Generator 直接位于 Scene 上游。
+本架构没有 Scene → Authoring → Baking → World Data 路线，也没有 fingerprint、bake cache、preflight、Scene Placement Baking 或 Location Baking。项目世界数据直接位于 Scene 上游。
 
 ## Location Prepare → Commit
 
@@ -191,9 +189,9 @@ EntityRepresentationRegistry 扫描全部 Factory 并要求恰好一个匹配。
 
 ## Action、Interaction 与移动
 
-PlayerController 把输入转化为移动或交互意图。ActorRepresentation 在当前 Scene 中执行连续物理移动并把位置同步回 ActorState。InteractionTargetSelector 使用当前 GridScene 的 FurnitureRepresentation Cell 索引命中表现，再取得逻辑 Entity 交给 WorldAction。
+PlayerController 把输入转化为移动或交互意图。ActorRepresentation 在当前 Scene 中执行连续物理移动并把位置同步回 ActorState。InteractionTargetSelector 根据 Actor 的脚下与面前 Cell，从当前 LocationRuntime 直接查询 Entity 并筛选支持的 Action；Representation、Scene 索引和物理节点都不是交互目标的逻辑来源。
 
-WorldAction 使用逻辑 EntityState 验证同一 Location 和邻接空间，之后调用 Entity 的 Action 协议。Entity 默认拒绝，Furniture 把具体检查与执行委派给 Behavior。合法结果修改 EntityState 或 WorldTimeState；Representation 只刷新视觉。NPC 或其他系统未来直接创建同类 Action 时必须经过相同规则。
+WorldAction 使用逻辑 EntityState 验证同一 Location 和邻接空间，之后调用 Entity 的 Action 协议。Entity 默认拒绝 Action 并默认不阻挡移动；Furniture 把具体检查与执行委派给 Behavior，并按 FurnitureDefinition 提供统一的移动阻挡结果。Location 只调用 Entity 的阻挡接口，不判断具体 Entity 子类。合法结果修改 EntityState 或 WorldTimeState；Representation 只刷新视觉。NPC 或其他系统未来直接创建同类 Action 时必须经过相同规则。
 
 ## 世界时间
 
@@ -203,4 +201,4 @@ WorldTimeState 是独立于 Entity 与 Location Scene 的世界级事实，只�
 
 ## 暂不规定的事项
 
-当前不实现 Location Editor、真正 Dungeon / Town PCG、AI、Schedule、Goal、Behavior Tree、NPC Navigation、SIPP、Reservation、多人避让、Use Slot、Ownership、Home / Workplace、复杂地图破坏或完整 Save / Load 重构。出现真实消费者后再设计对应结构。
+当前不实现 Location Editor、Dungeon / Town PCG、AI、Schedule、Goal、Behavior Tree、NPC Navigation、SIPP、Reservation、多人避让、Use Slot、Ownership、Home / Workplace、复杂地图破坏或完整 Save / Load 重构。V9 不为 PCG 保留 Registry、Codec、Source、Hook 或持久化接口；出现真实消费者后重新设计对应结构。

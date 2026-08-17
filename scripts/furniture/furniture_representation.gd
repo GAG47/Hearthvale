@@ -72,14 +72,7 @@ func sync_state_from_representation() -> void:
 	furniture.state.local_position = position
 
 
-func _ready() -> void:
-	if furniture != null and is_instance_valid(current_location):
-		current_location.register_furniture_representation(self)
-
-
 func _exit_tree() -> void:
-	if is_instance_valid(current_location):
-		current_location.unregister_furniture_representation(self)
 	sync_state_from_representation()
 
 
@@ -93,7 +86,7 @@ func _configure_blocking_collision(
 	var rectangle := collision.shape as RectangleShape2D
 	if rectangle != null:
 		rectangle.size = (
-			Vector2(furniture.definition.occupied_cells * GridScene.CELL_SIZE)
+			Vector2(furniture.definition.occupied_cells * GridSpace.CELL_SIZE)
 			- Vector2(4.0, 4.0)
 		)
 

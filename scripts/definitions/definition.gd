@@ -14,6 +14,3 @@ func _init(p_definition_id: StringName) -> void:
 
 
 @abstract func get_definition_type() -> StringName
-
-
-@abstract func to_data() -> Dictionary

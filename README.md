@@ -9,7 +9,7 @@ Hearthvale 是一款中世纪西幻 RPG / Living World 游戏。玩家作为世�
 
 ## 当前状态
 
-当前世界采用 Location-First 数据架构。Actor、Furniture 与 Location 都以独立 UUID 的 Definition + State 组成世界 Instance，并通过统一 DefinitionRegistry 解析 Project / Generated Definition。LocationDefinition 直接描述 Topology、Ground、Decoration、Structure 与 Anchors；LocationState 只保存 sparse overrides，Entity 归属仍唯一来自 EntityState。LocationSceneBuilder 从当前 Location 动态生成 GridScene，再沿用 V8 Factory / Registry 创建 Entity Representations；固定地图 `.tscn` 不再是世界真相。Location 切换继续采用失败安全的 Prepare → Commit，Scene 卸载不影响 Definition、LocationState、Entity 或 EntityState。当前工程可以直接运行，移动、四向视觉、碰撞、Camera、地点切换、家具交互、储物箱状态持续和睡眠推进时间均保持正常。
+当前世界采用 Location-First 数据架构。Actor、Furniture 与 Location 都以独立 UUID 的 Definition + State 组成世界 Instance，并通过统一 DefinitionRegistry 解析 Project Definition。LocationDefinition 直接描述 Topology、Ground、Decoration、Structure 与 Anchors；LocationState 只保存 sparse overrides，Entity 归属仍唯一来自 EntityState。LocationSceneBuilder 从当前 Location 动态生成 GridScene，再沿用 V8 Factory / Registry 创建 Entity Representations；固定地图 `.tscn` 不再是世界真相。Location 切换继续采用失败安全的 Prepare → Commit，Scene 卸载不影响 Definition、LocationState、Entity 或 EntityState。当前工程可以直接运行，移动、四向视觉、碰撞、Camera、地点切换、家具交互、储物箱状态持续和睡眠推进时间均保持正常。
 
 ## 目录
 

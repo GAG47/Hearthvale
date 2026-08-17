@@ -25,12 +25,3 @@ func _init(
 
 func get_definition_type() -> StringName:
 	return &"actor"
-
-
-func to_data() -> Dictionary:
-	return {
-		"type": String(get_definition_type()),
-		"definition_id": String(definition_id),
-		"display_name": display_name,
-		"visuals": visuals.duplicate(),
-	}

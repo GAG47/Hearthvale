@@ -383,7 +383,7 @@ func _select_from(
 	facing: ActorState.Facing
 ) -> Entity:
 	_place_actor(representation, cell, facing)
-	return InteractionTargetSelector.select_target(representation)
+	return InteractionTargetSelector.select_target(representation.actor)
 
 
 func _place_actor(
@@ -391,7 +391,7 @@ func _place_actor(
 	cell: Vector2i,
 	facing: ActorState.Facing
 ) -> void:
-	representation.position = Vector2(cell * GridScene.CELL_SIZE) + Vector2.ONE * 16.0
+	representation.position = GridSpace.cell_to_local_position(cell, Vector2.ONE * 16.0)
 	representation.facing = facing
 	representation.sync_state_from_representation()
 

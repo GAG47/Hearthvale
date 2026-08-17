@@ -3,10 +3,8 @@ extends SceneTree
 const MAIN_SCENE := preload("res://scenes/main.tscn")
 const PLAYER_INSTANCE_ID := &"90000000-0000-4000-8000-000000000001"
 const CHEST_INSTANCE_ID := &"5543caf7-2a10-4a40-84de-3a39ffdf670e"
-const GENERATED_GROUND_DEFINITION_ID := &"c0000000-0000-4000-8000-000000000101"
-const GENERATED_LOCATION_DEFINITION_ID := &"c0000000-0000-4000-8000-000000000102"
-const GENERATED_LOCATION_INSTANCE_ID := &"c0000000-0000-4000-8000-000000000103"
-
+const SPARSE_TEST_DEFINITION_ID := &"c0000000-0000-4000-8000-000000000108"
+const SPARSE_TEST_INSTANCE_ID := &"c0000000-0000-4000-8000-000000000109"
 var _checks := 0
 var _failures := 0
 
@@ -30,7 +28,7 @@ func _run_tests() -> void:
 	_test_definition_registry(definitions)
 	_test_project_locations(world_definition, world_state, definitions)
 	_test_sparse_location_state(world_definition, world_state, definitions)
-	_test_generated_definition_path(definitions, world_definition, world_state)
+	_test_scene_builder_current_ground(definitions, entities)
 	await _test_scene_lifecycle(world_definition, world_state, entities, definitions)
 	_test_source_boundaries()
 	_finish()
@@ -49,11 +47,17 @@ func _test_definition_registry(registry: DefinitionRegistryRuntime) -> void:
 	_expect(type_counts.get(&"decoration", 0) == 5, "DecorationDefinitions must use the unified Registry.")
 	_expect(type_counts.get(&"structure", 0) == 8, "StructureDefinitions must use the unified Registry.")
 	_expect(type_counts.get(&"location", 0) == 3, "LocationDefinitions must use the unified Registry.")
-	var existing := project_definitions[0]
-	_expect(
-		not registry.register_generated_definition(existing),
-		"Generated and Project Definitions must share one collision-safe UUID namespace."
-	)
+	for definition in project_definitions:
+		if definition is GroundDefinition:
+			_expect(
+				not (definition as GroundDefinition).presentation.has("tile_set_path"),
+				"Ground Definitions must select a Tile from the Layer's fixed TileSet."
+			)
+		elif definition is StructureDefinition:
+			_expect(
+				not (definition as StructureDefinition).presentation.has("tile_set_path"),
+				"Structure Definitions must select Tiles from the Layer's fixed TileSet."
+			)
 	var player_definition := registry.get_definition(
 		&"5e05b833-0645-4c13-8713-4c8767a7efe3"
 	) as ActorDefinition
@@ -204,70 +208,41 @@ func _test_sparse_location_state(
 	_expect(registry.get_definition(base_ground_id) == location.get_ground_definition(cell), "Runtime queries must resolve semantic IDs through DefinitionRegistry.")
 
 
-func _test_generated_definition_path(
+func _test_scene_builder_current_ground(
 	registry: DefinitionRegistryRuntime,
-	world_definition: WorldDefinitionRuntime,
-	world_state: WorldStateRuntime
+	entity_registry: EntityRegistryRuntime
 ) -> void:
-	var generated_ground := GroundDefinition.new(
-		GENERATED_GROUND_DEFINITION_ID,
-		&"generated_floor",
-		true,
-		1.0,
-		{
-			"kind": "tile",
-			"tile_set_path": "res://data/world_tileset.tres",
-			"source_id": 0,
-			"atlas_coords": [0, 0],
-			"alternative_tile": 0,
-		}
+	var definition := LocationDefinition.new(
+		SPARSE_TEST_DEFINITION_ID,
+		"Sparse Ground Test",
+		Vector2i(2, 1)
 	)
-	_expect(registry.register_generated_definition(generated_ground), "Generated Definition must join the unified Registry.")
-	var ground: Dictionary[Vector2i, StringName] = {
-		Vector2i(0, 0): GENERATED_GROUND_DEFINITION_ID,
-		Vector2i(1, 0): GENERATED_GROUND_DEFINITION_ID,
-	}
-	var generated_location_definition := LocationDefinition.new(
-		GENERATED_LOCATION_DEFINITION_ID,
-		"Generated Test Location",
-		Vector2i(2, 1),
-		[],
-		ground
-	)
-	var generated_state := LocationState.new(
-		GENERATED_LOCATION_INSTANCE_ID,
-		GENERATED_LOCATION_DEFINITION_ID
-	)
+	var state := LocationState.new(SPARSE_TEST_INSTANCE_ID, SPARSE_TEST_DEFINITION_ID)
+	var override_cell := Vector2i(1, 0)
+	state.ground_overrides[override_cell] = &"10000000-0000-4000-8000-000000000003"
+	var location := LocationRuntime.new(definition, state, registry, entity_registry)
 	_expect(
-		world_definition.register_generated_location(generated_location_definition, generated_state),
-		"Generated LocationDefinition must create the same Definition + State runtime path."
+		location.get_current_ground().has(override_cell),
+		"Current Ground must include a sparse override Cell absent from the Definition."
 	)
-	var generated_location := world_definition.get_location(GENERATED_LOCATION_INSTANCE_ID)
-	_expect(generated_location != null and generated_location.state == generated_state, "Generated Location must resolve as an ordinary Location Runtime.")
-	_expect(generated_location.get_ground_definition(Vector2i(1, 0)) == generated_ground, "Generated Location queries must use the same DefinitionRegistry lookup.")
-	_expect(world_state.get_location_state(GENERATED_LOCATION_INSTANCE_ID) == generated_state, "Generated LocationState must be persistent WorldState content.")
-
-	var serialized := registry.serialize_generated_definitions()
-	var serialized_location: Dictionary
-	for data in serialized:
-		if data.get("definition_id", "") == String(GENERATED_LOCATION_DEFINITION_ID):
-			serialized_location = data
-	_expect(not serialized_location.is_empty(), "Generated LocationDefinition itself must be serializable for World Save.")
-	_expect(serialized_location.has("spatial_layout"), "Saved Generated LocationDefinition must contain the generated result, not only a seed.")
-	var restored_registry := DefinitionRegistryRuntime.new()
-	_expect(restored_registry.restore_generated_definitions(serialized), "Serialized Generated Definitions must restore through the unified codec.")
-	_expect(restored_registry.get_definition(GENERATED_LOCATION_DEFINITION_ID) is LocationDefinition, "Restored generated Location must remain an ordinary LocationDefinition.")
-	restored_registry.free()
-
 	var prepared := LocationSceneBuilder.new().prepare_scene(
-		generated_location,
+		location,
 		EntityRepresentationRegistry.create_default()
 	)
-	_expect(not prepared.is_empty(), "LocationSceneBuilder must accept generated and project Locations identically.")
-	if not prepared.is_empty():
-		var scene := prepared["scene"] as GridScene
-		_expect((scene.get_node("GroundLayer") as TileMapLayer).get_used_cells().size() == 2, "Generated Location Scene must build from its Ground Layer.")
-		scene.free()
+	_expect(not prepared.is_empty(), "SceneBuilder must accept Current Ground supplied by LocationRuntime.")
+	if prepared.is_empty():
+		return
+	var scene := prepared["scene"] as GridScene
+	var ground_layer := scene.get_node("GroundLayer") as TileMapLayer
+	_expect(
+		ground_layer.get_used_cells() == [override_cell],
+		"SceneBuilder must render a Ground override Cell absent from Definition Ground."
+	)
+	_expect(
+		ground_layer.tile_set == LocationSceneBuilder.WORLD_TILE_SET,
+		"Ground Layer must use the fixed World TileSet."
+	)
+	scene.free()
 
 
 func _test_scene_lifecycle(
@@ -291,21 +266,50 @@ func _test_scene_lifecycle(
 	_expect(player.state.definition_id == player.definition.definition_id, "EntityState must explicitly link the instance to its Definition.")
 	_expect(player.definition == definition_registry.get_definition(player.definition_id), "Entity must consume its Project Definition through DefinitionRegistry.")
 	_expect(chest != null and chest.definition == definition_registry.get_definition(chest.definition_id), "Furniture must use the same Definition resolution path.")
-	_expect(first_scene.scene_file_path.is_empty(), "Location Scene must be generated and must not be a fixed map Scene resource.")
+	_expect(first_scene.scene_file_path.is_empty(), "Location Scene must be built at runtime and must not be a fixed map Scene resource.")
 	_expect(first_scene.location.definition == tavern_definition and first_scene.location.state == tavern_state, "Scene must represent the composed current Location.")
-	_expect((first_scene.get_node("GroundLayer") as TileMapLayer).get_used_cells().size() == 384, "Tavern Ground representation must be generated from 384 data cells.")
+	_expect((first_scene.get_node("GroundLayer") as TileMapLayer).get_used_cells().size() == 384, "Tavern Ground representation must be built from 384 data cells.")
 	_expect((first_scene.get_node("StructureLayer") as TileMapLayer).get_used_cells().size() == 108, "Tavern Structure representation must rebuild every footprint cell.")
-	_expect(first_scene.get_node("DecorationLayer").get_child_count() == 2, "Tavern Decorations must be generated from DecorationDefinitions.")
+	_expect(first_scene.get_node("DecorationLayer").get_child_count() == 2, "Tavern Decorations must be built from DecorationDefinitions.")
 	_expect(first_scene.get_location_entries().size() == 3, "Entry Anchors must generate Scene entry markers.")
 	_expect(first_scene.location.get_entities().size() == 4, "Location Entities must derive from EntityRegistry and EntityState.current_location_id.")
 	_expect(first_scene.location.get_entities_at(Vector2i(14, 6)).has(chest), "Cell Entity query must derive the Chest footprint from EntityState.")
+	_expect(not player.blocks_movement(), "Entity must not block movement by default.")
+	_expect(chest.blocks_movement(), "Furniture must expose its Definition blocking rule through Entity.")
+	var player_cell := player.current_cell
+	_expect(first_scene.location.is_cell_walkable(player_cell), "A default non-blocking Entity must not make its Cell unwalkable.")
+	var chest_position := chest.state.local_position
+	chest.state.local_position = GridSpace.cell_to_local_position(
+		player_cell,
+		Vector2.ONE * GridSpace.CELL_SIZE * 0.5
+	)
+	_expect(not first_scene.location.is_cell_walkable(player_cell), "Location walkability must consume Entity blocking capability.")
+	chest.state.local_position = chest_position
+
+	var chest_representation := _find_representation(first_scene, CHEST_INSTANCE_ID)
+	_expect(chest_representation != null, "The initial Scene must contain the Chest Representation.")
+	if chest_representation != null:
+		chest_representation.free()
+	var player_position := player.state.local_position
+	var player_facing := player.facing
+	player.state.local_position = GridSpace.cell_to_local_position(
+		Vector2i(13, 6),
+		Vector2.ONE * GridSpace.CELL_SIZE * 0.5
+	)
+	(player.state as ActorState).facing = ActorState.Facing.RIGHT
+	_expect(
+		InteractionTargetSelector.select_target(player) == chest,
+		"Interaction must query Location Entities even when the target Representation is absent."
+	)
+	player.state.local_position = player_position
+	(player.state as ActorState).facing = player_facing
 
 	var chest_state := chest.state
 	var player_state := player.state
 	var first_player_representation := (game.get_node("PlayerController") as PlayerController).controlled_representation
 	game.call("request_location_change", &"back_door")
 	await _wait_for_transition(game)
-	_expect(player.current_location_id == yard_id, "Existing Location transition must work with generated Scenes.")
+	_expect(player.current_location_id == yard_id, "Existing Location transition must work with runtime-built Scenes.")
 	_expect(not is_instance_valid(first_scene) and not is_instance_valid(first_player_representation), "Leaving must unload only Scene representations.")
 	_expect(world_definition.get_location_definition(tavern_id) == tavern_definition, "LocationDefinition must survive Scene unload.")
 	_expect(world_state.get_location_state(tavern_id) == tavern_state, "LocationState must survive Scene unload.")
@@ -327,10 +331,45 @@ func _test_source_boundaries() -> void:
 	var location_definition_source := _read_text("res://scripts/world_definition/location_definition.gd")
 	var game_source := _read_text("res://scripts/game.gd")
 	var project_world_source := _read_text("res://data/world/project_world.json")
+	var selector_source := _read_text("res://scripts/interaction_target_selector.gd")
+	var grid_scene_source := _read_text("res://scripts/location/grid_scene.gd")
+	var location_source := _read_text("res://scripts/location/location.gd")
+	var scene_builder_source := _read_text("res://scripts/location/location_scene_builder.gd")
+	var registry_source := _read_text("res://scripts/definitions/definition_registry.gd")
+	var world_definition_source := _read_text("res://scripts/world_definition/world_definition.gd")
 	_expect(not location_definition_source.contains("scene_path"), "LocationDefinition must not have scene_path authority.")
 	_expect(not project_world_source.contains("scene_path"), "Project Location world data must not point at fixed map Scenes.")
 	_expect(not game_source.contains("PackedScene") and not game_source.contains("scenes/tavern"), "Game transition must consume LocationSceneBuilder instead of fixed map Scenes.")
 	_expect(game_source.contains("LocationSceneBuilder"), "Game Prepare must explicitly use the Location to Scene bridge.")
+	_expect(
+		selector_source.contains("get_entities_at")
+		and not selector_source.contains("Representation")
+		and not selector_source.contains("GridScene"),
+		"Interaction target selection must only query logical Location Entities."
+	)
+	_expect(
+		not grid_scene_source.contains("FurnitureRepresentation"),
+		"GridScene must not retain an interaction target Representation index."
+	)
+	_expect(
+		not location_source.contains("entity is Furniture")
+		and location_source.contains("entity.blocks_movement()"),
+		"Location walkability must use the unified Entity blocking interface."
+	)
+	_expect(
+		not scene_builder_source.contains("location.definition.ground_layer")
+		and not scene_builder_source.contains("tile_set_path"),
+		"SceneBuilder must consume Current Location and fixed Layer TileSets."
+	)
+	_expect(
+		not registry_source.to_lower().contains("generated")
+		and not world_definition_source.to_lower().contains("generated"),
+		"V9 runtime registries must not retain Generated Definition or Location paths."
+	)
+	_expect(
+		not FileAccess.file_exists("res://scripts/definitions/definition_codec.gd"),
+		"V9 must not retain a generic Definition persistence Codec."
+	)
 	for forbidden in ["fingerprint", "bake cache", "Location Baking", "Scene Placement Baking"]:
 		_expect(not game_source.contains(forbidden) and not location_definition_source.contains(forbidden), "V9 must not reintroduce a Scene baking route.")
 
