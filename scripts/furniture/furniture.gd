@@ -23,6 +23,10 @@ func get_definition() -> Resource:
 	return definition
 
 
+func get_explicit_use_slots() -> Array[UseSlot]:
+	return definition.use_slots.duplicate() if definition != null else []
+
+
 func get_supported_actions(actor: Actor) -> Array[StringName]:
 	var actions: Array[StringName] = []
 	for behavior in behaviors:
@@ -34,6 +38,10 @@ func get_supported_actions(actor: Actor) -> Array[StringName]:
 
 func get_primary_action(actor: Actor) -> StringName:
 	var actions := get_supported_actions(actor)
+	if actor != null:
+		for action_id in actions:
+			if has_facing_use_slot_at(action_id, actor.current_cell, actor.facing):
+				return action_id
 	return actions[0] if not actions.is_empty() else &""
 
 

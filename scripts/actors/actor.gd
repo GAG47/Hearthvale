@@ -17,6 +17,10 @@ func get_definition() -> Resource:
 	return definition
 
 
+func get_explicit_use_slots() -> Array[UseSlot]:
+	return definition.use_slots.duplicate() if definition != null else []
+
+
 func get_front_cell() -> Vector2i:
 	return current_cell + get_facing_cell_offset()
 

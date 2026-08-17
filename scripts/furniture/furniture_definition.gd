@@ -7,3 +7,4 @@ extends Resource
 @export var behaviors: Array[FurnitureBehavior] = []
 @export var occupied_cells := Vector2i.ONE
 @export var blocks_movement := true
+@export var use_slots: Array[UseSlot] = []

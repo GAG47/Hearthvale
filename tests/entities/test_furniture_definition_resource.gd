@@ -63,6 +63,7 @@ func _test_definition(
 	_expect(definition.occupied_cells == expected_cells, "%s must preserve occupied_cells." % path)
 	_expect(definition.visual.resource_path == expected_visual_path, "%s must directly reference its Texture2D." % path)
 	_expect(definition.behaviors.size() == 1, "%s must preserve one Behavior Resource." % path)
+	_expect(definition.use_slots.is_empty(), "%s must remain valid without explicit UseSlot data." % path)
 	if not definition.behaviors.is_empty():
 		_expect(is_instance_of(definition.behaviors[0], expected_behavior_script), "%s must preserve its concrete Behavior Resource." % path)
 

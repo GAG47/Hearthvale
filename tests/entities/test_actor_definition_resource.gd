@@ -45,6 +45,7 @@ func _test_definition(path: String, expected_name: String, expected_visuals: Dic
 	_expect(definition is Resource, "%s must be a Godot Resource." % path)
 	_expect(definition.display_name == expected_name, "%s must preserve display_name." % path)
 	_expect(not _has_property(definition, &"definition_id"), "%s must not store a Definition UUID." % path)
+	_expect(definition.use_slots.is_empty(), "%s must support an empty typed UseSlot Resource list." % path)
 	for direction in ActorDefinition.VISUAL_DIRECTIONS:
 		var visual := definition.get_visual(direction)
 		_expect(visual is Texture2D, "%s visual_%s must directly reference Texture2D." % [path, direction])

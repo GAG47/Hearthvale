@@ -12,8 +12,31 @@ static func evaluate(action: WorldAction) -> ActionRuleDecision:
 	if action.actor.current_location_id != action.target.current_location_id:
 		return ActionRuleDecision.reject("行为发起者与目标不在同一个地点。", &"target_not_in_same_location")
 
-	var target_cells := action.target.get_occupied_grid_cells()
-	if not target_cells.has(action.actor.current_cell) and not target_cells.has(action.actor.get_front_cell()):
+	var location := _get_location(action.actor.current_location_id)
+	if location != null:
+		for slot in location.get_use_slots(action.target, action.action_id):
+			if location.get_use_slot_world_cell(action.target, slot) != action.actor.current_cell:
+				continue
+			if not slot.is_facing_allowed(action.actor.facing):
+				continue
+			if location.is_use_slot_valid(action.target, slot):
+				return ActionRuleDecision.permit()
 		return ActionRuleDecision.reject("目标不在当前可交互空间内。", &"target_out_of_interaction_space")
 
-	return ActionRuleDecision.permit()
+	# Isolated logic tests can intentionally disable the project Autoloads. In that
+	# case retain the same slot and facing contract without world-space facts.
+	for slot in action.target.get_use_slots(action.action_id):
+		if (
+			action.target.get_use_slot_world_cell(slot) == action.actor.current_cell
+			and slot.is_facing_allowed(action.actor.facing)
+		):
+			return ActionRuleDecision.permit()
+	return ActionRuleDecision.reject("目标不在当前可交互空间内。", &"target_out_of_interaction_space")
+
+
+static func _get_location(location_id: StringName) -> LocationRuntime:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return null
+	var world_definition := tree.root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
+	return world_definition.get_location(location_id) if world_definition != null else null

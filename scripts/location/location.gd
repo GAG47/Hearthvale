@@ -141,7 +141,55 @@ func get_entities_at(cell: Vector2i) -> Array[Entity]:
 	return entities
 
 
+func get_use_slots(entity: Entity, action_id: StringName) -> Array[UseSlot]:
+	return entity.get_use_slots(action_id) if entity != null else []
+
+
+func get_use_slot_world_cell(entity: Entity, slot: UseSlot) -> Vector2i:
+	return entity.get_use_slot_world_cell(slot) if entity != null else Vector2i.ZERO
+
+
+func get_slot_entrances(slot: UseSlot) -> Array[SlotEntrance]:
+	return slot.get_slot_entrances() if slot != null else []
+
+
+func get_slot_entrance_world_cell(entity: Entity, entrance: SlotEntrance) -> Vector2i:
+	return entity.get_slot_entrance_world_cell(entrance) if entity != null else Vector2i.ZERO
+
+
+func get_valid_use_slots(entity: Entity, action_id: StringName) -> Array[UseSlot]:
+	var slots: Array[UseSlot] = []
+	for slot in get_use_slots(entity, action_id):
+		if is_use_slot_valid(entity, slot):
+			slots.append(slot)
+	return slots
+
+
+func get_valid_slot_entrances(entity: Entity, slot: UseSlot) -> Array[SlotEntrance]:
+	var entrances: Array[SlotEntrance] = []
+	for entrance in get_slot_entrances(slot):
+		if is_slot_entrance_valid(entity, entrance):
+			entrances.append(entrance)
+	return entrances
+
+
+func is_use_slot_valid(entity: Entity, slot: UseSlot) -> bool:
+	if entity == null or slot == null or entity.current_location_id != instance_id:
+		return false
+	return _is_cell_standable(get_use_slot_world_cell(entity, slot), entity)
+
+
+func is_slot_entrance_valid(entity: Entity, entrance: SlotEntrance) -> bool:
+	if entity == null or entrance == null or entity.current_location_id != instance_id:
+		return false
+	return _is_cell_standable(get_slot_entrance_world_cell(entity, entrance))
+
+
 func is_cell_walkable(cell: Vector2i) -> bool:
+	return _is_cell_standable(cell)
+
+
+func _is_cell_standable(cell: Vector2i, ignored_entity: Entity = null) -> bool:
 	if cell.x < 0 or cell.y < 0 or cell.x >= definition.grid_size.x or cell.y >= definition.grid_size.y:
 		return false
 	var ground := get_ground_tile(cell)
@@ -150,7 +198,11 @@ func is_cell_walkable(cell: Vector2i) -> bool:
 	var structure := get_structure_tile(cell)
 	if structure != null and structure.blocks_movement:
 		return false
+	if entity_registry == null:
+		return false
 	for entity in get_entities_at(cell):
+		if entity == ignored_entity:
+			continue
 		if entity.blocks_movement():
 			return false
 	return true

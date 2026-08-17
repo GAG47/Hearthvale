@@ -11,27 +11,25 @@ static func select_target(actor: Actor) -> Entity:
 	if location == null:
 		return null
 
-	var query_cells: Array[Vector2i] = [
-		actor.get_front_cell(),
-		actor.current_cell,
-	]
-	for cell in query_cells:
-		var selected := _select_supported_entity(actor, location.get_entities_at(cell))
-		if selected != null:
-			return selected
-
-	return null
+	return _select_supported_entity(actor, location)
 
 
 static func _select_supported_entity(
 	actor: Actor,
-	candidates: Array[Entity]
+	location: LocationRuntime
 ) -> Entity:
 	var selected: Entity
-	for candidate in candidates:
+	for candidate in location.get_entities():
 		if candidate == null or candidate == actor:
 			continue
-		if candidate.get_supported_actions(actor).is_empty():
+		var has_matching_slot := false
+		for action_id in candidate.get_supported_actions(actor):
+			if candidate.has_facing_use_slot_at(action_id, actor.current_cell, actor.facing):
+				has_matching_slot = true
+				break
+			if has_matching_slot:
+				break
+		if not has_matching_slot:
 			continue
 		if selected == null or String(candidate.instance_id) < String(selected.instance_id):
 			selected = candidate

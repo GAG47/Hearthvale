@@ -2,6 +2,7 @@ class_name ActorState
 extends EntityState
 
 enum Facing {
+	NONE = -1,
 	UP,
 	DOWN,
 	LEFT,

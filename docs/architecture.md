@@ -54,7 +54,7 @@ Project Definitions 当前包括：
 - GroundTileDefinition、DecorationTileDefinition 与 StructureTileDefinition；
 - Tavern、Town Street 与 Tavern Yard 的 LocationDefinition。
 
-ActorDefinition 直接引用四向 Texture2D；FurnitureDefinition 直接引用 Texture2D 和 FurnitureBehavior 子资源；LocationDefinition 的三个 Cell Layer 直接引用 TileDefinition `.tres`。`project_world.tres` 只保存现有 Project Location instance spec：项目键、Instance UUID 与 LocationDefinition Resource。
+ActorDefinition 直接引用四向 Texture2D；FurnitureDefinition 直接引用 Texture2D 和 FurnitureBehavior 子资源；ActorDefinition 与 FurnitureDefinition 都可以保存强类型 UseSlot Resource。LocationDefinition 的三个 Cell Layer 直接引用 TileDefinition `.tres`。`project_world.tres` 只保存现有 Project Location instance spec：项目键、Instance UUID 与 LocationDefinition Resource。
 
 ## Location 的正式组成
 
@@ -186,11 +186,33 @@ Representation 依赖 Entity，Entity 不依赖 Representation。ActorRepresenta
 
 EntityRepresentationRegistry 扫描全部 Factory 并要求恰好一个匹配。零匹配或多匹配都使 Location Prepare 失败。Game 不按 Actor / Furniture 类型分支，也不持有具体 Entity Representation Scene。
 
+## Entity Interaction Space
+
+UseSlot 是 Entity Definition 中某个 Action 的理论执行位置。每项保存 Entity 局部格 `local_cell`、Actor 执行时的 `required_facing`、`supported_actions` 与零到多个 SlotEntrance Resource。局部格原点固定为 Entity footprint 左上角 `(0, 0)`；UseSlot 可以位于 footprint 内部或外部。EntityState 移动时 Definition 坐标不变。
+
+某个 Action 只要存在至少一个显式 UseSlot，就只使用这些显式项。没有显式项时，Entity 根据 footprint 派生临时默认 UseSlot，但不写回或修改 Definition：每个 occupied Cell 的上下左右邻格只要位于 footprint 外就成为外部 Slot，重复 Cell 去重，不产生对角 Slot。外部 Slot 的 required facing 始终朝向 Entity：左侧要求 RIGHT、右侧要求 LEFT、上侧要求 DOWN、下侧要求 UP。non-blocking Entity 还为每个 occupied Cell 生成不限制朝向的脚下 Slot；blocking Entity 不生成脚下默认 Slot。
+
+SlotEntrance 是具体 UseSlot 的进入位置，也使用同一个 Entity 局部格原点。显式配置时完整保留全部 SlotEntrance；没有显式配置时，查询返回一个 `local_cell == UseSlot.local_cell` 的默认 Entrance。Entrance 不按 footprint 或 facing 推断其他位置。
+
+职责边界固定为：
+
+```text
+Entity Definition
+└─ footprint + UseSlot[] + SlotEntrance[]
+        ↓ 与 EntityState 当前位置组合
+LocationRuntime
+└─ world Cell 转换 + bounds / Ground / Structure / Entity blocking 校验
+        ↓
+InteractionTargetSelector + ActionSpatialRule
+```
+
+Entity 根据实际 occupied Cells 得到 footprint 左上角；world Slot Cell 与 world Entrance Cell 都等于该原点加各自 `local_cell`。LocationRuntime 不生成、删除或修改 Definition，只复用当前 Ground、Structure 与 Entity 查询验证可用性。UseSlot 位于目标 Entity footprint 内时会忽略目标自身的 blocking，但仍检查 Ground、Structure 和其他 blocking Entity；SlotEntrance 必须是普通 Actor 当前可站立的 Cell。Definition 是否存在与当前是否可用是两件事。
+
 ## Action、Interaction 与移动
 
-PlayerController 把输入转化为移动或交互意图。ActorRepresentation 在当前 Scene 中执行连续物理移动并把位置同步回 ActorState。InteractionTargetSelector 根据 Actor 的脚下与面前 Cell，从当前 LocationRuntime 直接查询 Entity 并筛选支持的 Action；Representation、Scene 索引和物理节点都不是交互目标的逻辑来源。
+PlayerController 把输入转化为移动或交互意图。ActorRepresentation 在当前 Scene 中执行连续物理移动并把位置同步回 ActorState。InteractionTargetSelector 从当前 LocationRuntime 查询 Entity，并按 Actor 当前 Cell、facing 与目标 Action 的 UseSlot 选择候选；Representation、Scene 索引和物理节点都不是交互目标的逻辑来源。
 
-WorldAction 使用逻辑 EntityState 验证同一 Location 和邻接空间，之后调用 Entity 的 Action 协议。Entity 默认拒绝 Action 并默认不阻挡移动；Furniture 把具体检查与执行委派给 Behavior，并按 FurnitureDefinition 提供统一的移动阻挡结果。Location 只调用 Entity 的阻挡接口，不判断具体 Entity 子类。合法结果修改 EntityState 或 WorldTimeState；Representation 只刷新视觉。NPC 或其他系统未来直接创建同类 Action 时必须经过相同规则。
+WorldAction 使用逻辑 EntityState 验证同一 Location，然后由 ActionSpatialRule 要求 Actor 当前 Cell 匹配至少一个当前有效、朝向正确的 Action UseSlot。旧的“目标位于脚下或面前 occupied Cell”判断已删除；默认 UseSlot 保留相同体验，并成为唯一交互空间权威。Entity 默认拒绝 Action 并默认不阻挡移动；Furniture 把具体检查与执行委派给 Behavior，并按 FurnitureDefinition 提供统一的移动阻挡结果。合法结果修改 EntityState 或 WorldTimeState；Representation 只刷新视觉。
 
 ## 世界时间
 
@@ -200,4 +222,4 @@ WorldTimeState 是独立于 Entity 与 Location Scene 的世界级事实，只�
 
 ## 暂不规定的事项
 
-当前不实现 Location Editor、Dungeon / Town PCG、AI、Schedule、Goal、Behavior Tree、NPC Navigation、SIPP、Reservation、多人避让、Use Slot、Ownership、Home / Workplace、复杂地图破坏或完整 Save / Load 重构。V9 不为 PCG 保留 Registry、Codec、Source、Hook 或持久化接口；出现真实消费者后重新设计对应结构。
+当前不实现 Location Editor、Dungeon / Town PCG、AI、Schedule、Goal、Behavior Tree、NPC Navigation、Pathfinding、SIPP、Reservation、Slot 占用预订、自动前往 SlotEntrance、从 Entrance 进入 UseSlot、坐下、躺下、动画、多人避让、Ownership、Home / Workplace、复杂地图破坏或完整 Save / Load 重构。当前不为这些方向预建 Manager、Registry、状态或移动流程；出现真实消费者后再设计。
