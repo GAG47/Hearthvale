@@ -10,7 +10,7 @@ V8 正式建立 `Entity → Representation Factory → Representation` 的统一
 
 ## 命名迁移
 
-旧 Actor / Furniture 表现类已直接迁移为 ActorRepresentation 与 FurnitureRepresentation，包括 `class_name`、脚本和场景文件名、场景根节点、变量、函数、PlayerController、GridScene、InteractionTargetSelector、测试与当前架构文档。没有保留 alias、wrapper 或 deprecated 兼容层。
+旧 Actor / Furniture 表现类已直接迁移为 ActorRepresentation 与 FurnitureRepresentation，包括 `class_name`、脚本和场景文件名、场景根节点、变量、函数、PlayerController、GridScene、交互测试与当前架构文档。没有保留 alias、wrapper 或 deprecated 兼容层。
 
 ActorRepresentation 保持 CharacterBody2D，FurnitureRepresentation 保持 Node2D。系统没有建立公共 Representation Node 父类；两者通过 `get_entity()` 共同约定返回绑定的逻辑 Entity。
 
@@ -33,7 +33,7 @@ Game 的 Actor / Furniture 创建分支、Representation PackedScene 常量和�
 
 Commit 仍只消费 Prepare 已完成的 Location 与 Representation，正式迁移 ActorState、激活目标树、换绑 PlayerController、更新 current_location 并释放旧 Location。它不重新搜索 Factory、加载 Representation Scene、验证视觉或创建碰撞，V7.5 的失败安全边界保持不变。
 
-InteractionTargetSelector 继续使用 Scene 空间索引，但从 ActorRepresentation / FurnitureRepresentation 的 `get_entity()` 取得逻辑对象。WorldAction 只接收 Actor 与 Entity，不依赖 Representation。
+PlayerController 的交互选择继续从 ActorRepresentation / FurnitureRepresentation 的 `get_entity()` 取得逻辑对象。WorldAction 只接收 Actor 与 Entity，不依赖 Representation。
 
 ## 验证
 

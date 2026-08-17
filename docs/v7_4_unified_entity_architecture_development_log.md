@@ -35,7 +35,7 @@ Bed、Chest、Sign 的 WorldObject 类和独立 Scene 已删除，迁移为三�
 
 ```text
 PlayerController
-→ InteractionTargetSelector 命中 FurniturePresentation
+→ 命中 Furniture Entity
 → 返回逻辑 Furniture Entity
 → WorldAction(actor: Actor, target: Entity)
 → ActionSpatialRule 使用 EntityState

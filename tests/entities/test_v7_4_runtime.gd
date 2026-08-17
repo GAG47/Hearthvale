@@ -243,10 +243,10 @@ func _run_tests() -> void:
 		"OpenableBehavior state changes must refresh FurnitureRepresentation."
 	)
 
-	var selected := _select_from(representation, Vector2i(13, 6), ActorState.Facing.RIGHT)
-	_expect(selected == chest, "InteractionTargetSelector must return the logical Furniture Entity.")
+	var selected := _select_from(controller, representation, Vector2i(13, 6), ActorState.Facing.RIGHT)
+	_expect(selected == chest, "PlayerController must select the logical Furniture Entity.")
 	var selected_variant: Variant = selected
-	_expect(not selected_variant is Node, "InteractionTargetSelector must not return a Representation Node.")
+	_expect(not selected_variant is Node, "PlayerController must not select a Representation Node.")
 
 	var old_actor_representation := representation
 	game.call("request_location_change", &"back_door")
@@ -383,12 +383,13 @@ func _test_interactions(
 
 
 func _select_from(
+	controller: PlayerController,
 	representation: ActorRepresentation,
 	cell: Vector2i,
 	facing: ActorState.Facing
 ) -> Entity:
 	_place_actor(representation, cell, facing)
-	return InteractionTargetSelector.select_target(representation.actor)
+	return controller.call("_select_interaction").get("entity") as Entity
 
 
 func _place_actor(

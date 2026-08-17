@@ -7,7 +7,7 @@ const ACTOR_ID := &"11111111-1111-4111-8111-111111111111"
 const FURNITURE_ID := &"00000000-0000-4000-8000-000000000001"
 const GENERIC_ENTITY_ID := &"22222222-2222-4222-8222-222222222222"
 const OTHER_ENTITY_ID := &"33333333-3333-4333-8333-333333333333"
-const LOCATION_ID := &"55555555-5555-4555-8555-555555555555"
+const LOCATION_ID := &"50000000-0000-4000-8000-000000000001"
 
 var _checks := 0
 var _failures := 0
@@ -15,12 +15,19 @@ var _failures := 0
 
 func _init() -> void:
 	_disable_project_autoloads()
-	_run_tests()
-	_finish()
+	call_deferred("_run_tests")
 
 
 func _run_tests() -> void:
 	var registry := REGISTRY_SCRIPT.new()
+	registry.name = "EntityRegistry"
+	root.add_child(registry)
+	var world_definition := WorldDefinitionRuntime.new()
+	world_definition.name = "WorldDefinition"
+	root.add_child(world_definition)
+	var world_state := WorldStateRuntime.new()
+	world_state.name = "WorldState"
+	root.add_child(world_state)
 	_expect(registry.get_entities().is_empty(), "A new EntityRegistry must not create Entities.")
 	_expect(not registry.register_entity(null), "A null Entity must be rejected.")
 
@@ -61,8 +68,8 @@ func _run_tests() -> void:
 		ActorState.new(GENERIC_ENTITY_ID, LOCATION_ID, Vector2(64.0, 32.0), ActorState.Facing.RIGHT)
 	)
 	_expect(registry.register_entity(generic_entity), "EntityRegistry must accept another valid Entity subtype.")
-	var action_result := WorldAction.new(&"test_action", actor, generic_entity).execute()
-	_expect(action_result.success and action_result.target_id == GENERIC_ENTITY_ID, "WorldAction must execute the generic Entity Action protocol.")
+	var generic_result := WorldAction.new(&"test_action", actor, generic_entity).execute()
+	_expect(generic_result.success and generic_result.target_id == GENERIC_ENTITY_ID, "WorldAction must execute the generic Entity Action protocol.")
 	var unsupported_result := WorldAction.new(&"talk", actor, actor).execute()
 	_expect(not unsupported_result.success and unsupported_result.failure_code == &"target_action_unsupported", "Entity's default Action protocol must reject unsupported actions.")
 
@@ -84,6 +91,9 @@ func _run_tests() -> void:
 	_expect(registry.get_entities_in_location(LOCATION_ID).size() == 3, "Location queries must include every registered Entity subtype.")
 	_expect(registry.get_entities_in_location(&"unknown").is_empty(), "An unknown Location query must return no Entities.")
 	registry.free()
+	world_state.free()
+	world_definition.free()
+	_finish()
 
 
 func _create_actor_definition(display_name: String) -> ActorDefinition:
@@ -96,7 +106,7 @@ func _create_furniture_definition(display_name: String) -> FurnitureDefinition:
 	var definition := FurnitureDefinition.new()
 	definition.display_name = display_name
 	definition.visual = load("res://assets/furniture/sign.svg") as Texture2D
-	definition.occupied_cells = Vector2i.ONE
+	definition.footprint_cells = [Vector2i.ZERO]
 	definition.blocks_movement = true
 	return definition
 

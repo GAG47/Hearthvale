@@ -106,13 +106,14 @@ func request_interaction() -> ActionResult:
 		return unavailable_result
 
 	controlled_representation.sync_state_from_representation()
-	var target := InteractionTargetSelector.select_target(controlled_actor)
+	var selection := _select_interaction()
+	var target := selection.get("entity") as Entity
 	if target == null:
 		var no_target_result := ActionResult.failed(&"interact", &"", "前方没有可交互的对象。")
 		action_completed.emit(no_target_result)
 		return no_target_result
 
-	var action_id := target.get_primary_action(controlled_actor)
+	var action_id := selection.get("action_id", &"") as StringName
 	if action_id.is_empty():
 		var no_action_result := ActionResult.failed(
 			&"interact",
@@ -126,6 +127,63 @@ func request_interaction() -> ActionResult:
 	var result := action.execute()
 	action_completed.emit(result)
 	return result
+
+
+func _select_interaction() -> Dictionary:
+	if controlled_actor == null or controlled_actor.current_location_id.is_empty():
+		return {}
+	var location := _get_location(controlled_actor.current_location_id)
+	if location == null:
+		return {}
+
+	var selected_entity: Entity
+	var selected_action := &""
+	var selected_priority := -1
+	for candidate in location.get_entities():
+		if candidate == null or candidate == controlled_actor:
+			continue
+		for action_id in candidate.get_supported_actions(controlled_actor):
+			for slot in location.get_use_slots(candidate, action_id):
+				if location.get_use_slot_world_cell(candidate, slot) != controlled_actor.current_cell:
+					continue
+				if not slot.is_facing_allowed(controlled_actor.facing):
+					continue
+				if not location.is_use_slot_valid(candidate, slot):
+					continue
+				var priority := 1 if slot.required_facing != ActorState.Facing.NONE else 0
+				if _is_better_interaction_candidate(
+					candidate,
+					priority,
+					selected_entity,
+					selected_priority
+				):
+					selected_entity = candidate
+					selected_action = action_id
+					selected_priority = priority
+	return {"entity": selected_entity, "action_id": selected_action}
+
+
+func _is_better_interaction_candidate(
+	candidate: Entity,
+	priority: int,
+	selected_entity: Entity,
+	selected_priority: int
+) -> bool:
+	if selected_entity == null:
+		return true
+	if priority != selected_priority:
+		return priority > selected_priority
+	if candidate.instance_id != selected_entity.instance_id:
+		return String(candidate.instance_id) < String(selected_entity.instance_id)
+	return false
+
+
+func _get_location(location_id: StringName) -> LocationRuntime:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return null
+	var world_definition := tree.root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
+	return world_definition.get_location(location_id) if world_definition != null else null
 
 
 func _get_input_direction() -> Vector2:

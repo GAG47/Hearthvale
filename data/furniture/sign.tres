@@ -14,3 +14,4 @@ script = ExtResource("3_57iq4")
 display_name = "告示牌"
 visual = ExtResource("4_01iru")
 behaviors = Array[ExtResource("1_olbl6")]([SubResource("Resource_6pm6p")])
+footprint_cells = Array[Vector2i]([Vector2i(0, 0)])

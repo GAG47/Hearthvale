@@ -26,6 +26,7 @@ UseSlot 与 SlotEntrance 都是 Godot Custom Resource，作为 ActorDefinition �
 
 ```text
 Entity Definition
+├─ footprint_cells: Array[Vector2i]
 └─ use_slots: Array[UseSlot]
    ├─ local_cell: Vector2i
    ├─ required_facing: ActorState.Facing
@@ -33,6 +34,8 @@ Entity Definition
    └─ slot_entrances: Array[SlotEntrance]
       └─ local_cell: Vector2i
 ```
+
+Furniture 的 footprint 是 Definition-local Cell 集合，唯一权威字段为 `footprint_cells`。它可以表达不规则形状，例如 `[(0,0), (1,0), (0,1)]`；本轮不实现 rotation。
 
 两类局部坐标都以 Entity footprint 左上角为 `(0, 0)`。UseSlot 可以位于 footprint 内外；SlotEntrance 属于一个具体 UseSlot。EntityState 继续只保存实例位置和其他运行事实，Entity 移动不会修改 Definition 中任何 Slot 坐标。
 
@@ -42,14 +45,14 @@ Entity Definition
 
 查询 `Entity + action_id` 时，先筛选 Definition 中 `supported_actions` 包含该 Action 的显式 UseSlot。只要存在匹配项，就完整返回显式项，不再为该 Action 生成默认 Slot。
 
-如果没有任何匹配的显式 UseSlot，则从 Entity 当前 footprint 的局部 occupied Cells 派生临时默认结果：
+如果没有任何匹配的显式 UseSlot，则直接从 Entity 的 Definition-local footprint Cells 派生临时默认结果：
 
-- 对每个 occupied Cell 检查上、下、左、右；
+- 对每个 footprint Cell 检查上、下、左、右；
 - 只保留 footprint 外的相邻 Cell；
 - 相同 local Cell 去重；
 - 不生成对角 Slot；
 - 左侧 Slot 要求 RIGHT，右侧要求 LEFT，上侧要求 DOWN，下侧要求 UP；
-- non-blocking Entity 还为每个 occupied Cell 生成 `Facing.NONE` 的脚下 Slot；
+- non-blocking Entity 还为每个 footprint Cell 生成 `Facing.NONE` 的脚下 Slot；
 - blocking Entity 不生成脚下默认 Slot。
 
 默认结果不写回 `use_slots`，不会把运行查询变成 Project Definition 变更。
@@ -62,7 +65,7 @@ UseSlot 配置一个或多个显式 SlotEntrance 时，查询完整保留全部�
 
 ## Runtime 查询与校验
 
-Entity 从实际 occupied Cells 计算 footprint world origin；坐标转换统一为：
+Furniture Runtime 直接把 Definition-local footprint Cells 平移到当前 Entity footprint origin；坐标转换统一为：
 
 ```text
 world_use_slot_cell = entity_footprint_origin_cell + use_slot.local_cell
@@ -77,7 +80,7 @@ SlotEntrance 当前有效需要：Entity 属于该 Location、world Cell 在 bou
 
 ## 交互迁移
 
-InteractionTargetSelector 不再查询 Actor 脚下与面前的目标 occupied Cells。它遍历当前 Location 的逻辑 Entities，根据 Actor 当前 Cell、facing 和候选 Action UseSlot 选择目标；同格冲突继续按稳定 instance UUID 排序。
+InteractionTargetSelector 已删除。PlayerController 遍历当前 Location 的逻辑 Entities，根据 Actor 当前 Cell、facing、候选 Action UseSlot 和当前 Runtime 有效性选择 Entity + Action；同一位置的明确 facing 匹配优先于 `Facing.NONE`，完全同级时继续按稳定 instance UUID 排序。PlayerController 只负责玩家选择，ActionSpatialRule 仍是 WorldAction 的最终空间权威。
 
 ActionSpatialRule 保留 Actor、Target、Location 身份检查，空间部分改为：
 
@@ -91,7 +94,7 @@ world Cell、required facing 与 LocationRuntime 有效性匹配
 允许或拒绝 WorldAction
 ```
 
-旧的脚下 / 面前 occupied Cell 判断已经删除。没有 V10 配置的普通 blocking Furniture 通过默认外部 Slot 保持面对交互；non-blocking Entity 通过默认 footprint Slot 保持脚下交互。
+旧的脚下 / 面前目标 Cell 判断已经删除。没有 V10 配置的普通 blocking Furniture 通过默认外部 Slot 保持面对交互；non-blocking Entity 通过默认 footprint Slot 保持脚下交互。ActionSpatialRule 在无法取得 LocationRuntime 时直接 reject，生产代码不保留测试 fallback。
 
 ## Scene 边界
 
@@ -103,6 +106,7 @@ V10 专项覆盖：
 
 - 1x1 blocking Furniture 的四个非对角默认 Slot；
 - 2x2 blocking Furniture 的八个去重外沿 Slot；
+- L 型 Furniture 的 local footprint、occupied world Cells 和真实外沿默认 Slot；
 - non-blocking Entity 的脚下与外部 Slot；
 - 显式 Action Slot 排除默认 Slot；
 - required facing 通过与拒绝；
@@ -112,6 +116,8 @@ V10 专项覆盖：
 - Structure 和其他 blocking Entity 令 Entrance 当前不可用但不修改 Definition；
 - 目标自身 blocking 不会错误否定内部 UseSlot；
 - 现有 Furniture 面前交互和 non-blocking 脚下交互；
+- facing Slot 优先于 `Facing.NONE`；
+- 缺失 LocationRuntime 时 ActionSpatialRule reject；
 - Location Scene 销毁重建后的 Slot / Entrance 一致性。
 
 完整测试结果记录在本轮最终验证中。

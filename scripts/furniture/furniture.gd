@@ -81,13 +81,35 @@ func get_openable_state() -> OpenableState:
 	return furniture_state.behavior_states.get(OPENABLE_BEHAVIOR_ID) as OpenableState
 
 
-func get_occupied_grid_cells() -> Array[Vector2i]:
-	var top_left := local_position - Vector2(definition.occupied_cells * GridSpace.CELL_SIZE) * 0.5
-	var anchor_cell := GridSpace.local_position_to_cell(top_left)
+func get_footprint_local_cells() -> Array[Vector2i]:
+	if definition == null:
+		return []
 	var cells: Array[Vector2i] = []
-	for y in range(definition.occupied_cells.y):
-		for x in range(definition.occupied_cells.x):
-			cells.append(anchor_cell + Vector2i(x, y))
+	var seen: Dictionary[Vector2i, bool] = {}
+	for cell in definition.footprint_cells:
+		if seen.has(cell):
+			continue
+		seen[cell] = true
+		cells.append(cell)
+	return cells
+
+
+func get_footprint_origin_cell() -> Vector2i:
+	var footprint_cells := get_footprint_local_cells()
+	if footprint_cells.is_empty():
+		return current_cell
+	var footprint_bounds := definition.get_footprint_bounds()
+	return current_cell - Vector2i(
+		floori(float(footprint_bounds.size.x) * 0.5),
+		floori(float(footprint_bounds.size.y) * 0.5)
+	) - footprint_bounds.position
+
+
+func get_occupied_grid_cells() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	var origin := get_footprint_origin_cell()
+	for local_cell in get_footprint_local_cells():
+		cells.append(origin + local_cell)
 	return cells
 
 

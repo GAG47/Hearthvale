@@ -46,22 +46,11 @@ func get_use_slots(action_id: StringName) -> Array[UseSlot]:
 
 
 func get_footprint_origin_cell() -> Vector2i:
-	var occupied_cells := get_occupied_grid_cells()
-	if occupied_cells.is_empty():
-		return current_cell
-	var origin := occupied_cells[0]
-	for cell in occupied_cells:
-		origin.x = mini(origin.x, cell.x)
-		origin.y = mini(origin.y, cell.y)
-	return origin
+	return current_cell
 
 
 func get_footprint_local_cells() -> Array[Vector2i]:
-	var origin := get_footprint_origin_cell()
-	var local_cells: Array[Vector2i] = []
-	for cell in get_occupied_grid_cells():
-		local_cells.append(cell - origin)
-	return local_cells
+	return [Vector2i.ZERO]
 
 
 func get_use_slot_world_cell(slot: UseSlot) -> Vector2i:
@@ -128,12 +117,12 @@ func blocks_movement() -> bool:
 
 
 func _build_default_use_slots(action_id: StringName) -> Array[UseSlot]:
-	var occupied_cells := get_footprint_local_cells()
-	if occupied_cells.is_empty():
+	var footprint_cells := get_footprint_local_cells()
+	if footprint_cells.is_empty():
 		return []
-	var occupied_lookup: Dictionary[Vector2i, bool] = {}
-	for cell in occupied_cells:
-		occupied_lookup[cell] = true
+	var footprint_lookup: Dictionary[Vector2i, bool] = {}
+	for cell in footprint_cells:
+		footprint_lookup[cell] = true
 
 	var slots: Array[UseSlot] = []
 	var generated_cells: Dictionary[Vector2i, bool] = {}
@@ -143,16 +132,16 @@ func _build_default_use_slots(action_id: StringName) -> Array[UseSlot]:
 		[Vector2i.LEFT, ActorState.Facing.RIGHT],
 		[Vector2i.RIGHT, ActorState.Facing.LEFT],
 	]
-	for cell in occupied_cells:
+	for cell in footprint_cells:
 		for direction_data in directions:
 			var neighbor: Vector2i = cell + direction_data[0]
-			if occupied_lookup.has(neighbor) or generated_cells.has(neighbor):
+			if footprint_lookup.has(neighbor) or generated_cells.has(neighbor):
 				continue
 			generated_cells[neighbor] = true
 			slots.append(_create_default_slot(neighbor, action_id, direction_data[1]))
 
 	if not blocks_movement():
-		for cell in occupied_cells:
+		for cell in footprint_cells:
 			if generated_cells.has(cell):
 				continue
 			generated_cells[cell] = true

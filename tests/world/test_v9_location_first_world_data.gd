@@ -250,7 +250,8 @@ func _test_scene_lifecycle(
 	var player_facing := player.facing
 	player.state.local_position = GridSpace.cell_to_local_position(Vector2i(13, 6), Vector2.ONE * GridSpace.CELL_SIZE * 0.5)
 	(player.state as ActorState).facing = ActorState.Facing.RIGHT
-	_expect(InteractionTargetSelector.select_target(player) == chest, "Interaction must query Location Entities even when the target Representation is absent.")
+	var controller := game.get_node("PlayerController") as PlayerController
+	_expect(controller.call("_select_interaction").get("entity") == chest, "Interaction must query Location Entities even when the target Representation is absent.")
 	player.state.local_position = player_position
 	(player.state as ActorState).facing = player_facing
 

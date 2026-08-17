@@ -24,11 +24,8 @@ func prepare_furniture(
 	if p_furniture.definition == null or p_furniture.state == null:
 		push_error("FurnitureRepresentation requires FurnitureDefinition and FurnitureState.")
 		return false
-	if (
-		p_furniture.definition.occupied_cells.x <= 0
-		or p_furniture.definition.occupied_cells.y <= 0
-	):
-		push_error("FurnitureRepresentation requires positive occupied_cells in its Definition.")
+	if p_furniture.get_footprint_local_cells().is_empty():
+		push_error("FurnitureRepresentation requires footprint_cells in its Definition.")
 		return false
 	if p_furniture.current_location_id != location.location_id:
 		push_error(
@@ -85,10 +82,8 @@ func _configure_blocking_collision(
 	collision.disabled = not furniture.definition.blocks_movement
 	var rectangle := collision.shape as RectangleShape2D
 	if rectangle != null:
-		rectangle.size = (
-			Vector2(furniture.definition.occupied_cells * GridSpace.CELL_SIZE)
-			- Vector2(4.0, 4.0)
-		)
+		var footprint_size := furniture.definition.get_footprint_bounds().size
+		rectangle.size = Vector2(footprint_size * GridSpace.CELL_SIZE) - Vector2(4.0, 4.0)
 
 
 func _update_visual() -> bool:

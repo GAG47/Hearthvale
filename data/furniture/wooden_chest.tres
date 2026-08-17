@@ -15,3 +15,4 @@ script = ExtResource("4_owo83")
 display_name = "储物箱"
 visual = ExtResource("5_3m5fe")
 behaviors = Array[ExtResource("1_rjblx")]([SubResource("Resource_l474v")])
+footprint_cells = Array[Vector2i]([Vector2i(0, 0)])

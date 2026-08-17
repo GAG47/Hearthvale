@@ -9,21 +9,21 @@ func _init() -> void:
 		"res://data/furniture/simple_bed.tres",
 		"床",
 		SleepableBehavior,
-		Vector2i(1, 2),
+		[Vector2i(0, 0), Vector2i(0, 1)],
 		"res://assets/furniture/bed.svg"
 	)
 	_test_definition(
 		"res://data/furniture/wooden_chest.tres",
 		"储物箱",
 		OpenableBehavior,
-		Vector2i.ONE,
+		[Vector2i(0, 0)],
 		"res://assets/furniture/chest_closed.svg"
 	)
 	_test_definition(
 		"res://data/furniture/sign.tres",
 		"告示牌",
 		InspectableBehavior,
-		Vector2i.ONE,
+		[Vector2i(0, 0)],
 		"res://assets/furniture/sign.svg"
 	)
 	var chest := load("res://data/furniture/wooden_chest.tres") as FurnitureDefinition
@@ -51,7 +51,7 @@ func _test_definition(
 	path: String,
 	expected_name: String,
 	expected_behavior_script: Script,
-	expected_cells: Vector2i,
+	expected_cells: Array[Vector2i],
 	expected_visual_path: String
 ) -> void:
 	var definition := load(path) as FurnitureDefinition
@@ -60,7 +60,7 @@ func _test_definition(
 		return
 	_expect(definition is Resource, "%s must be a Godot Resource." % path)
 	_expect(definition.display_name == expected_name, "%s must preserve display_name." % path)
-	_expect(definition.occupied_cells == expected_cells, "%s must preserve occupied_cells." % path)
+	_expect(definition.footprint_cells == expected_cells, "%s must preserve footprint_cells." % path)
 	_expect(definition.visual.resource_path == expected_visual_path, "%s must directly reference its Texture2D." % path)
 	_expect(definition.behaviors.size() == 1, "%s must preserve one Behavior Resource." % path)
 	_expect(definition.use_slots.is_empty(), "%s must remain valid without explicit UseSlot data." % path)
