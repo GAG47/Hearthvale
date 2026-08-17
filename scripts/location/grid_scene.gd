@@ -64,21 +64,3 @@ func _exit_tree() -> void:
 
 func get_world_rect() -> Rect2:
 	return Rect2(Vector2.ZERO, GridSpace.grid_size_to_local_size(grid_size))
-
-
-func get_location_entries() -> Array[LocationEntry]:
-	var entries: Array[LocationEntry] = []
-	var entry_root := get_node_or_null("EntryPoints")
-	if entry_root == null:
-		return entries
-	for child in entry_root.get_children():
-		if child is LocationEntry:
-			entries.append(child as LocationEntry)
-	return entries
-
-
-func get_location_entry(entry_id: StringName) -> LocationEntry:
-	for entry in get_location_entries():
-		if entry.entry_id == entry_id:
-			return entry
-	return null

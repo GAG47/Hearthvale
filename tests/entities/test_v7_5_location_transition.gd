@@ -65,7 +65,7 @@ func _run_tests() -> void:
 	_expect_prepare_failure(
 		game, controller, world_state, player,
 		yard_id, tavern_id, missing_entry_edge,
-		"missing target Entry Anchor"
+		"missing target LocationEntry"
 	)
 
 	var real_yard_edge := world_definition.get_edge(tavern_id, &"back_door")
@@ -112,8 +112,8 @@ func _run_tests() -> void:
 	var yard_representation := controller.controlled_representation
 	_expect(yard != null and yard.location_id == yard_id, "Commit must update current_location.")
 	_expect(player.current_location_id == yard_id, "Commit must migrate ActorState location.")
-	_expect(player.local_position == Vector2(384.0, 80.0), "Commit must use Entry Anchor position.")
-	_expect(player.facing == ActorState.Facing.DOWN, "Commit must use Entry Anchor facing.")
+	_expect(player.local_position == Vector2(384.0, 64.0), "Commit must use LocationEntry Cell position.")
+	_expect(player.facing == ActorState.Facing.DOWN, "Commit must use LocationEntry facing.")
 	_expect(
 		is_instance_valid(yard_representation)
 		and yard_representation != old_representation
@@ -124,7 +124,7 @@ func _run_tests() -> void:
 	_expect(not is_instance_valid(old_representation), "Commit must release the old Representation.")
 	_expect(
 		yard.get_node_or_null("GroundLayer") is TileMapLayer
-		and yard.get_node_or_null("DecorationLayer") is Node2D
+		and yard.get_node_or_null("DecorationLayer") is TileMapLayer
 		and yard.get_node_or_null("StructureLayer") is TileMapLayer
 		and yard.get_node_or_null("EntityRepresentationRoot") is Node2D,
 		"Prepared Location Scene must contain all built Representation layers."
@@ -158,7 +158,7 @@ func _run_tests() -> void:
 	var returned_chest := _find_furniture_representation(returned_tavern, CHEST_INSTANCE_ID)
 	_expect(returned_tavern.location_id == tavern_id, "Return Commit must restore Tavern.")
 	_expect(player.current_location_id == tavern_id, "Return Commit must migrate ActorState back.")
-	_expect(player.local_position == Vector2(576.0, 432.0), "Return must use back-door Entry Anchor.")
+	_expect(player.local_position == Vector2(576.0, 416.0), "Return must use back-door LocationEntry Cell.")
 	_expect(player.facing == ActorState.Facing.UP, "Return must use back-door Entry facing.")
 	_expect(not is_instance_valid(old_yard), "Return Commit must unload the prior Scene.")
 	_expect(

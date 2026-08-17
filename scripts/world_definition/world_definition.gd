@@ -111,7 +111,7 @@ func get_target_entry(
 	target_location: LocationRuntime,
 	from_location_id: StringName,
 	edge: LocationEdgeDefinition
-) -> LocationEntryAnchor:
+) -> LocationEntry:
 	if target_location == null or edge == null:
 		return null
 	if target_location.instance_id != edge.target_location_id:
@@ -123,7 +123,7 @@ func get_target_entry(
 	var entry := target_location.get_entry(edge.target_entry_id)
 	if entry == null:
 		push_error(
-			"Location edge '%s/%s' targets instance_id '%s' with entry_id '%s', but no such Entry Anchor exists."
+			"Location edge '%s/%s' targets instance_id '%s' with entry_id '%s', but no such LocationEntry exists."
 			% [from_location_id, edge.edge_key, edge.target_location_id, edge.target_entry_id]
 		)
 	return entry
@@ -195,8 +195,28 @@ func _validate_location_definition(definition: LocationDefinition, require_compl
 		if not _cell_in_grid(cell, definition.grid_size):
 			valid = false
 		var ground := definition_registry.get_definition(definition.ground_layer[cell])
-		if not ground is GroundDefinition:
-			push_error("Location Ground cell %s does not reference GroundDefinition." % cell)
+		if not ground is GroundTileDefinition:
+			push_error("Location Ground cell %s does not reference GroundTileDefinition." % cell)
+			valid = false
+	for cell in definition.decoration_layer:
+		if not _cell_in_grid(cell, definition.grid_size):
+			valid = false
+		var decoration := definition_registry.get_definition(definition.decoration_layer[cell])
+		if not decoration is DecorationTileDefinition:
+			push_error(
+				"Location Decoration cell %s does not reference DecorationTileDefinition."
+				% cell
+			)
+			valid = false
+	for cell in definition.structure_layer:
+		if not _cell_in_grid(cell, definition.grid_size):
+			valid = false
+		var structure := definition_registry.get_definition(definition.structure_layer[cell])
+		if not structure is StructureTileDefinition:
+			push_error(
+				"Location Structure cell %s does not reference StructureTileDefinition."
+				% cell
+			)
 			valid = false
 
 	var edge_ids: Dictionary[StringName, bool] = {}
@@ -217,58 +237,34 @@ func _validate_location_definition(definition: LocationDefinition, require_compl
 		edge_ids[edge.edge_id] = true
 		edge_keys[edge.edge_key] = true
 
-	var placement_ids: Dictionary[StringName, bool] = {}
-	for placement in definition.structure_placements:
-		if (
-			placement == null
-			or not UuidValidator.is_valid_v4(placement.placement_id)
-			or placement_ids.has(placement.placement_id)
-			or not StructurePlacement.VALID_ORIENTATIONS.has(placement.orientation)
-		):
-			push_error("LocationDefinition '%s' has an invalid StructurePlacement." % definition.definition_id)
-			valid = false
-			continue
-		placement_ids[placement.placement_id] = true
-		var structure := definition_registry.get_definition(placement.definition_id)
-		if not structure is StructureDefinition or structure.occupied_cells.is_empty():
-			push_error("StructurePlacement '%s' does not reference StructureDefinition." % placement.placement_id)
-			valid = false
-
-	for placement in definition.decoration_placements:
-		if (
-			placement == null
-			or not UuidValidator.is_valid_v4(placement.placement_id)
-			or placement_ids.has(placement.placement_id)
-		):
-			push_error("LocationDefinition '%s' has an invalid DecorationPlacement." % definition.definition_id)
-			valid = false
-			continue
-		placement_ids[placement.placement_id] = true
-		if not definition_registry.get_definition(placement.definition_id) is DecorationDefinition:
-			push_error("DecorationPlacement '%s' does not reference DecorationDefinition." % placement.placement_id)
-			valid = false
-
 	var entry_ids: Dictionary[StringName, bool] = {}
 	var exit_keys: Dictionary[StringName, bool] = {}
-	for anchor in definition.anchors:
-		if anchor is LocationEntryAnchor:
-			var entry := anchor as LocationEntryAnchor
-			if entry.entry_id.is_empty() or entry_ids.has(entry.entry_id) or not _cell_in_grid(entry.cell, definition.grid_size):
-				push_error("LocationDefinition '%s' has an invalid Entry Anchor." % definition.definition_id)
-				valid = false
-			entry_ids[entry.entry_id] = true
-		elif anchor is LocationExitAnchor:
-			var exit := anchor as LocationExitAnchor
-			if exit.edge_key.is_empty() or exit_keys.has(exit.edge_key) or not edge_keys.has(exit.edge_key):
-				push_error("LocationDefinition '%s' has an invalid Exit Anchor." % definition.definition_id)
-				valid = false
-			exit_keys[exit.edge_key] = true
-		else:
-			push_error("LocationDefinition '%s' has an unsupported Anchor." % definition.definition_id)
+	for entry in definition.entries:
+		if (
+			entry == null
+			or entry.entry_id.is_empty()
+			or entry_ids.has(entry.entry_id)
+			or not _cell_in_grid(entry.cell, definition.grid_size)
+		):
+			push_error("LocationDefinition '%s' has an invalid LocationEntry." % definition.definition_id)
 			valid = false
+			continue
+		entry_ids[entry.entry_id] = true
+	for location_exit in definition.exits:
+		if (
+			location_exit == null
+			or location_exit.edge_key.is_empty()
+			or exit_keys.has(location_exit.edge_key)
+			or not edge_keys.has(location_exit.edge_key)
+			or not _rect_in_grid(location_exit.cell_rect, definition.grid_size)
+		):
+			push_error("LocationDefinition '%s' has an invalid LocationExit." % definition.definition_id)
+			valid = false
+			continue
+		exit_keys[location_exit.edge_key] = true
 	for edge_key in edge_keys:
 		if not exit_keys.has(edge_key):
-			push_error("Location edge_key '%s' has no local Exit Anchor." % edge_key)
+			push_error("Location edge_key '%s' has no local LocationExit." % edge_key)
 			valid = false
 	return valid
 
@@ -289,8 +285,18 @@ static func _cell_in_grid(cell: Vector2i, grid_size: Vector2i) -> bool:
 	return cell.x >= 0 and cell.y >= 0 and cell.x < grid_size.x and cell.y < grid_size.y
 
 
+static func _rect_in_grid(rect: Rect2i, grid_size: Vector2i) -> bool:
+	return (
+		rect.size.x > 0
+		and rect.size.y > 0
+		and _cell_in_grid(rect.position, grid_size)
+		and rect.end.x <= grid_size.x
+		and rect.end.y <= grid_size.y
+	)
+
+
 static func _has_entry(definition: LocationDefinition, entry_id: StringName) -> bool:
-	for anchor in definition.anchors:
-		if anchor is LocationEntryAnchor and (anchor as LocationEntryAnchor).entry_id == entry_id:
+	for entry in definition.entries:
+		if entry.entry_id == entry_id:
 			return true
 	return false

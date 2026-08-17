@@ -6,10 +6,8 @@ var definition_id: StringName
 
 # Sparse differences from LocationDefinition. Unchanged world data is never copied here.
 var ground_overrides: Dictionary[Vector2i, StringName] = {}
-var removed_structure_ids: Dictionary[StringName, bool] = {}
-var added_structures: Array[StructurePlacement] = []
-var removed_decoration_ids: Dictionary[StringName, bool] = {}
-var added_decorations: Array[DecorationPlacement] = []
+var decoration_overrides: Dictionary[Vector2i, StringName] = {}
+var structure_overrides: Dictionary[Vector2i, StringName] = {}
 var removed_edge_ids: Dictionary[StringName, bool] = {}
 var disabled_edge_ids: Dictionary[StringName, bool] = {}
 var added_edges: Array[LocationEdgeDefinition] = []
@@ -25,33 +23,29 @@ func _init(p_instance_id: StringName, p_definition_id: StringName) -> void:
 
 
 func to_data() -> Dictionary:
-	var serialized_ground: Array = []
-	for cell in ground_overrides:
-		serialized_ground.append({
-			"cell": [cell.x, cell.y],
-			"definition_id": String(ground_overrides[cell]),
-		})
-	var serialized_structures: Array = []
-	for placement in added_structures:
-		serialized_structures.append(placement.to_data())
-	var serialized_decorations: Array = []
-	for placement in added_decorations:
-		serialized_decorations.append(placement.to_data())
 	var serialized_edges: Array = []
 	for edge in added_edges:
 		serialized_edges.append(edge.to_data())
 	return {
 		"instance_id": String(instance_id),
 		"definition_id": String(definition_id),
-		"ground_overrides": serialized_ground,
-		"removed_structure_ids": _string_keys(removed_structure_ids),
-		"added_structures": serialized_structures,
-		"removed_decoration_ids": _string_keys(removed_decoration_ids),
-		"added_decorations": serialized_decorations,
+		"ground_overrides": _serialize_layer_overrides(ground_overrides),
+		"decoration_overrides": _serialize_layer_overrides(decoration_overrides),
+		"structure_overrides": _serialize_layer_overrides(structure_overrides),
 		"removed_edge_ids": _string_keys(removed_edge_ids),
 		"disabled_edge_ids": _string_keys(disabled_edge_ids),
 		"added_edges": serialized_edges,
 	}
+
+
+static func _serialize_layer_overrides(overrides: Dictionary[Vector2i, StringName]) -> Array:
+	var serialized: Array = []
+	for cell in overrides:
+		serialized.append({
+			"cell": [cell.x, cell.y],
+			"definition_id": String(overrides[cell]),
+		})
+	return serialized
 
 
 static func _string_keys(values: Dictionary[StringName, bool]) -> Array[String]:

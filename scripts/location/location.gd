@@ -38,68 +38,88 @@ func is_valid() -> bool:
 	)
 
 
-func get_ground_definition_id(cell: Vector2i) -> StringName:
+func get_ground_tile_definition_id(cell: Vector2i) -> StringName:
 	if state.ground_overrides.has(cell):
 		return state.ground_overrides[cell]
 	return definition.ground_layer.get(cell, &"") as StringName
 
 
-func get_ground_definition(cell: Vector2i) -> GroundDefinition:
-	var definition_id := get_ground_definition_id(cell)
+func get_ground_tile(cell: Vector2i) -> GroundTileDefinition:
+	var definition_id := get_ground_tile_definition_id(cell)
 	if definition_id.is_empty():
 		return null
-	return definition_registry.get_definition(definition_id) as GroundDefinition
+	return definition_registry.get_definition(definition_id) as GroundTileDefinition
 
 
-func get_current_ground() -> Dictionary[Vector2i, GroundDefinition]:
-	var cells: Dictionary[Vector2i, GroundDefinition] = {}
+func get_current_ground_layer() -> Dictionary[Vector2i, GroundTileDefinition]:
+	var layer: Dictionary[Vector2i, GroundTileDefinition] = {}
 	var current_cells: Dictionary[Vector2i, bool] = {}
 	for cell in definition.ground_layer:
 		current_cells[cell] = true
 	for cell in state.ground_overrides:
 		current_cells[cell] = true
 	for cell in current_cells:
-		cells[cell] = get_ground_definition(cell)
-	return cells
+		if get_ground_tile_definition_id(cell).is_empty():
+			continue
+		var tile := get_ground_tile(cell)
+		layer[cell] = tile
+	return layer
 
 
-func get_current_decorations() -> Array[DecorationPlacement]:
-	var placements: Array[DecorationPlacement] = []
-	for placement in definition.decoration_placements:
-		if not state.removed_decoration_ids.get(placement.placement_id, false):
-			placements.append(placement)
-	placements.append_array(state.added_decorations)
-	return placements
+func get_decoration_tile_definition_id(cell: Vector2i) -> StringName:
+	if state.decoration_overrides.has(cell):
+		return state.decoration_overrides[cell]
+	return definition.decoration_layer.get(cell, &"") as StringName
 
 
-func get_current_structures() -> Array[StructurePlacement]:
-	var placements: Array[StructurePlacement] = []
-	for placement in definition.structure_placements:
-		if not state.removed_structure_ids.get(placement.placement_id, false):
-			placements.append(placement)
-	placements.append_array(state.added_structures)
-	return placements
+func get_decoration_tile(cell: Vector2i) -> DecorationTileDefinition:
+	var definition_id := get_decoration_tile_definition_id(cell)
+	if definition_id.is_empty():
+		return null
+	return definition_registry.get_definition(definition_id) as DecorationTileDefinition
 
 
-func get_current_anchors() -> Array[LocationAnchor]:
-	return definition.anchors.duplicate()
+func get_current_decoration_layer() -> Dictionary[Vector2i, DecorationTileDefinition]:
+	var layer: Dictionary[Vector2i, DecorationTileDefinition] = {}
+	var current_cells: Dictionary[Vector2i, bool] = {}
+	for cell in definition.decoration_layer:
+		current_cells[cell] = true
+	for cell in state.decoration_overrides:
+		current_cells[cell] = true
+	for cell in current_cells:
+		if get_decoration_tile_definition_id(cell).is_empty():
+			continue
+		var tile := get_decoration_tile(cell)
+		layer[cell] = tile
+	return layer
 
 
-func get_structure_cells(placement: StructurePlacement) -> Array[Vector2i]:
-	if placement == null:
-		return []
-	var structure_definition := (
-		definition_registry.get_definition(placement.definition_id) as StructureDefinition
-	)
-	return placement.get_world_cells(structure_definition)
+func get_structure_tile_definition_id(cell: Vector2i) -> StringName:
+	if state.structure_overrides.has(cell):
+		return state.structure_overrides[cell]
+	return definition.structure_layer.get(cell, &"") as StringName
 
 
-func get_structures_at(cell: Vector2i) -> Array[StructurePlacement]:
-	var placements: Array[StructurePlacement] = []
-	for placement in get_current_structures():
-		if get_structure_cells(placement).has(cell):
-			placements.append(placement)
-	return placements
+func get_structure_tile(cell: Vector2i) -> StructureTileDefinition:
+	var definition_id := get_structure_tile_definition_id(cell)
+	if definition_id.is_empty():
+		return null
+	return definition_registry.get_definition(definition_id) as StructureTileDefinition
+
+
+func get_current_structure_layer() -> Dictionary[Vector2i, StructureTileDefinition]:
+	var layer: Dictionary[Vector2i, StructureTileDefinition] = {}
+	var current_cells: Dictionary[Vector2i, bool] = {}
+	for cell in definition.structure_layer:
+		current_cells[cell] = true
+	for cell in state.structure_overrides:
+		current_cells[cell] = true
+	for cell in current_cells:
+		if get_structure_tile_definition_id(cell).is_empty():
+			continue
+		var tile := get_structure_tile(cell)
+		layer[cell] = tile
+	return layer
 
 
 func get_current_edges() -> Array[LocationEdgeDefinition]:
@@ -123,19 +143,19 @@ func get_edge(edge_key: StringName) -> LocationEdgeDefinition:
 	return null
 
 
-func get_entry(entry_id: StringName) -> LocationEntryAnchor:
-	for anchor in definition.anchors:
-		if anchor is LocationEntryAnchor and (anchor as LocationEntryAnchor).entry_id == entry_id:
-			return anchor as LocationEntryAnchor
+func get_entry(entry_id: StringName) -> LocationEntry:
+	for entry in definition.entries:
+		if entry.entry_id == entry_id:
+			return entry
 	return null
 
 
-func get_exit_anchors() -> Array[LocationExitAnchor]:
-	var exits: Array[LocationExitAnchor] = []
-	for anchor in definition.anchors:
-		if anchor is LocationExitAnchor:
-			exits.append(anchor as LocationExitAnchor)
-	return exits
+func get_current_entries() -> Array[LocationEntry]:
+	return definition.entries.duplicate()
+
+
+func get_current_exits() -> Array[LocationExit]:
+	return definition.exits.duplicate()
 
 
 func get_entities() -> Array[Entity]:
@@ -153,15 +173,12 @@ func get_entities_at(cell: Vector2i) -> Array[Entity]:
 func is_cell_walkable(cell: Vector2i) -> bool:
 	if cell.x < 0 or cell.y < 0 or cell.x >= definition.grid_size.x or cell.y >= definition.grid_size.y:
 		return false
-	var ground := get_ground_definition(cell)
+	var ground := get_ground_tile(cell)
 	if ground == null or not ground.walkable:
 		return false
-	for placement in get_structures_at(cell):
-		var structure := (
-			definition_registry.get_definition(placement.definition_id) as StructureDefinition
-		)
-		if structure != null and structure.blocks_movement:
-			return false
+	var structure := get_structure_tile(cell)
+	if structure != null and structure.blocks_movement:
+		return false
 	for entity in get_entities_at(cell):
 		if entity.blocks_movement():
 			return false

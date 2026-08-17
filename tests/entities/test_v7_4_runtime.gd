@@ -273,7 +273,7 @@ func _run_tests() -> void:
 		== _get_visual_path_for_facing(player_definition, yard_representation.facing),
 		"A recreated ActorRepresentation must restore ActorState.facing."
 	)
-	_expect(player.local_position == Vector2(384.0, 80.0), "ActorState must use the target entry position.")
+	_expect(player.local_position == Vector2(384.0, 64.0), "ActorState must use the target LocationEntry Cell position.")
 	_expect(controller.global_position == yard_representation.global_position, "Camera owner must follow the new Representation.")
 	if camera != null:
 		_expect(camera.limit_right == 768 and camera.limit_bottom == 576, "Camera bounds must update in Tavern Yard.")

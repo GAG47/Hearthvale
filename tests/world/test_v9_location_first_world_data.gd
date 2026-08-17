@@ -5,6 +5,9 @@ const PLAYER_INSTANCE_ID := &"90000000-0000-4000-8000-000000000001"
 const CHEST_INSTANCE_ID := &"5543caf7-2a10-4a40-84de-3a39ffdf670e"
 const SPARSE_TEST_DEFINITION_ID := &"c0000000-0000-4000-8000-000000000108"
 const SPARSE_TEST_INSTANCE_ID := &"c0000000-0000-4000-8000-000000000109"
+const DECORATION_TEST_DEFINITION_ID := &"c0000000-0000-4000-8000-000000000110"
+const DECORATION_TEST_LOCATION_ID := &"c0000000-0000-4000-8000-000000000111"
+const DECORATION_TEST_INSTANCE_ID := &"c0000000-0000-4000-8000-000000000112"
 var _checks := 0
 var _failures := 0
 
@@ -36,28 +39,21 @@ func _run_tests() -> void:
 
 func _test_definition_registry(registry: DefinitionRegistryRuntime) -> void:
 	var project_definitions := registry.get_definitions()
-	_expect(project_definitions.size() == 30, "Registry must contain all project Actor, Furniture, spatial and Location Definitions.")
+	_expect(project_definitions.size() == 27, "Registry must contain all project Actor, Furniture, spatial Tile and Location Definitions.")
 	var type_counts: Dictionary[StringName, int] = {}
 	for definition in project_definitions:
 		_expect(UuidValidator.is_valid_v4(definition.definition_id), "Every Definition must use UUID v4 identity.")
 		type_counts[definition.get_definition_type()] = type_counts.get(definition.get_definition_type(), 0) + 1
 	_expect(type_counts.get(&"actor", 0) == 2, "ActorDefinitions must use the unified Registry.")
 	_expect(type_counts.get(&"furniture", 0) == 3, "FurnitureDefinitions must use the unified Registry.")
-	_expect(type_counts.get(&"ground", 0) == 9, "GroundDefinitions must use the unified Registry.")
-	_expect(type_counts.get(&"decoration", 0) == 5, "DecorationDefinitions must use the unified Registry.")
-	_expect(type_counts.get(&"structure", 0) == 8, "StructureDefinitions must use the unified Registry.")
+	_expect(type_counts.get(&"ground_tile", 0) == 9, "GroundTileDefinitions must use the unified Registry.")
+	_expect(type_counts.get(&"decoration_tile", 0) == 0, "Project data must not retain Label Decorations as Tile Definitions.")
+	_expect(type_counts.get(&"structure_tile", 0) == 10, "StructureTileDefinitions must use the unified Registry.")
 	_expect(type_counts.get(&"location", 0) == 3, "LocationDefinitions must use the unified Registry.")
 	for definition in project_definitions:
-		if definition is GroundDefinition:
-			_expect(
-				not (definition as GroundDefinition).presentation.has("tile_set_path"),
-				"Ground Definitions must select a Tile from the Layer's fixed TileSet."
-			)
-		elif definition is StructureDefinition:
-			_expect(
-				not (definition as StructureDefinition).presentation.has("tile_set_path"),
-				"Structure Definitions must select Tiles from the Layer's fixed TileSet."
-			)
+		if definition is GroundTileDefinition or definition is StructureTileDefinition:
+			_expect(not _has_property(definition, &"presentation"), "Spatial Tile Definitions must expose explicit Tile fields.")
+			_expect(definition.source_id >= 0, "Spatial Tile Definitions must select a source in the fixed TileSet.")
 	var player_definition := registry.get_definition(
 		&"5e05b833-0645-4c13-8713-4c8767a7efe3"
 	) as ActorDefinition
@@ -69,13 +65,15 @@ func _test_definition_registry(registry: DefinitionRegistryRuntime) -> void:
 	)
 	var ground_definition := registry.get_definition(
 		&"10000000-0000-4000-8000-000000000001"
-	) as GroundDefinition
-	var copied_presentation := ground_definition.presentation
-	copied_presentation["atlas_coords"] = [99, 99]
-	var stable_atlas: Array = ground_definition.presentation["atlas_coords"]
+	) as GroundTileDefinition
 	_expect(
-		stable_atlas.size() == 2 and int(stable_atlas[0]) == 0 and int(stable_atlas[1]) == 0,
-		"Registered spatial Definition presentation must remain stable."
+		ground_definition.key == &"wood_floor"
+		and ground_definition.walkable
+		and ground_definition.movement_cost == 1.0
+		and ground_definition.source_id == 0
+		and ground_definition.atlas_coords == Vector2i.ZERO
+		and ground_definition.alternative_tile == 0,
+		"GroundTileDefinition must expose only its explicit logical and fixed-TileSet fields."
 	)
 
 
@@ -93,35 +91,27 @@ func _test_project_locations(
 		_expect(state != null and UuidValidator.is_valid_v4(state.definition_id), "%s LocationState must reference a Definition UUID." % key)
 		_expect(location != null and location.definition.definition_id == state.definition_id, "%s Runtime must compose matching Definition + State." % key)
 		_expect(location.definition.grid_size.x * location.definition.grid_size.y == location.definition.ground_layer.size(), "%s Ground Layer must fully describe the grid." % key)
-		_expect(not location.definition.structure_placements.is_empty(), "%s must carry Structure Placements as world data." % key)
-		_expect(not location.definition.anchors.is_empty(), "%s must carry spatial Anchors as world data." % key)
-		for ground_definition_id in location.definition.ground_layer.values():
-			_expect(registry.get_definition(ground_definition_id) is GroundDefinition, "Ground Layer cells must reference GroundDefinitions.")
+		_expect(not location.definition.structure_layer.is_empty(), "%s must carry direct Structure Layer cells as world data." % key)
+		_expect(not location.definition.entries.is_empty(), "%s must carry direct LocationEntries." % key)
+		_expect(not location.definition.exits.is_empty(), "%s must carry direct LocationExits." % key)
+		for tile_definition_id in location.definition.ground_layer.values():
+			_expect(registry.get_definition(tile_definition_id) is GroundTileDefinition, "Ground Layer cells must reference GroundTileDefinitions.")
+		for tile_definition_id in location.definition.decoration_layer.values():
+			_expect(registry.get_definition(tile_definition_id) is DecorationTileDefinition, "Decoration Layer cells must reference DecorationTileDefinitions.")
+		for tile_definition_id in location.definition.structure_layer.values():
+			_expect(registry.get_definition(tile_definition_id) is StructureTileDefinition, "Structure Layer cells must reference StructureTileDefinitions.")
 
 	var tavern_id := world_definition.get_project_location_id(&"tavern")
 	var tavern := world_definition.get_location(tavern_id)
-	var multi_cell_placement: StructurePlacement
-	for placement in tavern.get_current_structures():
-		var structure := registry.get_definition(placement.definition_id) as StructureDefinition
-		if structure != null and structure.occupied_cells.size() > 1:
-			multi_cell_placement = placement
-			break
-	_expect(multi_cell_placement != null, "Migrated Tavern must contain a multi-cell StructurePlacement.")
-	if multi_cell_placement != null:
-		var cells := tavern.get_structure_cells(multi_cell_placement)
-		_expect(cells.size() == 2, "Multi-cell footprint must produce every occupied world cell.")
-		_expect(cells[1] == cells[0] + Vector2i.RIGHT, "origin_cell + occupied_cells must produce the actual horizontal footprint.")
-		var structure := registry.get_definition(multi_cell_placement.definition_id) as StructureDefinition
-		var rotated := StructurePlacement.new(
-			&"c0000000-0000-4000-8000-000000000104",
-			structure.definition_id,
-			Vector2i(5, 5),
-			90
-		)
-		_expect(
-			rotated.get_world_cells(structure) == [Vector2i(5, 5), Vector2i(5, 6)],
-			"Structure orientation must transform the shared footprint around origin_cell."
-		)
+	var top_left := tavern.get_structure_tile(Vector2i(11, 0))
+	var top_right := tavern.get_structure_tile(Vector2i(12, 0))
+	_expect(
+		top_left != null
+		and top_left.key == &"top_doorway_left"
+		and top_right != null
+		and top_right.key == &"top_doorway_right",
+		"Each Tavern doorway Cell must directly select its own StructureTileDefinition."
+	)
 
 
 func _test_sparse_location_state(
@@ -134,10 +124,8 @@ func _test_sparse_location_state(
 	var location := world_definition.get_location(tavern_id)
 	_expect(
 		state.ground_overrides.is_empty()
-		and state.removed_structure_ids.is_empty()
-		and state.added_structures.is_empty()
-		and state.removed_decoration_ids.is_empty()
-		and state.added_decorations.is_empty()
+		and state.decoration_overrides.is_empty()
+		and state.structure_overrides.is_empty()
 		and state.removed_edge_ids.is_empty()
 		and state.disabled_edge_ids.is_empty()
 		and state.added_edges.is_empty(),
@@ -148,45 +136,34 @@ func _test_sparse_location_state(
 	_expect(
 		not serialized_state.has("spatial_layout")
 		and not serialized_state.has("ground_layer")
-		and serialized_state["ground_overrides"].is_empty(),
+		and serialized_state["ground_overrides"].is_empty()
+		and serialized_state["decoration_overrides"].is_empty()
+		and serialized_state["structure_overrides"].is_empty(),
 		"Serialized LocationState must contain sparse deltas rather than a copied LocationDefinition."
 	)
 
 	var cell := Vector2i.ZERO
-	var base_ground_id := location.get_ground_definition_id(cell)
+	var base_ground_id := location.get_ground_tile_definition_id(cell)
 	var override_ground_id := &"10000000-0000-4000-8000-000000000003"
 	state.ground_overrides[cell] = override_ground_id
-	_expect(location.get_ground_definition_id(cell) == override_ground_id, "Ground sparse override must replace the base result.")
+	_expect(location.get_ground_tile_definition_id(cell) == override_ground_id, "Ground Cell override must replace the base result.")
 	state.ground_overrides.erase(cell)
-	_expect(location.get_ground_definition_id(cell) == base_ground_id, "Removing Ground override must reveal Definition data again.")
+	_expect(location.get_ground_tile_definition_id(cell) == base_ground_id, "Removing Ground override must reveal Definition data again.")
 
-	var removed_structure := location.definition.structure_placements[0]
-	var base_structure_count := location.get_current_structures().size()
-	state.removed_structure_ids[removed_structure.placement_id] = true
-	_expect(location.get_current_structures().size() == base_structure_count - 1, "removed_structure_ids must subtract Definition placements.")
-	state.removed_structure_ids.clear()
-	var added_structure := StructurePlacement.new(
-		&"c0000000-0000-4000-8000-000000000105",
-		removed_structure.definition_id,
-		Vector2i(1, 1)
-	)
-	state.added_structures.append(added_structure)
-	_expect(location.get_current_structures().size() == base_structure_count + 1, "added_structures must extend current Structure results without copying Definition data.")
-	state.added_structures.clear()
+	var structure_cell: Vector2i = location.definition.structure_layer.keys()[0]
+	var base_structure_id := location.get_structure_tile_definition_id(structure_cell)
+	var replacement_structure_id := &"20000000-0000-4000-8000-000000000001"
+	if replacement_structure_id == base_structure_id:
+		replacement_structure_id = &"20000000-0000-4000-8000-000000000002"
+	state.structure_overrides[structure_cell] = replacement_structure_id
+	_expect(location.get_structure_tile_definition_id(structure_cell) == replacement_structure_id, "Structure Cell override must replace the base result.")
+	state.structure_overrides[structure_cell] = &""
+	_expect(location.get_structure_tile(structure_cell) == null, "An empty Structure Cell override must remove the current Tile.")
+	_expect(not location.get_current_structure_layer().has(structure_cell), "Removed Structure Cells must be absent from the current Layer.")
+	state.structure_overrides.erase(structure_cell)
+	_expect(location.get_structure_tile_definition_id(structure_cell) == base_structure_id, "Removing a Structure override must reveal Definition data again.")
 
-	var removed_decoration := location.definition.decoration_placements[0]
-	var base_decoration_count := location.get_current_decorations().size()
-	state.removed_decoration_ids[removed_decoration.placement_id] = true
-	_expect(location.get_current_decorations().size() == base_decoration_count - 1, "removed_decoration_ids must subtract Definition placements.")
-	state.removed_decoration_ids.clear()
-	var added_decoration := DecorationPlacement.new(
-		&"c0000000-0000-4000-8000-000000000106",
-		removed_decoration.definition_id,
-		Vector2i(1, 1)
-	)
-	state.added_decorations.append(added_decoration)
-	_expect(location.get_current_decorations().size() == base_decoration_count + 1, "added_decorations must extend current Decoration results.")
-	state.added_decorations.clear()
+	_test_decoration_cell_override()
 
 	var edge := location.get_current_edges()[0]
 	state.disabled_edge_ids[edge.edge_id] = true
@@ -205,7 +182,40 @@ func _test_sparse_location_state(
 	state.added_edges.append(added_edge)
 	_expect(location.get_edge(&"state_added_edge") == added_edge, "added_edges must extend current Topology.")
 	state.added_edges.clear()
-	_expect(registry.get_definition(base_ground_id) == location.get_ground_definition(cell), "Runtime queries must resolve semantic IDs through DefinitionRegistry.")
+	_expect(registry.get_definition(base_ground_id) == location.get_ground_tile(cell), "Runtime queries must resolve semantic IDs through DefinitionRegistry.")
+
+
+func _test_decoration_cell_override() -> void:
+	var registry := DefinitionRegistryRuntime.new()
+	var entities := EntityRegistryRuntime.new()
+	var decoration := DecorationTileDefinition.new(
+		DECORATION_TEST_DEFINITION_ID,
+		&"test_decoration",
+		0,
+		Vector2i(4, 0),
+		0
+	)
+	_expect(registry.register_project_definition(decoration), "Decoration override fixture must register its Tile Definition.")
+	var decoration_layer: Dictionary[Vector2i, StringName] = {
+		Vector2i.ZERO: DECORATION_TEST_DEFINITION_ID,
+	}
+	var definition := LocationDefinition.new(
+		DECORATION_TEST_LOCATION_ID,
+		"Decoration Override Test",
+		Vector2i.ONE,
+		[],
+		{},
+		decoration_layer
+	)
+	var state := LocationState.new(DECORATION_TEST_INSTANCE_ID, DECORATION_TEST_LOCATION_ID)
+	var location := LocationRuntime.new(definition, state, registry, entities)
+	_expect(location.get_decoration_tile(Vector2i.ZERO) == decoration, "Decoration Layer must resolve its direct Cell Tile.")
+	state.decoration_overrides[Vector2i.ZERO] = &""
+	_expect(location.get_decoration_tile(Vector2i.ZERO) == null, "An empty Decoration Cell override must remove the current Tile.")
+	state.decoration_overrides.erase(Vector2i.ZERO)
+	_expect(location.get_decoration_tile(Vector2i.ZERO) == decoration, "Removing a Decoration override must reveal Definition data again.")
+	registry.free()
+	entities.free()
 
 
 func _test_scene_builder_current_ground(
@@ -222,7 +232,7 @@ func _test_scene_builder_current_ground(
 	state.ground_overrides[override_cell] = &"10000000-0000-4000-8000-000000000003"
 	var location := LocationRuntime.new(definition, state, registry, entity_registry)
 	_expect(
-		location.get_current_ground().has(override_cell),
+		location.get_current_ground_layer().has(override_cell),
 		"Current Ground must include a sparse override Cell absent from the Definition."
 	)
 	var prepared := LocationSceneBuilder.new().prepare_scene(
@@ -269,9 +279,10 @@ func _test_scene_lifecycle(
 	_expect(first_scene.scene_file_path.is_empty(), "Location Scene must be built at runtime and must not be a fixed map Scene resource.")
 	_expect(first_scene.location.definition == tavern_definition and first_scene.location.state == tavern_state, "Scene must represent the composed current Location.")
 	_expect((first_scene.get_node("GroundLayer") as TileMapLayer).get_used_cells().size() == 384, "Tavern Ground representation must be built from 384 data cells.")
-	_expect((first_scene.get_node("StructureLayer") as TileMapLayer).get_used_cells().size() == 108, "Tavern Structure representation must rebuild every footprint cell.")
-	_expect(first_scene.get_node("DecorationLayer").get_child_count() == 2, "Tavern Decorations must be built from DecorationDefinitions.")
-	_expect(first_scene.get_location_entries().size() == 3, "Entry Anchors must generate Scene entry markers.")
+	_expect((first_scene.get_node("StructureLayer") as TileMapLayer).get_used_cells().size() == 108, "Tavern Structure representation must be built from 108 direct data cells.")
+	_expect((first_scene.get_node("DecorationLayer") as TileMapLayer).get_used_cells().is_empty(), "Removed Label Decorations must leave the Tavern Decoration Tile Layer empty.")
+	_expect(first_scene.get_node("EntryPoints").get_child_count() == 3, "LocationEntries must generate Scene entry markers.")
+	_expect(first_scene.get_node_or_null("Exit_front_door") is LocationExitArea, "LocationExits must generate Scene exit trigger areas.")
 	_expect(first_scene.location.get_entities().size() == 4, "Location Entities must derive from EntityRegistry and EntityState.current_location_id.")
 	_expect(first_scene.location.get_entities_at(Vector2i(14, 6)).has(chest), "Cell Entity query must derive the Chest footprint from EntityState.")
 	_expect(not player.blocks_movement(), "Entity must not block movement by default.")
@@ -329,8 +340,10 @@ func _test_scene_lifecycle(
 
 func _test_source_boundaries() -> void:
 	var location_definition_source := _read_text("res://scripts/world_definition/location_definition.gd")
+	var location_state_source := _read_text("res://scripts/location/location_state.gd")
 	var game_source := _read_text("res://scripts/game.gd")
 	var project_world_source := _read_text("res://data/world/project_world.json")
+	var project_loader_source := _read_text("res://scripts/world_definition/project_world_data_loader.gd")
 	var selector_source := _read_text("res://scripts/interaction_target_selector.gd")
 	var grid_scene_source := _read_text("res://scripts/location/grid_scene.gd")
 	var location_source := _read_text("res://scripts/location/location.gd")
@@ -358,9 +371,45 @@ func _test_source_boundaries() -> void:
 	)
 	_expect(
 		not scene_builder_source.contains("location.definition.ground_layer")
-		and not scene_builder_source.contains("tile_set_path"),
+		and not scene_builder_source.contains("tile_set_path")
+		and scene_builder_source.contains("WORLD_TILE_SET"),
 		"SceneBuilder must consume Current Location and fixed Layer TileSets."
 	)
+	for old_script in [
+		"res://scripts/world_definition/ground_definition.gd",
+		"res://scripts/world_definition/decoration_definition.gd",
+		"res://scripts/world_definition/structure_definition.gd",
+		"res://scripts/world_definition/decoration_placement.gd",
+		"res://scripts/world_definition/structure_placement.gd",
+		"res://scripts/world_definition/location_anchor.gd",
+		"res://scripts/world_definition/location_entry_anchor.gd",
+		"res://scripts/world_definition/location_exit_anchor.gd",
+	]:
+		_expect(not FileAccess.file_exists(old_script), "V9.1 must delete obsolete spatial model script '%s'." % old_script)
+	_expect(
+		not location_definition_source.contains("Placement")
+		and not location_definition_source.contains("Anchor")
+		and not location_state_source.contains("added_structures")
+		and not location_state_source.contains("removed_structure_ids")
+		and not location_state_source.contains("added_decorations")
+		and not location_state_source.contains("removed_decoration_ids")
+		and not location_source.contains("Placement")
+		and not location_source.contains("Anchor"),
+		"Location Definition, State and Runtime must not retain Placement or Anchor compatibility paths."
+	)
+	_expect(
+		not project_loader_source.contains(".presentation")
+		and not scene_builder_source.contains(".presentation")
+		and not scene_builder_source.contains("Label.new")
+		and not project_world_source.contains("tile_set_path"),
+		"Tile loading and Scene building must use explicit fixed-TileSet fields without Label branches."
+	)
+	for forbidden_world_data in [
+		"decoration_placements", "structure_placements", "placement_id", "origin_cell",
+		"orientation", "occupied_cells", "anchors", "local_offset", "presentation",
+		"hall_label", "kitchen_label", "tavern_label", "street_label", "yard_label",
+	]:
+		_expect(not project_world_source.contains(forbidden_world_data), "Project Location data must not retain '%s'." % forbidden_world_data)
 	_expect(
 		not registry_source.to_lower().contains("generated")
 		and not world_definition_source.to_lower().contains("generated"),
@@ -420,8 +469,8 @@ func _expect(condition: bool, message: String) -> void:
 
 func _finish() -> void:
 	if _failures == 0:
-		print("V9 Location-First World Data: %d checks passed." % _checks)
+		print("V9.1 Location Spatial Layout: %d checks passed." % _checks)
 		quit(0)
 		return
-	push_error("V9 Location-First World Data: %d of %d checks failed." % [_failures, _checks])
+	push_error("V9.1 Location Spatial Layout: %d of %d checks failed." % [_failures, _checks])
 	quit(1)

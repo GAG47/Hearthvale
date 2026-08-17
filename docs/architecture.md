@@ -51,7 +51,7 @@ Project Definitions 当前包括：
 
 - Player 与 Martha 的 ActorDefinition；
 - Chest、Sign、Bed 的 FurnitureDefinition；
-- GroundDefinition、DecorationDefinition 与 StructureDefinition；
+- GroundTileDefinition、DecorationTileDefinition 与 StructureTileDefinition；
 - Tavern、Town Street 与 Tavern Yard 的 LocationDefinition。
 
 V9 不提供 Generated Definition、Generated Location、PCG Registry、Definition 持久化或恢复接口。PCG 的数据、注册和持久化边界留到存在真实系统时重新设计。
@@ -67,7 +67,8 @@ Location
 │  ├─ Ground Layer
 │  ├─ Decoration Layer
 │  ├─ Structure Layer
-│  └─ Anchors
+│  ├─ Entries
+│  └─ Exits
 └─ Entities（由 EntityState 派生）
 ```
 
@@ -86,23 +87,21 @@ Topology 延续有向 Location Graph。每条 LocationEdgeDefinition 保存：
 
 ### Ground Layer
 
-Ground Layer 的权威形式是 `cell → ground_definition_id`。GroundDefinition 保存通行规则、移动成本以及 SceneBuilder 需要的集中表现规格。Grass、Road、Wood Floor 等内容由不同数据表达，不建立不同代码类，也不在每个 Cell 重复规格字段。
+Ground Layer 的权威形式是 `cell → GroundTileDefinition UUID`。GroundTileDefinition 保存通行规则、移动成本，以及固定 World TileSet 中的 `source_id`、`atlas_coords` 和 `alternative_tile`。Grass、Road、Wood Floor 等内容由不同数据表达，不建立不同代码类，也不在每个 Cell 重复 Tile 规格。
 
 ### Decoration Layer
 
-DecorationPlacement 表示没有独立世界身份和 State 的装饰内容。它引用 DecorationDefinition，并保存 placement UUID、Cell 与局部偏移。当前地图文字标识也沿用这条数据路径。需要独立状态、采集、破坏、任务引用或交互的内容必须升级为 Entity。
+Decoration Layer 的权威形式是 `cell → DecorationTileDefinition UUID`。DecorationTileDefinition 只选择固定 World TileSet 中的装饰 Tile；当前项目没有真实 Decoration Tile，因此三处 Location 的这一层为空。地点名称等文字不属于 Decoration Layer。需要独立状态、采集、破坏、任务引用或交互的内容必须成为 Entity。
 
 ### Structure Layer
 
-StructurePlacement 表示属于 Location 空间但没有独立世界身份的静态结构。StructureDefinition 保存逻辑阻挡、`occupied_cells` footprint 与逐 footprint Cell 的表现规格；Placement 保存 placement UUID、Definition UUID、`origin_cell` 与 orientation。
+Structure Layer 的权威形式是 `cell → StructureTileDefinition UUID`。StructureTileDefinition 保存逻辑阻挡，并选择固定 World TileSet 中的具体 Tile。连续墙体直接记录为多个 Cell；当前双格门洞由左右两个 StructureTileDefinition 分别占据一格，不存在额外的对象身份或 footprint 展开。具有独立 HP、状态、引用或交互的墙、门或设施必须成为 Entity。
 
-所有 Structure，包括 1×1 Structure，都使用同一套 Placement 和 footprint 计算。当前双格门洞由同一 StructureDefinition 的两个 occupied cells 表达。具有独立 HP、状态、引用或交互的墙、门或设施应成为 Entity，不能继续留在 Structure。
+### Entries 与 Exits
 
-### Anchors
+LocationEntry 直接保存 `entry_id`、Cell 与 Facing。Topology 只指出目标 Entry ID；LocationEntry 拥有该 Entry 在目标 Location 内的格子位置和朝向，切换落点由 Cell 原点确定。
 
-Entry Anchor 保存 `entry_id`、Cell、Facing 与从 Cell 原点计算表现落点所需的局部偏移。Topology 只指出目标 Entry ID；Anchor 才拥有该 Entry 在目标 Location 内的位置和朝向。
-
-当前 Location 切换还需要本地出口触发区域，因此存在直接消费者明确的 Exit Anchor：它保存 `edge_key` 与局部 Cell Rect，由 SceneBuilder 创建 LocationExit。没有消费者的其他 Anchor 类型不会提前加入。
+LocationExit 直接保存对应的 `edge_key` 与本地 Cell Rect。SceneBuilder 根据它创建临时的 LocationExitArea 触发区域；Topology 继续独立负责该 Edge 连接到哪个 Location。
 
 ### Entities
 
@@ -118,11 +117,11 @@ LocationState 不保存 `entity_ids` 或 `entity_positions`。LocationRuntime �
 LocationState 只保存与 LocationDefinition 不同的部分：
 
 - `ground_overrides`；
-- `removed_structure_ids` 与 `added_structures`；
-- `removed_decoration_ids` 与 `added_decorations`；
+- `decoration_overrides`；
+- `structure_overrides`；
 - `removed_edge_ids`、`disabled_edge_ids` 与 `added_edges`。
 
-没有变化的 LocationState 不复制完整 Ground、Structure、Decoration 或 Topology。LocationRuntime 负责把 Definition 基础数据与 Sparse Overrides 合并为当前 Ground、Structure、Decoration 和 Topology 结果，其他系统不各自解释覆盖规则。
+三层 Cell override 都使用 `cell → TileDefinition UUID`；空 `StringName` 明确表示当前 Cell 为空。没有变化的 LocationState 不复制完整 Ground、Structure、Decoration 或 Topology。LocationRuntime 负责把 Definition 基础数据与 Sparse Overrides 合并为当前三层 Cell 数据和 Topology 结果，其他系统不各自解释覆盖规则。
 
 WorldState 持久持有 LocationState、EntityState 与 WorldTimeState。当前 Scene 节点注册表只记录活动 Representation 的弱引用，不是世界事实。
 
@@ -145,7 +144,7 @@ GridScene
 └─ EntityRepresentationRoot
 ```
 
-LocationSceneBuilder 只消费 LocationRuntime 已合并出的当前 Ground、Decorations、Structures 与 Anchors，再从对应 Definition 读取表现规格并逐层创建静态空间。它不按具体 Entity 类型创建 Actor 或 Furniture Node；Entity 表现仍由 V8 的 EntityRepresentationRegistry 与唯一匹配的 EntityRepresentationFactory 准备。Ground、Decoration 与 Structure Layer 各自使用固定 TileSet，具体 Definition 只选择其中的 Tile。
+LocationSceneBuilder 只消费 LocationRuntime 已合并出的当前 Ground、Decoration、Structure Cell Layer，以及直接的 Entries / Exits，并逐层创建静态空间和切换节点。它不按具体 Entity 类型创建 Actor 或 Furniture Node；Entity 表现仍由 V8 的 EntityRepresentationRegistry 与唯一匹配的 EntityRepresentationFactory 准备。三个 Tile Layer 使用固定 World TileSet，具体 TileDefinition 只保存 Tile 选择字段。
 
 现有 Tavern、Town Street 与 Tavern Yard 的世界事实已迁移到 `data/world/project_world.json`。三份固定地图 `.tscn` 已删除；LocationDefinition 没有 `scene_path`，Game 也不加载地点 PackedScene。SceneTree、TileMapLayer、Collision 与 Marker 都是可丢弃的下游表现。
 
@@ -160,7 +159,7 @@ LocationSceneBuilder 只消费 LocationRuntime 已合并出的当前 Ground、De
 ```text
 Prepare
 ├─ 解析目标 LocationRuntime
-├─ 验证目标 Entry Anchor
+├─ 验证目标 LocationEntry
 ├─ 从当前 Location 数据生成全部静态层
 ├─ 通过 EntityRepresentationRegistry 准备全部 Entity Representations
 ├─ 验证 PlayerController 可接管目标 ActorRepresentation
@@ -175,7 +174,7 @@ Commit
 └─ 释放旧 Scene
 ```
 
-Prepare 不修改正式 EntityState，不释放旧 Scene，不改变 PlayerController 或活动 Location。Ground / Structure 表现资源、Entry、Factory 或 Representation 准备失败时，只释放临时目标树，旧世界仍可操作。Commit 不再加载或验证资源。
+Prepare 不修改正式 EntityState，不释放旧 Scene，不改变 PlayerController 或活动 Location。Spatial Tile、Entry、Factory 或 Representation 准备失败时，只释放临时目标树，旧世界仍可操作。Commit 不再加载或验证资源。
 
 ## Entity 与 Entity Representation
 

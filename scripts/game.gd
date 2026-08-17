@@ -210,7 +210,7 @@ func _prepare_location_change(
 	if location == null:
 		return {}
 
-	var entry: LocationEntryAnchor
+	var entry: LocationEntry
 	if edge != null:
 		entry = world_definition.get_target_entry(location, from_location_id, edge)
 	if edge != null and entry == null:
