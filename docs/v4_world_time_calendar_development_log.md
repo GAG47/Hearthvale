@@ -68,7 +68,7 @@ WorldTime 在 `_process(delta)` 中累积小数真实秒，只在累积达到完
 
 ## Bed 睡眠行为
 
-Bed 的 `sleep` 不再固定失败。它仍通过 PlayerController、WorldAction、公共空间规则和 Bed 行为规则执行；规则允许且 WorldTime 可用时，Bed 请求时间服务推进到下一天 08:00。
+Bed 的 `sleep` 不再固定失败。它仍通过 InteractionTargetSelector、WorldAction、公共空间规则和 Bed 行为规则执行；规则允许且 WorldTime 可用时，Bed 请求时间服务推进到下一天 08:00。
 
 Bed 只声明本次睡眠的醒来时刻，不计算当前日期、下一天、月末或年末，也不直接修改 WorldTimeState。跨日、跨月和跨年的计算全部由 WorldTime 负责。睡眠成功返回正式 ActionResult；当前不增加 BedState、疲劳、睡眠质量、打断或额外后果。
 

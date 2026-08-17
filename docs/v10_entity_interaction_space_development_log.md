@@ -29,7 +29,7 @@ Entity Definition
 ├─ footprint_cells: Array[Vector2i]
 └─ use_slots: Array[UseSlot]
    ├─ local_cell: Vector2i
-   ├─ required_facing: ActorState.Facing
+   ├─ allowed_facings: bitmask
    ├─ supported_actions: Array[StringName]
    └─ slot_entrances: Array[SlotEntrance]
       └─ local_cell: Vector2i
@@ -39,7 +39,7 @@ Furniture 的 footprint 是 Definition-local Cell 集合，唯一权威字段为
 
 两类局部坐标都以 Entity footprint 左上角为 `(0, 0)`。UseSlot 可以位于 footprint 内外；SlotEntrance 属于一个具体 UseSlot。EntityState 继续只保存实例位置和其他运行事实，Entity 移动不会修改 Definition 中任何 Slot 坐标。
 
-`ActorState.Facing.NONE` 表示 Slot 不限制朝向，仅用于 non-blocking Entity 的默认脚下 Slot。SlotEntrance 当前没有 facing 字段，因为本轮没有真实消费者需要 Entrance facing。
+`allowed_facings == 0` 表示 Slot 不限制正常 Actor 朝向；非零 bitmask 表示一个或多个允许方向。non-blocking Entity 的默认脚下 Slot 使用 unrestricted mask。SlotEntrance 当前没有 facing 字段，因为本轮没有真实消费者需要 Entrance facing。
 
 ## 显式与默认 UseSlot
 
@@ -51,17 +51,22 @@ Furniture 的 footprint 是 Definition-local Cell 集合，唯一权威字段为
 - 只保留 footprint 外的相邻 Cell；
 - 相同 local Cell 去重；
 - 不生成对角 Slot；
-- 左侧 Slot 要求 RIGHT，右侧要求 LEFT，上侧要求 DOWN，下侧要求 UP；
-- non-blocking Entity 还为每个 footprint Cell 生成 `Facing.NONE` 的脚下 Slot；
+- 左侧 Slot 允许 RIGHT，右侧允许 LEFT，上侧允许 DOWN，下侧允许 UP；
+- 同一个 local Cell 如果同时邻接多个 footprint Cell，只保留一个 UseSlot 并合并全部允许方向；
+- non-blocking Entity 还为每个 footprint Cell 生成允许全部正常朝向的脚下 Slot；
 - blocking Entity 不生成脚下默认 Slot。
 
 默认结果不写回 `use_slots`，不会把运行查询变成 Project Definition 变更。
+
+## Furniture Representation 碰撞
+
+FurnitureRepresentation 不保存第二份碰撞 footprint 数据。每次准备 Representation 时，直接遍历 FurnitureDefinition 的 `footprint_cells`，为每个 occupied local Cell 创建一个完整 `GridSpace.CELL_SIZE × GridSpace.CELL_SIZE` 的 RectangleShape2D，并按该 Cell 相对于 footprint bounds 的中心定位。L 型等不规则 footprint 不再退化为 bounding rectangle；本轮不做 shape 合并，也不使用旧的 4px 内缩。non-blocking Furniture 保留按 Cell 创建的 shape，但将其禁用。
 
 ## SlotEntrance 规则
 
 UseSlot 配置一个或多个显式 SlotEntrance 时，查询完整保留全部显式项，不自动选择唯一 Entrance。如果 `slot_entrances` 为空，则返回一个默认 SlotEntrance，其 `local_cell` 与 UseSlot 完全相同。
 
-系统不从 footprint 生成周围一圈 Entrance，也不根据 UseSlot required facing 猜测 Entrance。SlotEntrance 本轮只提供 Definition 和 Runtime Query，不控制移动。
+系统不从 footprint 生成周围一圈 Entrance，也不根据 UseSlot 的允许方向猜测 Entrance。SlotEntrance 本轮只提供 Definition 和 Runtime Query，不控制移动。
 
 ## Runtime 查询与校验
 
@@ -80,7 +85,7 @@ SlotEntrance 当前有效需要：Entity 属于该 Location、world Cell 在 bou
 
 ## 交互迁移
 
-InteractionTargetSelector 已删除。PlayerController 遍历当前 Location 的逻辑 Entities，根据 Actor 当前 Cell、facing、候选 Action UseSlot 和当前 Runtime 有效性选择 Entity + Action；同一位置的明确 facing 匹配优先于 `Facing.NONE`，完全同级时继续按稳定 instance UUID 排序。PlayerController 只负责玩家选择，ActionSpatialRule 仍是 WorldAction 的最终空间权威。
+InteractionTargetSelector 已删除。PlayerController 遍历当前 Location 的逻辑 Entities，根据 Actor 当前 Cell、facing、候选 Action UseSlot 和当前 Runtime 有效性选择 Entity + Action；有明确方向限制且当前 facing 被允许的 Slot 优先于 unrestricted Slot，完全同级时继续按稳定 instance UUID 排序。PlayerController 只负责玩家选择，ActionSpatialRule 仍是 WorldAction 的最终空间权威。
 
 ActionSpatialRule 保留 Actor、Target、Location 身份检查，空间部分改为：
 
@@ -89,7 +94,7 @@ Actor current Cell + facing
   ↓
 Target Entity + action_id 的 UseSlot
   ↓
-world Cell、required facing 与 LocationRuntime 有效性匹配
+world Cell、allowed_facings 与 LocationRuntime 有效性匹配
   ↓
 允许或拒绝 WorldAction
 ```
@@ -107,16 +112,18 @@ V10 专项覆盖：
 - 1x1 blocking Furniture 的四个非对角默认 Slot；
 - 2x2 blocking Furniture 的八个去重外沿 Slot；
 - L 型 Furniture 的 local footprint、occupied world Cells 和真实外沿默认 Slot；
+- L 型 Furniture 的 Physics collision 与 `footprint_cells` 一致，不包含凹角缺失 Cell；
+- 矩形 Furniture 仍为每个 footprint Cell 提供完整的单格碰撞；
 - non-blocking Entity 的脚下与外部 Slot；
 - 显式 Action Slot 排除默认 Slot；
-- required facing 通过与拒绝；
+- allowed facing 的通过与拒绝；
 - 默认 Entrance 等于 UseSlot；
 - 多显式 SlotEntrance 与 world Cell 转换；
 - EntityState 移动只改变 world Cell；
 - Structure 和其他 blocking Entity 令 Entrance 当前不可用但不修改 Definition；
 - 目标自身 blocking 不会错误否定内部 UseSlot；
 - 现有 Furniture 面前交互和 non-blocking 脚下交互；
-- facing Slot 优先于 `Facing.NONE`；
+- 受限 facing Slot 优先于 unrestricted Slot；
 - 缺失 LocationRuntime 时 ActionSpatialRule reject；
 - Location Scene 销毁重建后的 Slot / Entrance 一致性。
 

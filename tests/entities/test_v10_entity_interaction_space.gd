@@ -26,11 +26,12 @@ func _run_tests() -> void:
 	_test_default_blocking_slots()
 	_test_default_two_by_two_slots()
 	_test_irregular_footprint_slots()
+	_test_irregular_furniture_collision()
 	_test_non_blocking_footprint_slots()
 	_test_explicit_action_slots()
 	_test_slot_entrances_and_movement()
 	_test_runtime_slot_validation()
-	_test_required_facing()
+	_test_allowed_facing()
 	_test_missing_location_runtime_rejects()
 	await _test_existing_interaction_and_scene_rebuild()
 	_finish()
@@ -40,15 +41,15 @@ func _test_default_blocking_slots() -> void:
 	var furniture := _create_furniture(Vector2i.ONE, true, Vector2i(3, 3), TARGET_ID)
 	var slots := furniture.get_use_slots(&"inspect")
 	var expected := {
-		Vector2i.UP: ActorState.Facing.DOWN,
-		Vector2i.DOWN: ActorState.Facing.UP,
-		Vector2i.LEFT: ActorState.Facing.RIGHT,
-		Vector2i.RIGHT: ActorState.Facing.LEFT,
+		Vector2i.UP: UseSlot.facing_mask(ActorState.Facing.DOWN),
+		Vector2i.DOWN: UseSlot.facing_mask(ActorState.Facing.UP),
+		Vector2i.LEFT: UseSlot.facing_mask(ActorState.Facing.RIGHT),
+		Vector2i.RIGHT: UseSlot.facing_mask(ActorState.Facing.LEFT),
 	}
 	_expect(slots.size() == 4, "1x1 blocking Furniture must generate four default UseSlots.")
 	for slot in slots:
 		_expect(expected.has(slot.local_cell), "1x1 defaults must contain only cardinal neighboring Cells.")
-		_expect(slot.required_facing == expected.get(slot.local_cell), "Default external UseSlot facing must point toward the Entity.")
+		_expect(slot.allowed_facings == expected.get(slot.local_cell), "Default external UseSlot facing must point toward the Entity.")
 		_expect(slot.supported_actions == [&"inspect"], "A generated UseSlot must belong to the queried Action.")
 		var entrances := slot.get_slot_entrances()
 		_expect(entrances.size() == 1 and entrances[0].local_cell == slot.local_cell, "A UseSlot without explicit SlotEntrance must default Entrance to itself.")
@@ -90,17 +91,17 @@ func _test_irregular_footprint_slots() -> void:
 	_expect(furniture.get_occupied_grid_cells() == expected_world_cells, "An L-shaped footprint must occupy exactly its local cells in world space.")
 	var slots := furniture.get_use_slots(&"inspect")
 	var expected_slots := {
-		Vector2i(0, -1): ActorState.Facing.DOWN,
-		Vector2i(-1, 0): ActorState.Facing.RIGHT,
-		Vector2i(1, -1): ActorState.Facing.DOWN,
-		Vector2i(2, 0): ActorState.Facing.LEFT,
-		Vector2i(1, 1): ActorState.Facing.UP,
-		Vector2i(0, 2): ActorState.Facing.UP,
-		Vector2i(-1, 1): ActorState.Facing.RIGHT,
+		Vector2i(0, -1): UseSlot.facing_mask(ActorState.Facing.DOWN),
+		Vector2i(-1, 0): UseSlot.facing_mask(ActorState.Facing.RIGHT),
+		Vector2i(1, -1): UseSlot.facing_mask(ActorState.Facing.DOWN),
+		Vector2i(2, 0): UseSlot.facing_mask(ActorState.Facing.LEFT),
+		Vector2i(1, 1): UseSlot.facing_mask(ActorState.Facing.UP) | UseSlot.facing_mask(ActorState.Facing.LEFT),
+		Vector2i(0, 2): UseSlot.facing_mask(ActorState.Facing.UP),
+		Vector2i(-1, 1): UseSlot.facing_mask(ActorState.Facing.RIGHT),
 	}
 	_expect(slots.size() == expected_slots.size(), "L-shaped Furniture defaults must follow the real perimeter, not its bounding rectangle.")
 	for slot in slots:
-		_expect(expected_slots.get(slot.local_cell) == slot.required_facing, "L-shaped default UseSlot facing must point toward the adjacent footprint cell.")
+		_expect(expected_slots.get(slot.local_cell) == slot.allowed_facings, "L-shaped default UseSlot facing must preserve every adjacent legal direction.")
 	furniture.state.local_position += Vector2(2, 1) * GridSpace.CELL_SIZE
 	_expect(furniture.get_occupied_grid_cells() == [Vector2i(5, 4), Vector2i(6, 4), Vector2i(5, 5)], "Moving an irregular Furniture footprint must translate every occupied Cell together.")
 	_expect(furniture.get_footprint_local_cells() == footprint, "Moving Furniture must not mutate its Definition-local footprint.")
@@ -117,7 +118,75 @@ func _test_non_blocking_footprint_slots() -> void:
 	var foot_slot := _find_slot(slots, Vector2i.ZERO)
 	_expect(slots.size() == 5, "A non-blocking 1x1 Entity must add its occupied Cell to four external UseSlots.")
 	_expect(foot_slot != null, "A non-blocking Entity must expose a foot interaction UseSlot.")
-	_expect(foot_slot != null and foot_slot.required_facing == ActorState.Facing.NONE, "A foot UseSlot must not restrict Actor facing.")
+	_expect(foot_slot != null and foot_slot.allowed_facings == 0, "A foot UseSlot must allow every normal Actor facing.")
+	for facing in [ActorState.Facing.UP, ActorState.Facing.DOWN, ActorState.Facing.LEFT, ActorState.Facing.RIGHT]:
+		_expect(foot_slot != null and foot_slot.is_facing_allowed(facing), "A foot UseSlot must allow facing %s." % facing)
+
+
+func _test_irregular_furniture_collision() -> void:
+	var footprint: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1)]
+	var furniture := _create_furniture_with_footprint(
+		footprint,
+		true,
+		Vector2i(3, 3),
+		&"a0000000-0000-4000-8000-000000000119"
+	)
+	var location := GridScene.new()
+	location.location_id = TEST_LOCATION_ID
+	var representation := FurnitureRepresentationFactory.new().prepare(
+		furniture,
+		location,
+		furniture.local_position
+	) as FurnitureRepresentation
+	_expect(representation != null, "An L-shaped Furniture Representation must prepare successfully.")
+	if representation == null:
+		location.free()
+		return
+	var blocking_body := representation.get_node("BlockingBody") as StaticBody2D
+	var collisions: Array[CollisionShape2D] = []
+	for child in blocking_body.get_children():
+		if child is CollisionShape2D:
+			collisions.append(child as CollisionShape2D)
+	_expect(collisions.size() == 3, "Physics collision must contain one shape per L-shaped footprint Cell.")
+	var expected_positions := {
+		Vector2(-16.0, -16.0): true,
+		Vector2(16.0, -16.0): true,
+		Vector2(-16.0, 16.0): true,
+	}
+	for collision in collisions:
+		_expect(collision.shape is RectangleShape2D, "Each Furniture footprint Cell must use RectangleShape2D.")
+		var rectangle := collision.shape as RectangleShape2D
+		_expect(rectangle.size == Vector2.ONE * GridSpace.CELL_SIZE, "Each Furniture collision Cell must use a full grid-sized rectangle.")
+		_expect(expected_positions.has(collision.position), "Furniture collision must align with a footprint Cell center.")
+		expected_positions.erase(collision.position)
+	_expect(expected_positions.is_empty(), "L-shaped collision must not include the missing bottom-right Cell.")
+	representation.free()
+
+	var rectangular_furniture := _create_furniture(
+		Vector2i(2, 2),
+		true,
+		Vector2i(3, 3),
+		&"a0000000-0000-4000-8000-000000000120"
+	)
+	var rectangular_representation := FurnitureRepresentationFactory.new().prepare(
+		rectangular_furniture,
+		location,
+		rectangular_furniture.local_position
+	) as FurnitureRepresentation
+	_expect(rectangular_representation != null, "A rectangular Furniture Representation must prepare successfully.")
+	if rectangular_representation != null:
+		var rectangular_body := rectangular_representation.get_node("BlockingBody") as StaticBody2D
+		var rectangular_collisions: Array[CollisionShape2D] = []
+		for child in rectangular_body.get_children():
+			if child is CollisionShape2D:
+				rectangular_collisions.append(child as CollisionShape2D)
+		_expect(rectangular_collisions.size() == 4, "A 2x2 Furniture must retain one full collision per footprint Cell.")
+		for collision in rectangular_collisions:
+			_expect(collision.shape is RectangleShape2D, "Rectangular Furniture collision must use RectangleShape2D.")
+			var rectangle := collision.shape as RectangleShape2D
+			_expect(rectangle.size == Vector2.ONE * GridSpace.CELL_SIZE, "Rectangular Furniture collision Cells must remain full-sized.")
+		rectangular_representation.free()
+	location.free()
 
 
 func _test_explicit_action_slots() -> void:
@@ -129,7 +198,7 @@ func _test_explicit_action_slots() -> void:
 	)
 	var explicit_slot := UseSlot.new()
 	explicit_slot.local_cell = Vector2i(0, 2)
-	explicit_slot.required_facing = ActorState.Facing.UP
+	explicit_slot.allowed_facings = UseSlot.facing_mask(ActorState.Facing.UP)
 	explicit_slot.supported_actions = [&"sleep"]
 	explicit_slot.slot_entrances = [SlotEntrance.new(Vector2i(0, 3))]
 	furniture.definition.use_slots = [explicit_slot]
@@ -152,7 +221,7 @@ func _test_slot_entrances_and_movement() -> void:
 	)
 	var slot := UseSlot.new()
 	slot.local_cell = Vector2i(1, 0)
-	slot.required_facing = ActorState.Facing.NONE
+	slot.allowed_facings = 0
 	slot.supported_actions = [&"sleep"]
 	slot.slot_entrances = [
 		SlotEntrance.new(Vector2i(0, 0)),
@@ -204,9 +273,9 @@ func _test_runtime_slot_validation() -> void:
 	registry.free()
 
 
-func _test_required_facing() -> void:
+func _test_allowed_facing() -> void:
 	var world_definition := root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
-	_expect(world_definition != null, "Required facing test needs WorldDefinition.")
+	_expect(world_definition != null, "Allowed facing test needs WorldDefinition.")
 	if world_definition == null:
 		return
 	var location_id := world_definition.get_project_location_id(&"tavern")
@@ -219,7 +288,10 @@ func _test_required_facing() -> void:
 	target.state.current_location_id = location_id
 	var explicit_slot := UseSlot.new()
 	explicit_slot.local_cell = Vector2i.LEFT
-	explicit_slot.required_facing = ActorState.Facing.RIGHT
+	explicit_slot.allowed_facings = (
+		UseSlot.facing_mask(ActorState.Facing.RIGHT)
+		| UseSlot.facing_mask(ActorState.Facing.DOWN)
+	)
 	explicit_slot.supported_actions = [&"inspect"]
 	target.definition.use_slots = [explicit_slot]
 	var actor := Actor.new(
@@ -235,7 +307,9 @@ func _test_required_facing() -> void:
 	var wrong_facing := ActionSpatialRule.evaluate(action)
 	_expect(not wrong_facing.allowed, "Action spatial validation must reject a matching Slot with wrong facing.")
 	(actor.state as ActorState).facing = ActorState.Facing.RIGHT
-	_expect(ActionSpatialRule.evaluate(action).allowed, "Action spatial validation must accept the required facing.")
+	_expect(ActionSpatialRule.evaluate(action).allowed, "Action spatial validation must accept one allowed facing.")
+	(actor.state as ActorState).facing = ActorState.Facing.DOWN
+	_expect(ActionSpatialRule.evaluate(action).allowed, "Action spatial validation must accept every allowed facing.")
 
 
 func _test_missing_location_runtime_rejects() -> void:
@@ -306,8 +380,12 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 	var priority_open := OpenableBehavior.new()
 	priority_open.open_visual = SIGN_DEFINITION.visual
 	priority_definition.behaviors = [priority_inspect, priority_open]
-	var none_slot := UseSlot.new(Vector2i.ZERO, ActorState.Facing.NONE, [&"inspect"])
-	var facing_slot := UseSlot.new(Vector2i.ZERO, ActorState.Facing.RIGHT, [&"open"])
+	var none_slot := UseSlot.new(Vector2i.ZERO, 0, [&"inspect"])
+	var facing_slot := UseSlot.new(
+		Vector2i.ZERO,
+		UseSlot.facing_mask(ActorState.Facing.RIGHT) | UseSlot.facing_mask(ActorState.Facing.DOWN),
+		[&"open"]
+	)
 	priority_definition.use_slots = [none_slot, facing_slot]
 	var priority_state := FurnitureState.new(FACING_PRIORITY_ID, tavern_id, _cell_center(foot_cell))
 	var priority_entity := Furniture.new(priority_definition, priority_state)
@@ -315,8 +393,12 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 	_expect(registry.register_entity(priority_entity), "Facing priority test Entity must register.")
 	(player.state as ActorState).facing = ActorState.Facing.RIGHT
 	var priority_selection: Dictionary = controller.call("_select_interaction")
-	_expect(priority_selection.get("entity") == priority_entity, "A matching facing Slot must outrank a NONE Slot at the same Cell.")
+	_expect(priority_selection.get("entity") == priority_entity, "A matching facing Slot must outrank an unrestricted Slot at the same Cell.")
 	_expect(priority_selection.get("action_id") == &"open", "Facing Slot priority must preserve the Action attached to the selected Slot.")
+	(player.state as ActorState).facing = ActorState.Facing.DOWN
+	priority_selection = controller.call("_select_interaction")
+	_expect(priority_selection.get("entity") == priority_entity, "PlayerController must consume every facing allowed by a multi-facing Slot.")
+	_expect(priority_selection.get("action_id") == &"open", "A second allowed facing must preserve the selected Action.")
 
 	var before_slots := chest.get_use_slots(&"open")
 	var before_slot_cells := _slot_cells(before_slots)

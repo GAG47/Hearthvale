@@ -188,9 +188,9 @@ EntityRepresentationRegistry 扫描全部 Factory 并要求恰好一个匹配。
 
 ## Entity Interaction Space
 
-UseSlot 是 Entity Definition 中某个 Action 的理论执行位置。每项保存 Entity 局部格 `local_cell`、Actor 执行时的 `required_facing`、`supported_actions` 与零到多个 SlotEntrance Resource。局部格原点固定为 Entity footprint 左上角 `(0, 0)`；UseSlot 可以位于 footprint 内部或外部。EntityState 移动时 Definition 坐标不变。
+UseSlot 是 Entity Definition 中某个 Action 的理论执行位置。每项保存 Entity 局部格 `local_cell`、允许的 Actor 朝向 bitmask `allowed_facings`、`supported_actions` 与零到多个 SlotEntrance Resource。`allowed_facings == 0` 表示允许全部正常朝向，非零 bitmask 可以表达一个或多个明确方向。局部格原点固定为 Entity footprint 左上角 `(0, 0)`；UseSlot 可以位于 footprint 内部或外部。EntityState 移动时 Definition 坐标不变。
 
-某个 Action 只要存在至少一个显式 UseSlot，就只使用这些显式项。没有显式项时，Entity 根据 Definition-local footprint Cell 集合派生临时默认 UseSlot，但不写回或修改 Definition：每个 footprint Cell 的上下左右邻格只要位于 footprint 外就成为外部 Slot，重复 Cell 去重，不产生对角 Slot。外部 Slot 的 required facing 始终朝向 Entity：左侧要求 RIGHT、右侧要求 LEFT、上侧要求 DOWN、下侧要求 UP。non-blocking Entity 还为每个 footprint Cell 生成不限制朝向的脚下 Slot；blocking Entity 不生成脚下默认 Slot。Furniture 的不规则 footprint（例如 `(0,0)、(1,0)、(0,1)`）按真实 Cell 集合处理。
+某个 Action 只要存在至少一个显式 UseSlot，就只使用这些显式项。没有显式项时，Entity 根据 Definition-local footprint Cell 集合派生临时默认 UseSlot，但不写回或修改 Definition：每个 footprint Cell 的上下左右邻格只要位于 footprint 外就成为外部 Slot，按 local Cell 去重，并把同一位置来自多个 footprint Cell 的合法方向合并到同一个 `allowed_facings`，不产生对角 Slot。外部 Slot 的方向分别对应左侧 RIGHT、右侧 LEFT、上侧 DOWN、下侧 UP；non-blocking Entity 还为每个 footprint Cell 生成允许全部正常朝向的脚下 Slot；blocking Entity 不生成脚下默认 Slot。Furniture 的不规则 footprint（例如 `(0,0)、(1,0)、(0,1)`）按真实 Cell 集合处理。
 
 SlotEntrance 是具体 UseSlot 的进入位置，也使用同一个 Entity 局部格原点。显式配置时完整保留全部 SlotEntrance；没有显式配置时，查询返回一个 `local_cell == UseSlot.local_cell` 的默认 Entrance。Entrance 不按 footprint 或 facing 推断其他位置。
 
@@ -206,11 +206,11 @@ LocationRuntime
 PlayerController + ActionSpatialRule
 ```
 
-Furniture 直接从 Definition-local footprint Cell 集合计算占用 world Cell，并由 Entity 当前 footprint origin 加上各自 `local_cell` 转换 UseSlot 与 SlotEntrance。LocationRuntime 不生成、删除或修改 Definition，只复用当前 Ground、Structure 与 Entity 查询验证可用性。UseSlot 位于目标 Entity footprint 内时会忽略目标自身的 blocking，但仍检查 Ground、Structure 和其他 blocking Entity；SlotEntrance 必须是普通 Actor 当前可站立的 Cell。Definition 是否存在与当前是否可用是两件事。
+Furniture 直接从 Definition-local footprint Cell 集合计算占用 world Cell，并由 Entity 当前 footprint origin 加上各自 `local_cell` 转换 UseSlot 与 SlotEntrance。FurnitureRepresentation 的 Physics collision 也只从同一份 `footprint_cells` 派生：每个 occupied local Cell 创建一个完整 `GridSpace.CELL_SIZE × GridSpace.CELL_SIZE` 的 RectangleShape2D，按 Cell 中心定位；不使用 bounding rectangle、不做 4px 内缩、不维护第二份 collision footprint 数据。non-blocking Furniture 保留对应 shape 但将其禁用。LocationRuntime 不生成、删除或修改 Definition，只复用当前 Ground、Structure 与 Entity 查询验证可用性。UseSlot 位于目标 Entity footprint 内时会忽略目标自身的 blocking，但仍检查 Ground、Structure 和其他 blocking Entity；SlotEntrance 必须是普通 Actor 当前可站立的 Cell。Definition 是否存在与当前是否可用是两件事。
 
 ## Action、Interaction 与移动
 
-PlayerController 把输入转化为移动或交互意图。ActorRepresentation 在当前 Scene 中执行连续物理移动并把位置同步回 ActorState。PlayerController 直接从当前 LocationRuntime 查询 Entity，按 Actor 当前 Cell、facing、Action UseSlot 和当前 Runtime 有效性选择候选；明确 facing 匹配的 Slot 优先于 `Facing.NONE`，完全同级时按稳定 instance UUID 排序。Representation、Scene 索引和物理节点都不是交互目标的逻辑来源。
+PlayerController 把输入转化为移动或交互意图。ActorRepresentation 在当前 Scene 中执行连续物理移动并把位置同步回 ActorState。PlayerController 直接从当前 LocationRuntime 查询 Entity，按 Actor 当前 Cell、facing、Action UseSlot 和当前 Runtime 有效性选择候选；有明确方向限制且当前 facing 被允许的 Slot 优先于 unrestricted Slot，完全同级时按稳定 instance UUID 排序。Representation、Scene 索引和物理节点都不是交互目标的逻辑来源。
 
 WorldAction 使用逻辑 EntityState 验证同一 Location，然后由 ActionSpatialRule 要求 Actor 当前 Cell 匹配至少一个当前有效、朝向正确的 Action UseSlot。没有 LocationRuntime 时直接 reject，不再使用仅检查 Slot/facing 的 fallback。旧的“目标位于脚下或面前”判断已删除；默认 UseSlot 保留相同体验，并成为唯一交互空间权威。Entity 默认拒绝 Action 并默认不阻挡移动；Furniture 把具体检查与执行委派给 Behavior，并按 FurnitureDefinition 提供统一的移动阻挡结果。合法结果修改 EntityState 或 WorldTimeState；Representation 只刷新视觉。
 

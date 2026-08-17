@@ -39,11 +39,8 @@ func prepare_furniture(
 		push_error("FurnitureRepresentation requires a Sprite2D child.")
 		return false
 	var blocking_body := get_node_or_null("BlockingBody") as StaticBody2D
-	var collision := get_node_or_null("BlockingBody/CollisionShape2D") as CollisionShape2D
-	if blocking_body == null or collision == null or not collision.shape is RectangleShape2D:
-		push_error(
-			"FurnitureRepresentation requires BlockingBody/CollisionShape2D with RectangleShape2D."
-		)
+	if blocking_body == null:
+		push_error("FurnitureRepresentation requires a BlockingBody StaticBody2D.")
 		return false
 	var visual_texture := _load_visual_texture(p_furniture)
 	if visual_texture == null:
@@ -52,7 +49,7 @@ func prepare_furniture(
 	furniture = p_furniture
 	current_location = location
 	position = target_local_position
-	_configure_blocking_collision(blocking_body, collision)
+	_configure_blocking_collision(blocking_body)
 	sprite.texture = visual_texture
 	furniture.state_changed.connect(_on_furniture_state_changed)
 	return true
@@ -74,16 +71,33 @@ func _exit_tree() -> void:
 
 
 func _configure_blocking_collision(
-	blocking_body: StaticBody2D,
-	collision: CollisionShape2D
+	blocking_body: StaticBody2D
 ) -> void:
 	blocking_body.collision_layer = 1 if furniture.definition.blocks_movement else 0
 	blocking_body.collision_mask = 1 if furniture.definition.blocks_movement else 0
-	collision.disabled = not furniture.definition.blocks_movement
-	var rectangle := collision.shape as RectangleShape2D
-	if rectangle != null:
-		var footprint_size := furniture.definition.get_footprint_bounds().size
-		rectangle.size = Vector2(footprint_size * GridSpace.CELL_SIZE) - Vector2(4.0, 4.0)
+	for child in blocking_body.get_children():
+		if child is CollisionShape2D:
+			child.free()
+
+	var footprint_bounds := furniture.definition.get_footprint_bounds()
+	var footprint_center := Vector2(footprint_bounds.size * GridSpace.CELL_SIZE) * 0.5
+	var collision_index := 0
+	for local_cell in furniture.get_footprint_local_cells():
+		var collision := CollisionShape2D.new()
+		collision.name = (
+			"CollisionShape2D" if collision_index == 0 else "CollisionShape2D_%d" % collision_index
+		)
+		var rectangle := RectangleShape2D.new()
+		rectangle.size = Vector2.ONE * GridSpace.CELL_SIZE
+		collision.shape = rectangle
+		var cell_center := (
+			Vector2(local_cell - footprint_bounds.position) * GridSpace.CELL_SIZE
+			+ Vector2.ONE * GridSpace.CELL_SIZE * 0.5
+		)
+		collision.position = cell_center - footprint_center
+		collision.disabled = not furniture.definition.blocks_movement
+		blocking_body.add_child(collision)
+		collision_index += 1
 
 
 func _update_visual() -> bool:

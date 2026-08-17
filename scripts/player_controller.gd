@@ -109,7 +109,7 @@ func request_interaction() -> ActionResult:
 	var selection := _select_interaction()
 	var target := selection.get("entity") as Entity
 	if target == null:
-		var no_target_result := ActionResult.failed(&"interact", &"", "前方没有可交互的对象。")
+		var no_target_result := ActionResult.failed(&"interact", &"", "当前没有可交互的对象。")
 		action_completed.emit(no_target_result)
 		return no_target_result
 
@@ -150,7 +150,7 @@ func _select_interaction() -> Dictionary:
 					continue
 				if not location.is_use_slot_valid(candidate, slot):
 					continue
-				var priority := 1 if slot.required_facing != ActorState.Facing.NONE else 0
+				var priority := 1 if slot.has_facing_restriction() else 0
 				if _is_better_interaction_candidate(
 					candidate,
 					priority,

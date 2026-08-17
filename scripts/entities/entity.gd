@@ -125,37 +125,43 @@ func _build_default_use_slots(action_id: StringName) -> Array[UseSlot]:
 		footprint_lookup[cell] = true
 
 	var slots: Array[UseSlot] = []
-	var generated_cells: Dictionary[Vector2i, bool] = {}
+	var slots_by_cell: Dictionary[Vector2i, UseSlot] = {}
 	var directions := [
-		[Vector2i.UP, ActorState.Facing.DOWN],
-		[Vector2i.DOWN, ActorState.Facing.UP],
-		[Vector2i.LEFT, ActorState.Facing.RIGHT],
-		[Vector2i.RIGHT, ActorState.Facing.LEFT],
+		[Vector2i.UP, UseSlot.facing_mask(ActorState.Facing.DOWN)],
+		[Vector2i.DOWN, UseSlot.facing_mask(ActorState.Facing.UP)],
+		[Vector2i.LEFT, UseSlot.facing_mask(ActorState.Facing.RIGHT)],
+		[Vector2i.RIGHT, UseSlot.facing_mask(ActorState.Facing.LEFT)],
 	]
 	for cell in footprint_cells:
 		for direction_data in directions:
 			var neighbor: Vector2i = cell + direction_data[0]
-			if footprint_lookup.has(neighbor) or generated_cells.has(neighbor):
+			if footprint_lookup.has(neighbor):
 				continue
-			generated_cells[neighbor] = true
-			slots.append(_create_default_slot(neighbor, action_id, direction_data[1]))
+			var allowed_facing: int = direction_data[1]
+			if slots_by_cell.has(neighbor):
+				slots_by_cell[neighbor].allowed_facings |= allowed_facing
+				continue
+			var external_slot := _create_default_slot(neighbor, action_id, allowed_facing)
+			slots_by_cell[neighbor] = external_slot
+			slots.append(external_slot)
 
 	if not blocks_movement():
 		for cell in footprint_cells:
-			if generated_cells.has(cell):
+			if slots_by_cell.has(cell):
 				continue
-			generated_cells[cell] = true
-			slots.append(_create_default_slot(cell, action_id, ActorState.Facing.NONE))
+			var foot_slot := _create_default_slot(cell, action_id, 0)
+			slots_by_cell[cell] = foot_slot
+			slots.append(foot_slot)
 	return slots
 
 
 static func _create_default_slot(
 	local_cell: Vector2i,
 	action_id: StringName,
-	required_facing: ActorState.Facing
+	allowed_facings: int
 ) -> UseSlot:
 	var slot := UseSlot.new()
 	slot.local_cell = local_cell
-	slot.required_facing = required_facing
+	slot.allowed_facings = allowed_facings
 	slot.supported_actions = [action_id]
 	return slot
