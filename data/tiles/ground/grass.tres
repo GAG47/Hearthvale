@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="GroundTileDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_definition/ground_tile_definition.gd" id="1_q84c0"]
+
+[resource]
+script = ExtResource("1_q84c0")
+key = &"grass"
+walkable = true
+movement_cost = 1.1
+source_id = 0
+atlas_coords = Vector2i(4, 0)

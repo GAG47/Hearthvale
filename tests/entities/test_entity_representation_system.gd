@@ -1,8 +1,10 @@
 extends SceneTree
 
 const MAIN_SCENE := preload("res://scenes/main.tscn")
-const PLAYER_DEFINITION_PATH := "res://data/actors/player.json"
-const CHEST_DEFINITION_PATH := "res://data/furniture/wooden_chest.json"
+const PLAYER_DEFINITION: ActorDefinition = preload("res://data/actors/player.tres")
+const CHEST_DEFINITION: FurnitureDefinition = preload(
+	"res://data/furniture/wooden_chest.tres"
+)
 
 var _checks := 0
 var _failures := 0
@@ -37,8 +39,8 @@ func _init() -> void:
 
 
 func _run_tests() -> void:
-	var actor_definition := ActorDefinitionLoader.load_from_file(PLAYER_DEFINITION_PATH)
-	var furniture_definition := FurnitureDefinitionLoader.load_from_file(CHEST_DEFINITION_PATH)
+	var actor_definition := PLAYER_DEFINITION
+	var furniture_definition := CHEST_DEFINITION
 	_expect(actor_definition != null, "Player ActorDefinition must load for Factory tests.")
 	_expect(furniture_definition != null, "Chest FurnitureDefinition must load for Factory tests.")
 	if actor_definition == null or furniture_definition == null:
@@ -49,7 +51,6 @@ func _run_tests() -> void:
 		actor_definition,
 		ActorState.new(
 			&"11111111-1111-4111-8111-111111111111",
-			actor_definition.definition_id,
 			&"55555555-5555-4555-8555-555555555555",
 			Vector2(96.0, 128.0),
 			ActorState.Facing.LEFT
@@ -59,7 +60,6 @@ func _run_tests() -> void:
 		furniture_definition,
 		FurnitureState.new(
 			&"77777777-7777-4777-8777-777777777777",
-			furniture_definition.definition_id,
 			&"55555555-5555-4555-8555-555555555555",
 			Vector2(160.0, 192.0)
 		)

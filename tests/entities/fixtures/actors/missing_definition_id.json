@@ -1,9 +1,0 @@
-{
-	"display_name": "玩家",
-	"visuals": {
-		"up": "res://assets/actors/player_up.svg",
-		"down": "res://assets/actors/player_down.svg",
-		"left": "res://assets/actors/player_left.svg",
-		"right": "res://assets/actors/player_right.svg"
-	}
-}

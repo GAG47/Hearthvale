@@ -4,6 +4,8 @@ extends FurnitureBehavior
 const ACTION_OPEN := &"open"
 const ACTION_CLOSE := &"close"
 
+@export var open_visual: Texture2D
+
 
 func handles_action(action_id: StringName) -> bool:
 	return action_id == ACTION_OPEN or action_id == ACTION_CLOSE

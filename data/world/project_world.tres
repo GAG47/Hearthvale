@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="ProjectWorld" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_definition/project_location_instance_spec.gd" id="1_h171n"]
+[ext_resource type="Resource" path="res://data/locations/tavern.tres" id="2_xejna"]
+[ext_resource type="Resource" path="res://data/locations/town_street.tres" id="3_cut3l"]
+[ext_resource type="Resource" path="res://data/locations/tavern_yard.tres" id="4_k67m0"]
+[ext_resource type="Script" path="res://scripts/world_definition/project_world.gd" id="9_xgt46"]
+
+[sub_resource type="Resource" id="Resource_77fp4"]
+script = ExtResource("1_h171n")
+key = &"tavern"
+instance_id = &"50000000-0000-4000-8000-000000000001"
+definition = ExtResource("2_xejna")
+
+[sub_resource type="Resource" id="Resource_h171n"]
+script = ExtResource("1_h171n")
+key = &"town_street"
+instance_id = &"50000000-0000-4000-8000-000000000002"
+definition = ExtResource("3_cut3l")
+
+[sub_resource type="Resource" id="Resource_et0ue"]
+script = ExtResource("1_h171n")
+key = &"tavern_yard"
+instance_id = &"50000000-0000-4000-8000-000000000003"
+definition = ExtResource("4_k67m0")
+
+[resource]
+script = ExtResource("9_xgt46")
+location_instances = Array[ExtResource("1_h171n")]([SubResource("Resource_77fp4"), SubResource("Resource_h171n"), SubResource("Resource_et0ue")])

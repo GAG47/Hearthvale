@@ -55,32 +55,7 @@ func _validate_entity(entity: Entity) -> bool:
 			"Entity instance_id '%s' is not a valid UUID v4." % entity.instance_id
 		)
 		return false
-	if not UuidValidator.is_valid_v4(entity.definition_id):
-		push_error(
-			"Entity definition_id '%s' is not a valid UUID v4." % entity.definition_id
-		)
+	if entity.get_definition() == null:
+		push_error("Entity instance_id '%s' requires a Definition Resource." % entity.instance_id)
 		return false
-	var definition := entity.get_definition()
-	if definition == null or definition.definition_id != entity.definition_id:
-		push_error(
-			"Entity instance_id '%s' does not match its Definition and EntityState definition_id '%s'."
-			% [entity.instance_id, entity.definition_id]
-		)
-		return false
-	var definition_registry: DefinitionRegistryRuntime
-	if is_inside_tree():
-		definition_registry = get_node_or_null("/root/DefinitionRegistry") as DefinitionRegistryRuntime
-	if definition_registry != null:
-		if not definition_registry.has_definition(entity.definition_id):
-			push_error(
-				"Entity instance_id '%s' references unregistered definition_id '%s'."
-				% [entity.instance_id, entity.definition_id]
-			)
-			return false
-		if definition_registry.get_definition(entity.definition_id) != definition:
-			push_error(
-				"Entity instance_id '%s' must use the DefinitionRegistry object for definition_id '%s'."
-				% [entity.instance_id, entity.definition_id]
-			)
-			return false
 	return true

@@ -1,6 +1,6 @@
 extends Node2D
 
-const PLAYER_DEFINITION_PATH := "res://data/actors/player.json"
+const PLAYER_DEFINITION: ActorDefinition = preload("res://data/actors/player.tres")
 const PLAYER_INSTANCE_ID := &"90000000-0000-4000-8000-000000000001"
 const PLAYER_INITIAL_LOCATION_KEY := &"tavern"
 const PLAYER_INITIAL_LOCAL_POSITION := Vector2(384.0, 256.0)
@@ -8,19 +8,19 @@ const PLAYER_INITIAL_FACING := ActorState.Facing.DOWN
 const FURNITURE_INSTANCES: Array[Dictionary] = [
 	{
 		"instance_id": &"5543caf7-2a10-4a40-84de-3a39ffdf670e",
-		"definition_path": "res://data/furniture/wooden_chest.json",
+		"definition": preload("res://data/furniture/wooden_chest.tres"),
 		"location_key": &"tavern",
 		"local_position": Vector2(464.0, 208.0),
 	},
 	{
 		"instance_id": &"1d67bbf9-edc2-4264-a861-8bd3e3e61e15",
-		"definition_path": "res://data/furniture/sign.json",
+		"definition": preload("res://data/furniture/sign.tres"),
 		"location_key": &"tavern",
 		"local_position": Vector2(432.0, 240.0),
 	},
 	{
 		"instance_id": &"a6ae5842-8c6d-4df2-9b80-a271b5496716",
-		"definition_path": "res://data/furniture/simple_bed.json",
+		"definition": preload("res://data/furniture/simple_bed.tres"),
 		"location_key": &"tavern",
 		"local_position": Vector2(656.0, 128.0),
 	},
@@ -45,7 +45,6 @@ var world_time: WorldTimeRuntime
 var world_definition: WorldDefinitionRuntime
 var world_state: WorldStateRuntime
 var entity_registry: EntityRegistryRuntime
-var definition_registry: DefinitionRegistryRuntime
 
 
 func _ready() -> void:
@@ -71,11 +70,6 @@ func _ready() -> void:
 	if entity_registry == null:
 		push_error("EntityRegistry Autoload is required before loading Game.")
 		return
-	definition_registry = get_node_or_null("/root/DefinitionRegistry") as DefinitionRegistryRuntime
-	if definition_registry == null:
-		push_error("DefinitionRegistry Autoload is required before loading Game.")
-		return
-
 	if not _initialize_furniture_entities():
 		return
 	var controlled_actor := _initialize_player_actor()
@@ -104,20 +98,13 @@ func request_location_change(edge_key: StringName) -> void:
 
 
 func _initialize_player_actor() -> Actor:
-	var loaded_definition := ActorDefinitionLoader.load_from_file(PLAYER_DEFINITION_PATH)
-	if loaded_definition == null:
-		push_error("Game could not load the Player ActorDefinition.")
-		return null
-	var definition := (
-		definition_registry.get_definition(loaded_definition.definition_id) as ActorDefinition
-	)
-	if definition == null:
+	if PLAYER_DEFINITION == null:
+		push_error("Game requires the Player ActorDefinition Resource.")
 		return null
 	var initial_location_id := world_definition.get_project_location_id(PLAYER_INITIAL_LOCATION_KEY)
 
 	var state := ActorState.new(
 		PLAYER_INSTANCE_ID,
-		definition.definition_id,
 		initial_location_id,
 		PLAYER_INITIAL_LOCAL_POSITION,
 		PLAYER_INITIAL_FACING
@@ -129,7 +116,7 @@ func _initialize_player_actor() -> Actor:
 		)
 		return null
 
-	var actor := Actor.new(definition, state)
+	var actor := Actor.new(PLAYER_DEFINITION, state)
 	if not entity_registry.register_entity(actor):
 		push_error(
 			"Game could not register the Player Actor for instance_id '%s'."
@@ -143,21 +130,13 @@ func _initialize_player_actor() -> Actor:
 
 func _initialize_furniture_entities() -> bool:
 	for instance_data in FURNITURE_INSTANCES:
-		var definition_path: String = instance_data["definition_path"]
-		var loaded_definition := FurnitureDefinitionLoader.load_from_file(definition_path)
-		if loaded_definition == null:
-			push_error("Game could not load FurnitureDefinition '%s'." % definition_path)
-			return false
-		var definition := (
-			definition_registry.get_definition(loaded_definition.definition_id)
-			as FurnitureDefinition
-		)
+		var definition := instance_data["definition"] as FurnitureDefinition
 		if definition == null:
+			push_error("Game requires every Furniture Definition Resource.")
 			return false
 		var location_id := world_definition.get_project_location_id(instance_data["location_key"])
 		var state := FurnitureState.new(
 			instance_data["instance_id"],
-			definition.definition_id,
 			location_id,
 			instance_data["local_position"]
 		)

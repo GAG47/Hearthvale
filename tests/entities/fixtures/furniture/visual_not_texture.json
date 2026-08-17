@@ -1,8 +1,0 @@
-{
-	"definition_id": "c0000000-0000-4000-8000-000000000002",
-	"display_name": "Invalid",
-	"visual_ref": "res://scenes/main.tscn",
-	"behaviors": {},
-	"occupied_cells": [1, 1],
-	"blocks_movement": true
-}

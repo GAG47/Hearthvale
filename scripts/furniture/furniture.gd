@@ -3,7 +3,6 @@ extends Entity
 
 signal state_changed
 
-const BEHAVIOR_ORDER: Array[String] = ["sleepable", "openable", "inspectable"]
 const OPENABLE_BEHAVIOR_ID := &"openable"
 
 var definition: FurnitureDefinition
@@ -20,7 +19,7 @@ func _init(p_definition: FurnitureDefinition, p_state: FurnitureState) -> void:
 	_create_behaviors()
 
 
-func get_definition() -> Definition:
+func get_definition() -> Resource:
 	return definition
 
 
@@ -61,12 +60,13 @@ func apply_action(action: WorldAction) -> ActionResult:
 	return result
 
 
-func get_visual_ref() -> String:
+func get_visual() -> Texture2D:
 	var openable_state := get_openable_state()
 	if openable_state != null and openable_state.is_open:
-		var config: Dictionary = definition.behaviors["openable"]
-		return config["open_visual_ref"] as String
-	return definition.visual_ref
+		for behavior in behaviors:
+			if behavior is OpenableBehavior:
+				return (behavior as OpenableBehavior).open_visual
+	return definition.visual
 
 
 func get_openable_state() -> OpenableState:
@@ -88,26 +88,22 @@ func blocks_movement() -> bool:
 
 
 func _create_behaviors() -> void:
-	for behavior_id in BEHAVIOR_ORDER:
-		if not definition.behaviors.has(behavior_id):
+	if definition == null:
+		return
+	for behavior in definition.behaviors:
+		if behavior == null:
 			continue
-		match behavior_id:
-			"sleepable":
-				behaviors.append(SleepableBehavior.new())
-			"openable":
-				if furniture_state.behavior_states.has(OPENABLE_BEHAVIOR_ID):
-					if not furniture_state.behavior_states[OPENABLE_BEHAVIOR_ID] is OpenableState:
-						push_error(
-							"Furniture '%s' behavior state '%s' must be OpenableState."
-							% [instance_id, OPENABLE_BEHAVIOR_ID]
-						)
-						continue
-				else:
-					furniture_state.behavior_states[OPENABLE_BEHAVIOR_ID] = OpenableState.new()
-				behaviors.append(OpenableBehavior.new())
-			"inspectable":
-				var config: Dictionary = definition.behaviors[behavior_id]
-				behaviors.append(InspectableBehavior.new(config["text"] as String))
+		if behavior is OpenableBehavior:
+			if furniture_state.behavior_states.has(OPENABLE_BEHAVIOR_ID):
+				if not furniture_state.behavior_states[OPENABLE_BEHAVIOR_ID] is OpenableState:
+					push_error(
+						"Furniture '%s' behavior state '%s' must be OpenableState."
+						% [instance_id, OPENABLE_BEHAVIOR_ID]
+					)
+					continue
+			else:
+				furniture_state.behavior_states[OPENABLE_BEHAVIOR_ID] = OpenableState.new()
+		behaviors.append(behavior)
 
 
 func _get_behavior_for_action(action_id: StringName) -> FurnitureBehavior:

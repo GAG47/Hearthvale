@@ -1,6 +1,6 @@
 @abstract
 class_name FurnitureBehavior
-extends RefCounted
+extends Resource
 
 
 @abstract

@@ -1,8 +1,11 @@
 extends SceneTree
 
 const MAIN_SCENE := preload("res://scenes/main.tscn")
-const PLAYER_DEFINITION_PATH := "res://data/actors/player.json"
-const MARTHA_DEFINITION_PATH := "res://data/actors/martha.json"
+const PLAYER_DEFINITION: ActorDefinition = preload("res://data/actors/player.tres")
+const MARTHA_DEFINITION: ActorDefinition = preload("res://data/actors/martha.tres")
+const CHEST_DEFINITION: FurnitureDefinition = preload("res://data/furniture/wooden_chest.tres")
+const SIGN_DEFINITION: FurnitureDefinition = preload("res://data/furniture/sign.tres")
+const BED_DEFINITION: FurnitureDefinition = preload("res://data/furniture/simple_bed.tres")
 const ACTOR_REPRESENTATION_SCENE_PATH := "res://scenes/actors/actor_representation.tscn"
 const FURNITURE_REPRESENTATION_SCENE_PATH := (
 	"res://scenes/furniture/furniture_representation.tscn"
@@ -37,10 +40,10 @@ func _run_tests() -> void:
 		"EntityRegistry must not create Entities during its own startup."
 	)
 
-	var player_definition := ActorDefinitionLoader.load_from_file(PLAYER_DEFINITION_PATH)
-	var martha_definition := ActorDefinitionLoader.load_from_file(MARTHA_DEFINITION_PATH)
-	_expect(player_definition != null, "player.json must remain loadable.")
-	_expect(martha_definition != null, "martha.json must remain loadable.")
+	var player_definition := PLAYER_DEFINITION
+	var martha_definition := MARTHA_DEFINITION
+	_expect(player_definition != null, "player.tres must remain loadable.")
+	_expect(martha_definition != null, "martha.tres must remain loadable.")
 	if player_definition == null or martha_definition == null:
 		_finish()
 		return
@@ -78,19 +81,16 @@ func _run_tests() -> void:
 	)
 	_expect(player.state is ActorState, "Player must hold ActorState through Entity.state.")
 	_expect(
-		player.definition.definition_id == player_definition.definition_id
-		and player.definition.display_name == player_definition.display_name
-		and player.definition.visuals == player_definition.visuals,
-		"The runtime Player ActorDefinition must preserve all player.json fields."
+		player.definition == player_definition
+		and player.definition.display_name == player_definition.display_name,
+		"The runtime Player must directly hold the player.tres ActorDefinition."
 	)
 	_expect(
-		player.definition.visuals == {
-			"up": "res://assets/actors/player_up.svg",
-			"down": "res://assets/actors/player_down.svg",
-			"left": "res://assets/actors/player_left.svg",
-			"right": "res://assets/actors/player_right.svg",
-		},
-		"The Player ActorDefinition must preserve all four directional visuals."
+		player.definition.visual_up.resource_path == "res://assets/actors/player_up.svg"
+		and player.definition.visual_down.resource_path == "res://assets/actors/player_down.svg"
+		and player.definition.visual_left.resource_path == "res://assets/actors/player_left.svg"
+		and player.definition.visual_right.resource_path == "res://assets/actors/player_right.svg",
+		"The Player ActorDefinition must directly reference all four directional textures."
 	)
 	var tavern_id := world_definition.get_project_location_id(&"tavern")
 	var yard_id := world_definition.get_project_location_id(&"tavern_yard")
@@ -101,19 +101,15 @@ func _run_tests() -> void:
 	)
 	_expect(player.facing == ActorState.Facing.DOWN, "Player must start facing DOWN.")
 	_expect(
-		not registry.has_entity(martha_definition.definition_id),
+		not _has_entity_with_definition(registry, martha_definition),
 		"Martha must remain definition-only in the current runtime."
-	)
-	_expect(
-		not world_state.has_entity_state(martha_definition.definition_id),
-		"Martha must not receive an ActorState."
 	)
 	_expect(registry.get_entities().size() == 4, "Player and three Furniture Entities must exist.")
 	_expect(world_state.get_entity_states().size() == 4, "WorldState must hold four EntityStates.")
 
-	var chest := _expect_furniture(registry, world_state, CHEST_ENTITY_ID, &"a0000000-0000-4000-8000-000000000001")
-	var sign := _expect_furniture(registry, world_state, SIGN_ENTITY_ID, &"a0000000-0000-4000-8000-000000000002")
-	var bed := _expect_furniture(registry, world_state, BED_ENTITY_ID, &"a0000000-0000-4000-8000-000000000003")
+	var chest := _expect_furniture(registry, world_state, CHEST_ENTITY_ID, CHEST_DEFINITION)
+	var sign := _expect_furniture(registry, world_state, SIGN_ENTITY_ID, SIGN_DEFINITION)
+	var bed := _expect_furniture(registry, world_state, BED_ENTITY_ID, BED_DEFINITION)
 	if chest == null or sign == null or bed == null:
 		game.queue_free()
 		await process_frame
@@ -142,7 +138,6 @@ func _run_tests() -> void:
 		chest.definition,
 		FurnitureState.new(
 			SECOND_CHEST_ENTITY_ID,
-			chest.definition.definition_id,
 			tavern_id,
 			Vector2.ZERO
 		)
@@ -178,7 +173,7 @@ func _run_tests() -> void:
 	)
 	_expect(representation.get_node_or_null("Camera2D") == null, "Camera must remain outside ActorRepresentation.")
 	_expect(
-		_get_actor_visual_path(representation) == player_definition.visuals["down"],
+		_get_actor_visual_path(representation) == player_definition.visual_down.resource_path,
 		"Player must initially display visuals.down."
 	)
 
@@ -327,7 +322,7 @@ func _expect_furniture(
 	registry: EntityRegistryRuntime,
 	world_state: WorldStateRuntime,
 	instance_id: StringName,
-	expected_definition_id: StringName
+	expected_definition: FurnitureDefinition
 ) -> Furniture:
 	var furniture := registry.get_entity(instance_id) as Furniture
 	_expect(furniture != null, "Furniture '%s' must be registered." % instance_id)
@@ -335,12 +330,22 @@ func _expect_furniture(
 		return null
 	_expect(furniture is Entity, "Furniture must extend Entity.")
 	_expect(furniture.state is FurnitureState, "Furniture must hold FurnitureState.")
-	_expect(furniture.definition.definition_id == expected_definition_id, "Furniture must use its data Definition.")
+	_expect(furniture.definition == expected_definition, "Furniture must directly hold its Project Definition Resource.")
 	_expect(
 		world_state.get_entity_state(instance_id) == furniture.state,
 		"WorldState and Furniture must hold the same EntityState object."
 	)
 	return furniture
+
+
+func _has_entity_with_definition(
+	registry: EntityRegistryRuntime,
+	definition: Resource
+) -> bool:
+	for entity in registry.get_entities():
+		if entity.get_definition() == definition:
+			return true
+	return false
 
 
 func _test_interactions(
@@ -456,7 +461,7 @@ func _expect_input_facing_visual(
 	_expect(
 		representation.facing == expected_facing
 		and _get_actor_visual_path(representation)
-		== representation.actor.definition.visuals[expected_direction],
+		== representation.actor.definition.get_visual(StringName(expected_direction)).resource_path,
 		"Input '%s' must set facing %s and immediately select visuals.%s."
 		% [input_action, expected_facing, expected_direction]
 	)
@@ -467,15 +472,15 @@ func _get_visual_path_for_facing(
 	definition: ActorDefinition,
 	facing: ActorState.Facing
 ) -> String:
+	var direction := &"down"
 	match facing:
 		ActorState.Facing.UP:
-			return definition.visuals["up"]
+			direction = &"up"
 		ActorState.Facing.LEFT:
-			return definition.visuals["left"]
+			direction = &"left"
 		ActorState.Facing.RIGHT:
-			return definition.visuals["right"]
-		_:
-			return definition.visuals["down"]
+			direction = &"right"
+	return definition.get_visual(direction).resource_path
 
 
 func _wait_for_transition(game: Node) -> void:

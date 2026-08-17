@@ -13,7 +13,7 @@ func _init(p_definition: ActorDefinition, p_state: ActorState) -> void:
 	definition = p_definition
 
 
-func get_definition() -> Definition:
+func get_definition() -> Resource:
 	return definition
 
 

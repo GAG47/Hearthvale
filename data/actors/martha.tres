@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ActorDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/actors/actor_definition.gd" id="1_syuv6"]
+[ext_resource type="Texture2D" path="res://assets/actors/martha_down.svg" id="2_8w8ic"]
+[ext_resource type="Texture2D" path="res://assets/actors/martha_left.svg" id="3_ovsft"]
+[ext_resource type="Texture2D" path="res://assets/actors/martha_right.svg" id="4_tjdao"]
+[ext_resource type="Texture2D" path="res://assets/actors/martha_up.svg" id="5_kivl6"]
+
+[resource]
+script = ExtResource("1_syuv6")
+display_name = "Martha"
+visual_up = ExtResource("5_kivl6")
+visual_down = ExtResource("2_8w8ic")
+visual_left = ExtResource("3_ovsft")
+visual_right = ExtResource("4_tjdao")

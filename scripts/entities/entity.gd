@@ -8,10 +8,6 @@ var instance_id: StringName:
 	get:
 		return state.instance_id if state != null else &""
 
-var definition_id: StringName:
-	get:
-		return state.definition_id if state != null else &""
-
 var current_location_id: StringName:
 	get:
 		return state.current_location_id if state != null else &""
@@ -29,7 +25,7 @@ func _init(p_state: EntityState) -> void:
 	state = p_state
 
 
-func get_definition() -> Definition:
+func get_definition() -> Resource:
 	return null
 
 

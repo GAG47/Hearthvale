@@ -3,7 +3,6 @@ extends RefCounted
 
 var definition: LocationDefinition
 var state: LocationState
-var definition_registry: DefinitionRegistryRuntime
 var entity_registry: EntityRegistryRuntime
 
 var instance_id: StringName:
@@ -18,12 +17,10 @@ var location_id: StringName:
 func _init(
 	p_definition: LocationDefinition,
 	p_state: LocationState,
-	p_definition_registry: DefinitionRegistryRuntime,
 	p_entity_registry: EntityRegistryRuntime
 ) -> void:
 	definition = p_definition
 	state = p_state
-	definition_registry = p_definition_registry
 	entity_registry = p_entity_registry
 
 
@@ -31,24 +28,15 @@ func is_valid() -> bool:
 	return (
 		definition != null
 		and state != null
-		and definition_registry != null
 		and entity_registry != null
 		and UuidValidator.is_valid_v4(state.instance_id)
-		and state.definition_id == definition.definition_id
 	)
 
 
-func get_ground_tile_definition_id(cell: Vector2i) -> StringName:
+func get_ground_tile(cell: Vector2i) -> GroundTileDefinition:
 	if state.ground_overrides.has(cell):
 		return state.ground_overrides[cell]
-	return definition.ground_layer.get(cell, &"") as StringName
-
-
-func get_ground_tile(cell: Vector2i) -> GroundTileDefinition:
-	var definition_id := get_ground_tile_definition_id(cell)
-	if definition_id.is_empty():
-		return null
-	return definition_registry.get_definition(definition_id) as GroundTileDefinition
+	return definition.ground_layer.get(cell) as GroundTileDefinition
 
 
 func get_current_ground_layer() -> Dictionary[Vector2i, GroundTileDefinition]:
@@ -59,24 +47,16 @@ func get_current_ground_layer() -> Dictionary[Vector2i, GroundTileDefinition]:
 	for cell in state.ground_overrides:
 		current_cells[cell] = true
 	for cell in current_cells:
-		if get_ground_tile_definition_id(cell).is_empty():
-			continue
 		var tile := get_ground_tile(cell)
-		layer[cell] = tile
+		if tile != null:
+			layer[cell] = tile
 	return layer
 
 
-func get_decoration_tile_definition_id(cell: Vector2i) -> StringName:
+func get_decoration_tile(cell: Vector2i) -> DecorationTileDefinition:
 	if state.decoration_overrides.has(cell):
 		return state.decoration_overrides[cell]
-	return definition.decoration_layer.get(cell, &"") as StringName
-
-
-func get_decoration_tile(cell: Vector2i) -> DecorationTileDefinition:
-	var definition_id := get_decoration_tile_definition_id(cell)
-	if definition_id.is_empty():
-		return null
-	return definition_registry.get_definition(definition_id) as DecorationTileDefinition
+	return definition.decoration_layer.get(cell) as DecorationTileDefinition
 
 
 func get_current_decoration_layer() -> Dictionary[Vector2i, DecorationTileDefinition]:
@@ -87,24 +67,16 @@ func get_current_decoration_layer() -> Dictionary[Vector2i, DecorationTileDefini
 	for cell in state.decoration_overrides:
 		current_cells[cell] = true
 	for cell in current_cells:
-		if get_decoration_tile_definition_id(cell).is_empty():
-			continue
 		var tile := get_decoration_tile(cell)
-		layer[cell] = tile
+		if tile != null:
+			layer[cell] = tile
 	return layer
 
 
-func get_structure_tile_definition_id(cell: Vector2i) -> StringName:
+func get_structure_tile(cell: Vector2i) -> StructureTileDefinition:
 	if state.structure_overrides.has(cell):
 		return state.structure_overrides[cell]
-	return definition.structure_layer.get(cell, &"") as StringName
-
-
-func get_structure_tile(cell: Vector2i) -> StructureTileDefinition:
-	var definition_id := get_structure_tile_definition_id(cell)
-	if definition_id.is_empty():
-		return null
-	return definition_registry.get_definition(definition_id) as StructureTileDefinition
+	return definition.structure_layer.get(cell) as StructureTileDefinition
 
 
 func get_current_structure_layer() -> Dictionary[Vector2i, StructureTileDefinition]:
@@ -115,10 +87,9 @@ func get_current_structure_layer() -> Dictionary[Vector2i, StructureTileDefiniti
 	for cell in state.structure_overrides:
 		current_cells[cell] = true
 	for cell in current_cells:
-		if get_structure_tile_definition_id(cell).is_empty():
-			continue
 		var tile := get_structure_tile(cell)
-		layer[cell] = tile
+		if tile != null:
+			layer[cell] = tile
 	return layer
 
 

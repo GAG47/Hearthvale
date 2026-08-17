@@ -3,10 +3,10 @@ extends FurnitureBehavior
 
 const ACTION_INSPECT := &"inspect"
 
-var text: String
+@export_multiline var text := ""
 
 
-func _init(p_text: String) -> void:
+func _init(p_text := "") -> void:
 	text = p_text
 
 

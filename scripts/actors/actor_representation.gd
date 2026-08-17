@@ -46,12 +46,6 @@ func prepare_actor(
 	if p_actor.definition == null or p_actor.state == null:
 		push_error("ActorRepresentation requires an ActorDefinition and ActorState.")
 		return false
-	if p_actor.definition.definition_id != p_actor.definition_id:
-		push_error(
-			"ActorDefinition ID '%s' does not match ActorState definition_id '%s'."
-			% [p_actor.definition.definition_id, p_actor.definition_id]
-		)
-		return false
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D
 	if sprite == null:
 		push_error("ActorRepresentation requires a Sprite2D child.")
@@ -121,27 +115,14 @@ func _update_facing_visual() -> void:
 func _load_visual_textures(p_actor: Actor) -> Dictionary[String, Texture2D]:
 	var textures: Dictionary[String, Texture2D] = {}
 	for direction: String in VISUAL_DIRECTIONS:
-		if not p_actor.definition.visuals.has(direction):
+		var visual := p_actor.definition.get_visual(direction)
+		if visual == null:
 			push_error(
-				"Actor '%s' visuals is missing direction '%s'."
+				"Actor '%s' Definition has no Texture2D for direction '%s'."
 				% [p_actor.instance_id, direction]
 			)
 			return textures
-		var visual_path: String = p_actor.definition.visuals[direction]
-		if not ResourceLoader.exists(visual_path):
-			push_error(
-				"Actor '%s' visuals.%s '%s' does not exist."
-				% [p_actor.instance_id, direction, visual_path]
-			)
-			return textures
-		var visual_resource := ResourceLoader.load(visual_path)
-		if not visual_resource is Texture2D:
-			push_error(
-				"Actor '%s' visuals.%s '%s' did not load as a Texture2D."
-				% [p_actor.instance_id, direction, visual_path]
-			)
-			return textures
-		textures[direction] = visual_resource
+		textures[direction] = visual
 	return textures
 
 

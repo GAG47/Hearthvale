@@ -79,7 +79,9 @@ func _run_tests() -> void:
 	game.set("representation_registry", original_representation_registry)
 
 	var yard_state := world_state.get_location_state(yard_id)
-	yard_state.ground_overrides[Vector2i.ZERO] = &"d0000000-0000-4000-8000-000000000004"
+	var invalid_ground := GroundTileDefinition.new()
+	invalid_ground.key = &"invalid_test_tile"
+	yard_state.ground_overrides[Vector2i.ZERO] = invalid_ground
 	_expect_prepare_failure(
 		game, controller, world_state, player,
 		yard_id, tavern_id, real_yard_edge,

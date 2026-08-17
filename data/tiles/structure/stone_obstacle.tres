@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="StructureTileDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_definition/structure_tile_definition.gd" id="1_fuj6w"]
+
+[resource]
+script = ExtResource("1_fuj6w")
+key = &"stone_obstacle"
+blocks_movement = true
+source_id = 0
+atlas_coords = Vector2i(12, 0)

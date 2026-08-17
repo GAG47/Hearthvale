@@ -1,16 +1,18 @@
 extends Entity
 
 const ACTION_TEST := &"test_action"
-var definition: Definition
+var definition: Resource
 
 
 func _init(p_state: EntityState) -> void:
 	super(p_state)
 	if p_state != null:
-		definition = ActorDefinition.new(p_state.definition_id, "Test Action Entity", {})
+		var actor_definition := ActorDefinition.new()
+		actor_definition.display_name = "Test Action Entity"
+		definition = actor_definition
 
 
-func get_definition() -> Definition:
+func get_definition() -> Resource:
 	return definition
 
 

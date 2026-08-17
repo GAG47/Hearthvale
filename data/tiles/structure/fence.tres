@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="StructureTileDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/world_definition/structure_tile_definition.gd" id="1_oiuob"]
+
+[resource]
+script = ExtResource("1_oiuob")
+key = &"fence"
+blocks_movement = true
+source_id = 0
+atlas_coords = Vector2i(6, 0)

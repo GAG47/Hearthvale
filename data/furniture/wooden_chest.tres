@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="FurnitureDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/furniture/behaviors/furniture_behavior.gd" id="1_rjblx"]
+[ext_resource type="Texture2D" path="res://assets/furniture/chest_open.svg" id="2_gy8x7"]
+[ext_resource type="Script" path="res://scripts/furniture/behaviors/openable_behavior.gd" id="3_y7y7e"]
+[ext_resource type="Script" path="res://scripts/furniture/furniture_definition.gd" id="4_owo83"]
+[ext_resource type="Texture2D" path="res://assets/furniture/chest_closed.svg" id="5_3m5fe"]
+
+[sub_resource type="Resource" id="Resource_l474v"]
+script = ExtResource("3_y7y7e")
+open_visual = ExtResource("2_gy8x7")
+
+[resource]
+script = ExtResource("4_owo83")
+display_name = "储物箱"
+visual = ExtResource("5_3m5fe")
+behaviors = Array[ExtResource("1_rjblx")]([SubResource("Resource_l474v")])

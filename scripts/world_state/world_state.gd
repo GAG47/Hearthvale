@@ -15,7 +15,7 @@ func _ready() -> void:
 	if world_definition == null:
 		return
 	for spec in world_definition.get_project_location_instance_specs():
-		register_location_state(LocationState.new(spec["instance_id"], spec["definition_id"]))
+		register_location_state(LocationState.new(spec.instance_id))
 
 
 func register_location(location: GridScene) -> bool:
@@ -60,9 +60,6 @@ func register_entity_state(state: EntityState) -> bool:
 		var invalid_id := state.instance_id if state != null else &""
 		push_error("EntityState instance_id '%s' is not a valid UUID v4." % invalid_id)
 		return false
-	if not UuidValidator.is_valid_v4(state.definition_id):
-		push_error("EntityState definition_id '%s' is not a valid UUID v4." % state.definition_id)
-		return false
 	if _entity_states.has(state.instance_id):
 		if _entity_states[state.instance_id] == state:
 			return true
@@ -77,9 +74,6 @@ func register_location_state(state: LocationState) -> bool:
 	if state == null or not UuidValidator.is_valid_v4(state.instance_id):
 		var invalid_id := state.instance_id if state != null else &""
 		push_error("LocationState instance_id '%s' is not a valid UUID v4." % invalid_id)
-		return false
-	if not UuidValidator.is_valid_v4(state.definition_id):
-		push_error("LocationState definition_id '%s' is not a valid UUID v4." % state.definition_id)
 		return false
 	if _location_states.has(state.instance_id):
 		if _location_states[state.instance_id] == state:
