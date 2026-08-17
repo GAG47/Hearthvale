@@ -149,7 +149,7 @@ func _build_default_use_slots(action_id: StringName) -> Array[UseSlot]:
 		for cell in footprint_cells:
 			if slots_by_cell.has(cell):
 				continue
-			var foot_slot := _create_default_slot(cell, action_id, 0)
+			var foot_slot := _create_default_slot(cell, action_id, UseSlot.ALL_FACINGS)
 			slots_by_cell[cell] = foot_slot
 			slots.append(foot_slot)
 	return slots

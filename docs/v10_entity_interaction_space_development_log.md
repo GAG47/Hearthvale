@@ -39,7 +39,7 @@ Furniture 的 footprint 是 Definition-local Cell 集合，唯一权威字段为
 
 两类局部坐标都以 Entity footprint 左上角为 `(0, 0)`。UseSlot 可以位于 footprint 内外；SlotEntrance 属于一个具体 UseSlot。EntityState 继续只保存实例位置和其他运行事实，Entity 移动不会修改 Definition 中任何 Slot 坐标。
 
-`allowed_facings == 0` 表示 Slot 不限制正常 Actor 朝向；非零 bitmask 表示一个或多个允许方向。non-blocking Entity 的默认脚下 Slot 使用 unrestricted mask。SlotEntrance 当前没有 facing 字段，因为本轮没有真实消费者需要 Entrance facing。
+`allowed_facings` 使用标准方向 bitmask：`0` 不允许任何正常 Actor 朝向，单 bit 表示单方向，多 bit 表示方向集合；`UseSlot.ALL_FACINGS`（UP | DOWN | LEFT | RIGHT）表示 unrestricted。non-blocking Entity 的默认脚下 Slot 使用 `ALL_FACINGS`。SlotEntrance 当前没有 facing 字段，因为本轮没有真实消费者需要 Entrance facing。
 
 ## 显式与默认 UseSlot
 
@@ -53,7 +53,7 @@ Furniture 的 footprint 是 Definition-local Cell 集合，唯一权威字段为
 - 不生成对角 Slot；
 - 左侧 Slot 允许 RIGHT，右侧允许 LEFT，上侧允许 DOWN，下侧允许 UP；
 - 同一个 local Cell 如果同时邻接多个 footprint Cell，只保留一个 UseSlot 并合并全部允许方向；
-- non-blocking Entity 还为每个 footprint Cell 生成允许全部正常朝向的脚下 Slot；
+- non-blocking Entity 还为每个 footprint Cell 生成 `ALL_FACINGS` 的脚下 Slot；
 - blocking Entity 不生成脚下默认 Slot。
 
 默认结果不写回 `use_slots`，不会把运行查询变成 Project Definition 变更。
@@ -117,6 +117,7 @@ V10 专项覆盖：
 - non-blocking Entity 的脚下与外部 Slot；
 - 显式 Action Slot 排除默认 Slot；
 - allowed facing 的通过与拒绝；
+- `0`、单 bit、多 bit 与 `ALL_FACINGS` 的标准 bitmask 语义；
 - 默认 Entrance 等于 UseSlot；
 - 多显式 SlotEntrance 与 world Cell 转换；
 - EntityState 移动只改变 world Cell；

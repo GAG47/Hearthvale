@@ -31,6 +31,7 @@ func _run_tests() -> void:
 	_test_explicit_action_slots()
 	_test_slot_entrances_and_movement()
 	_test_runtime_slot_validation()
+	_test_facing_mask_semantics()
 	_test_allowed_facing()
 	_test_missing_location_runtime_rejects()
 	await _test_existing_interaction_and_scene_rebuild()
@@ -118,9 +119,43 @@ func _test_non_blocking_footprint_slots() -> void:
 	var foot_slot := _find_slot(slots, Vector2i.ZERO)
 	_expect(slots.size() == 5, "A non-blocking 1x1 Entity must add its occupied Cell to four external UseSlots.")
 	_expect(foot_slot != null, "A non-blocking Entity must expose a foot interaction UseSlot.")
-	_expect(foot_slot != null and foot_slot.allowed_facings == 0, "A foot UseSlot must allow every normal Actor facing.")
+	_expect(foot_slot != null and foot_slot.allowed_facings == UseSlot.ALL_FACINGS, "A foot UseSlot must explicitly allow every normal Actor facing.")
 	for facing in [ActorState.Facing.UP, ActorState.Facing.DOWN, ActorState.Facing.LEFT, ActorState.Facing.RIGHT]:
 		_expect(foot_slot != null and foot_slot.is_facing_allowed(facing), "A foot UseSlot must allow facing %s." % facing)
+
+
+func _test_facing_mask_semantics() -> void:
+	var default_slot := UseSlot.new()
+	_expect(default_slot.allowed_facings == UseSlot.ALL_FACINGS, "UseSlot must default allowed_facings to ALL_FACINGS.")
+	_expect(not default_slot.has_facing_restriction(), "A default UseSlot must be unrestricted.")
+
+	var none_slot := UseSlot.new(Vector2i.ZERO, 0)
+	for facing in [ActorState.Facing.UP, ActorState.Facing.DOWN, ActorState.Facing.LEFT, ActorState.Facing.RIGHT]:
+		_expect(not none_slot.is_facing_allowed(facing), "A zero allowed_facings mask must reject every normal facing.")
+	_expect(none_slot.has_facing_restriction(), "A zero allowed_facings mask must be classified as restricted.")
+
+	var right_slot := UseSlot.new(Vector2i.ZERO, UseSlot.facing_mask(ActorState.Facing.RIGHT))
+	_expect(right_slot.is_facing_allowed(ActorState.Facing.RIGHT), "A single RIGHT bit must allow RIGHT.")
+	_expect(not right_slot.is_facing_allowed(ActorState.Facing.UP), "A single RIGHT bit must reject UP.")
+	_expect(not right_slot.is_facing_allowed(ActorState.Facing.DOWN), "A single RIGHT bit must reject DOWN.")
+	_expect(not right_slot.is_facing_allowed(ActorState.Facing.LEFT), "A single RIGHT bit must reject LEFT.")
+	_expect(right_slot.has_facing_restriction(), "A single facing bit must be classified as restricted.")
+
+	var up_left_slot := UseSlot.new(
+		Vector2i.ZERO,
+		UseSlot.facing_mask(ActorState.Facing.UP) | UseSlot.facing_mask(ActorState.Facing.LEFT)
+	)
+	_expect(up_left_slot.is_facing_allowed(ActorState.Facing.UP), "UP | LEFT must allow UP.")
+	_expect(up_left_slot.is_facing_allowed(ActorState.Facing.LEFT), "UP | LEFT must allow LEFT.")
+	_expect(not up_left_slot.is_facing_allowed(ActorState.Facing.DOWN), "UP | LEFT must reject DOWN.")
+	_expect(not up_left_slot.is_facing_allowed(ActorState.Facing.RIGHT), "UP | LEFT must reject RIGHT.")
+	_expect(up_left_slot.has_facing_restriction(), "A multi-facing subset must be classified as restricted.")
+
+	var all_slot := UseSlot.new(Vector2i.ZERO, UseSlot.ALL_FACINGS)
+	for facing in [ActorState.Facing.UP, ActorState.Facing.DOWN, ActorState.Facing.LEFT, ActorState.Facing.RIGHT]:
+		_expect(all_slot.is_facing_allowed(facing), "ALL_FACINGS must allow every normal facing.")
+	_expect(not all_slot.has_facing_restriction(), "ALL_FACINGS must be classified as unrestricted.")
+	_expect(not all_slot.is_facing_allowed(ActorState.Facing.NONE), "ALL_FACINGS must reject the non-facing sentinel.")
 
 
 func _test_irregular_furniture_collision() -> void:
@@ -221,7 +256,7 @@ func _test_slot_entrances_and_movement() -> void:
 	)
 	var slot := UseSlot.new()
 	slot.local_cell = Vector2i(1, 0)
-	slot.allowed_facings = 0
+	slot.allowed_facings = UseSlot.ALL_FACINGS
 	slot.supported_actions = [&"sleep"]
 	slot.slot_entrances = [
 		SlotEntrance.new(Vector2i(0, 0)),
@@ -380,13 +415,17 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 	var priority_open := OpenableBehavior.new()
 	priority_open.open_visual = SIGN_DEFINITION.visual
 	priority_definition.behaviors = [priority_inspect, priority_open]
-	var none_slot := UseSlot.new(Vector2i.ZERO, 0, [&"inspect"])
+	var unrestricted_slot := UseSlot.new(
+		Vector2i.ZERO,
+		UseSlot.ALL_FACINGS,
+		[&"inspect"]
+	)
 	var facing_slot := UseSlot.new(
 		Vector2i.ZERO,
 		UseSlot.facing_mask(ActorState.Facing.RIGHT) | UseSlot.facing_mask(ActorState.Facing.DOWN),
 		[&"open"]
 	)
-	priority_definition.use_slots = [none_slot, facing_slot]
+	priority_definition.use_slots = [unrestricted_slot, facing_slot]
 	var priority_state := FurnitureState.new(FACING_PRIORITY_ID, tavern_id, _cell_center(foot_cell))
 	var priority_entity := Furniture.new(priority_definition, priority_state)
 	_expect(world_state.register_entity_state(priority_state), "Facing priority test EntityState must register.")
@@ -399,6 +438,27 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 	priority_selection = controller.call("_select_interaction")
 	_expect(priority_selection.get("entity") == priority_entity, "PlayerController must consume every facing allowed by a multi-facing Slot.")
 	_expect(priority_selection.get("action_id") == &"open", "A second allowed facing must preserve the selected Action.")
+
+	var stable_definition := SIGN_DEFINITION.duplicate(true) as FurnitureDefinition
+	stable_definition.blocks_movement = false
+	stable_definition.behaviors = [priority_inspect]
+	stable_definition.use_slots = [UseSlot.new(
+		Vector2i.ZERO,
+		UseSlot.facing_mask(ActorState.Facing.RIGHT) | UseSlot.facing_mask(ActorState.Facing.UP),
+		[&"inspect"]
+	)]
+	var stable_state := FurnitureState.new(
+		&"a0000000-0000-4000-8000-000000000001",
+		tavern_id,
+		_cell_center(foot_cell)
+	)
+	var stable_entity := Furniture.new(stable_definition, stable_state)
+	_expect(world_state.register_entity_state(stable_state), "Stable restricted Slot test EntityState must register.")
+	_expect(registry.register_entity(stable_entity), "Stable restricted Slot test Entity must register.")
+	(player.state as ActorState).facing = ActorState.Facing.RIGHT
+	priority_selection = controller.call("_select_interaction")
+	_expect(priority_selection.get("entity") == stable_entity, "Matching restricted Slots must remain tied and use stable instance UUID ordering.")
+	_expect(priority_selection.get("action_id") == &"inspect", "Stable ordering must preserve the selected restricted Slot Action.")
 
 	var before_slots := chest.get_use_slots(&"open")
 	var before_slot_cells := _slot_cells(before_slots)

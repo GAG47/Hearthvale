@@ -12,14 +12,14 @@ enum FacingMask {
 const ALL_FACINGS := FacingMask.UP | FacingMask.DOWN | FacingMask.LEFT | FacingMask.RIGHT
 
 @export var local_cell := Vector2i.ZERO
-@export_flags("UP", "DOWN", "LEFT", "RIGHT") var allowed_facings: int = 0
+@export_flags("UP", "DOWN", "LEFT", "RIGHT") var allowed_facings: int = ALL_FACINGS
 @export var supported_actions: Array[StringName] = []
 @export var slot_entrances: Array[SlotEntrance] = []
 
 
 func _init(
 	p_local_cell: Vector2i = Vector2i.ZERO,
-	p_allowed_facings: int = 0,
+	p_allowed_facings: int = ALL_FACINGS,
 	p_supported_actions: Array[StringName] = [],
 	p_slot_entrances: Array[SlotEntrance] = []
 ) -> void:
@@ -34,13 +34,11 @@ func supports_action(action_id: StringName) -> bool:
 
 
 func is_facing_allowed(facing: ActorState.Facing) -> bool:
-	if allowed_facings == 0:
-		return facing != ActorState.Facing.NONE
 	return (allowed_facings & facing_mask(facing)) != 0
 
 
 func has_facing_restriction() -> bool:
-	return allowed_facings != 0
+	return allowed_facings != ALL_FACINGS
 
 
 static func facing_mask(facing: ActorState.Facing) -> int:
