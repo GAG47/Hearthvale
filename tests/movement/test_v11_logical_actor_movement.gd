@@ -23,10 +23,10 @@ func _run_tests() -> void:
 	_world_state = root.get_node_or_null("WorldState") as WorldStateRuntime
 	_registry = root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
 	_movement = root.get_node_or_null("LogicalMovement") as LogicalMovementRuntime
-	_expect(_world_definition != null, "V11.1 tests require WorldDefinition.")
-	_expect(_world_state != null, "V11.1 tests require WorldState.")
-	_expect(_registry != null, "V11.1 tests require EntityRegistry.")
-	_expect(_movement != null, "V11.1 tests require LogicalMovement.")
+	_expect(_world_definition != null, "V11.2 tests require WorldDefinition.")
+	_expect(_world_state != null, "V11.2 tests require WorldState.")
+	_expect(_registry != null, "V11.2 tests require EntityRegistry.")
+	_expect(_movement != null, "V11.2 tests require LogicalMovement.")
 	if _world_definition == null or _world_state == null or _registry == null or _movement == null:
 		_finish()
 		return
@@ -795,7 +795,7 @@ func _test_no_formal_martha_initialization() -> void:
 			break
 	_expect(
 		not found_formal_martha,
-		"V11.1 must leave Martha definition-only and must not add formal NPC initialization."
+		"V11.2 must leave Martha definition-only and must not add formal NPC initialization."
 	)
 
 
@@ -811,6 +811,10 @@ func _test_removed_resolver_mechanisms() -> void:
 		"res://scripts/furniture/furniture_representation.gd"
 	)
 	var game_source := FileAccess.get_file_as_string("res://scripts/game.gd")
+	var location_entry_source := FileAccess.get_file_as_string("res://scripts/location/location_entry.gd")
+	var scene_builder_source := FileAccess.get_file_as_string(
+		"res://scripts/location/location_scene_builder.gd"
+	)
 	for removed_term in [
 		"STATUS_VISITING",
 		"STATUS_RESOLVED",
@@ -827,8 +831,23 @@ func _test_removed_resolver_mechanisms() -> void:
 		)
 	_expect(
 		not representation_source.contains("sync_state_from_representation")
-		and not representation_source.contains("_state_driven"),
-		"ActorRepresentation must remain a one-way Cell/progress consumer for every Actor."
+		and not representation_source.contains("_state_driven")
+		and not representation_source.contains("set(value)"),
+		"ActorRepresentation must remain a read-only Cell/progress/facing consumer for every Actor."
+	)
+	_expect(
+		not game_source.contains("representation).facing")
+		and not game_source.contains("representation as ActorRepresentation).facing"),
+		"Location Transfer must write facing once to ActorState without Representation-to-State duplication."
+	)
+	_expect(
+		not location_entry_source.contains("get_center_position")
+		and not location_entry_source.contains("cell_to_center_position"),
+		"LocationEntry must expose logical arrival Cells only, without pixel Presentation conversion."
+	)
+	_expect(
+		scene_builder_source.contains("GridSpace.cell_to_center_position(entry.arrival_cells[arrival_index])"),
+		"LocationSceneBuilder must own Entry Cell-to-Pixel marker conversion."
 	)
 	_expect(
 		entity_state_source.contains("local_cell: Vector2i")
@@ -863,7 +882,7 @@ func _create_location(
 	blocked_cells: Array[Vector2i] = []
 ) -> LocationRuntime:
 	var definition := LocationDefinition.new()
-	definition.display_name = "V11.1 Test Location"
+	definition.display_name = "V11.2 Test Location"
 	definition.grid_size = grid_size
 	for y in range(grid_size.y):
 		for x in range(grid_size.x):
@@ -876,10 +895,10 @@ func _create_location(
 	definitions[location_id] = definition
 	_expect(
 		_world_state.register_location_state(LocationState.new(location_id)),
-		"V11.1 test LocationState must register."
+		"V11.2 test LocationState must register."
 	)
 	var location := _world_definition.get_location(location_id)
-	_expect(location != null, "V11.1 test LocationRuntime must resolve.")
+	_expect(location != null, "V11.2 test LocationRuntime must resolve.")
 	return location
 
 
@@ -898,8 +917,8 @@ func _create_actor(
 		ActorState.Facing.DOWN
 	)
 	var actor := Actor.new(definition, state)
-	_expect(_world_state.register_entity_state(state), "V11.1 test ActorState must register.")
-	_expect(_registry.register_entity(actor), "V11.1 test Actor must register.")
+	_expect(_world_state.register_entity_state(state), "V11.2 test ActorState must register.")
+	_expect(_registry.register_entity(actor), "V11.2 test Actor must register.")
 	return actor
 
 
@@ -969,8 +988,8 @@ func _expect(condition: bool, message: String) -> void:
 
 func _finish() -> void:
 	if _failures == 0:
-		print("V11.1 Unified Grid Movement: %d checks passed." % _checks)
+		print("V11.2 Unified Grid Movement: %d checks passed." % _checks)
 		quit(0)
 		return
-	push_error("V11.1 Unified Grid Movement: %d of %d checks failed." % [_failures, _checks])
+	push_error("V11.2 Unified Grid Movement: %d of %d checks failed." % [_failures, _checks])
 	quit(1)

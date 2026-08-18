@@ -206,7 +206,7 @@ func _run_tests() -> void:
 	await _expect_input_facing_visual(representation, &"ui_down", ActorState.Facing.DOWN, "down")
 	await _expect_input_facing_visual(representation, &"ui_left", ActorState.Facing.LEFT, "left")
 	await _expect_input_facing_visual(representation, &"ui_right", ActorState.Facing.RIGHT, "right")
-	representation.facing = ActorState.Facing.DOWN
+	(player.state as ActorState).facing = ActorState.Facing.DOWN
 
 	var initial_position := representation.position
 	await _expect_input_facing_visual(
@@ -418,7 +418,7 @@ func _place_actor(
 		movement.cancel_move(representation.actor)
 	representation.actor.state.local_cell = cell
 	representation.position = GridSpace.cell_to_center_position(cell)
-	representation.facing = facing
+	(representation.actor.state as ActorState).facing = facing
 
 
 func _get_actor_representations(location: GridScene) -> Array[ActorRepresentation]:

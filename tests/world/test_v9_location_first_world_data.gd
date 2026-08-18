@@ -232,6 +232,12 @@ func _test_scene_lifecycle(
 	_expect((first_scene.get_node("StructureLayer") as TileMapLayer).get_used_cells().size() == 108, "Tavern Structure representation must be built from 108 Resource cells.")
 	_expect((first_scene.get_node("DecorationLayer") as TileMapLayer).get_used_cells().is_empty(), "Tavern Decoration Tile Layer must remain empty.")
 	_expect(first_scene.get_node("EntryPoints").get_child_count() == 3, "LocationEntries must generate Scene entry markers.")
+	var start_marker := first_scene.get_node("EntryPoints/start") as Marker2D
+	_expect(
+		start_marker != null
+		and start_marker.position == GridSpace.cell_to_center_position(Vector2i(12, 8)),
+		"Entry markers must be positioned at the arrival Cell center by LocationSceneBuilder."
+	)
 	_expect(first_scene.get_node_or_null("Exit_front_door") is LocationExitArea, "LocationExits must generate Scene exit trigger areas.")
 	_expect(first_scene.location.get_entities().size() == 4, "Location Entities must derive from EntityRegistry and EntityState.current_location_id.")
 	_expect(first_scene.location.get_entities_at(Vector2i(14, 6)).has(chest), "Cell Entity query must derive the Chest footprint from EntityState.")

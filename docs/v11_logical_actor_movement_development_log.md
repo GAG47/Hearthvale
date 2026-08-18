@@ -267,11 +267,11 @@ V11.1 没有正式初始化 Martha，也没有新增 NPC bootstrap、spawn list�
 
 当前专项结果为 `V11.1 Unified Grid Movement: 175 checks passed.`。V7.4 测试已同步移除自由移动与 Representation 回写假设，改为验证完整单格移动和逻辑阻挡；V7.5、V9、V10 以及基础 Definition / Registry / Representation 回归保持通过。
 
-## V11.1 最终架构修正：Cell-Authoritative Entity State
+## V11.2 最终架构修正：Cell-Authoritative Entity State
 
 日期：2026-08-18
 
-本节记录 V11.1 正式 Causal-PIBT 完成后的最后一轮空间权威修正，不回写前述 V11 / V11.1 历史实现。Causal-PIBT 的 parent/children、original/current priority、`C_i`、`S_i`、inheritance、backtracking 与 request-cycle 主体没有重新设计；本轮只删除 Logical World 中残留的连续坐标权威，并修正 Representation、Facing 与 Spatial Action 的集成。
+本节记录 V11.2 在 V11.1 正式 Causal-PIBT 完成后的最后一轮空间权威修正，不回写前述 V11 / V11.1 历史实现。Causal-PIBT 的 parent/children、original/current priority、`C_i`、`S_i`、inheritance、backtracking 与 request-cycle 主体没有重新设计；本轮只删除 Logical World 中残留的连续坐标权威，并修正 Representation、Facing 与 Spatial Action 的集成。
 
 ### EntityState 与 Location Logical World
 
@@ -319,7 +319,7 @@ ActionSpatialRule 增加统一世界规则：contracted 与 requesting Actor 在
 
 ### 验证与边界
 
-V11.1 专项测试新增或修正了以下覆盖：
+V11.2 专项测试新增或修正了以下覆盖：
 
 - EntityState 只有 `local_cell`，`current_cell` 直接来自 committed Cell；
 - contracted / requesting / extended 的 local_cell 与 hard occupancy；
@@ -335,4 +335,4 @@ V11.1 专项测试新增或修正了以下覆盖：
 
 本轮没有正式初始化 Martha，没有增加 NPC bootstrap、Schedule、Goal、AI、随机移动、第二套 Movement Grid、Reservation、Congestion Guidance 或 corridor/dead-end 特例。正式 Causal-PIBT 仅做适配 Cell-authoritative State 所必需的 Step commit 修改。
 
-最终回归结果：ActorDefinition 29、EntityRegistry 24、Entity Representation 41、FurnitureDefinition 27、V7.4.1 119、V7.5 39、V9 2230、V10 132、V11.1 200 checks 全部通过；主场景 headless smoke 以 exit code 0 退出。Registry、Representation 与 V7.5 输出中的 error 日志来自测试明确覆盖的预期失败分支。
+最终回归结果：ActorDefinition 29、EntityRegistry 24、Entity Representation 41、FurnitureDefinition 27、V7.4.1 119、V7.5 39、V9 2231、V10 132、V11.2 203 checks 全部通过；主场景 headless smoke 以 exit code 0 退出。Registry、Representation 与 V7.5 输出中的 error 日志来自测试明确覆盖的预期失败分支。

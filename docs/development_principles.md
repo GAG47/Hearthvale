@@ -62,7 +62,7 @@ Hard occupancy 必须与请求意图区分：contracted 占 `{tail}`，requestin
 
 需要 UseSlot 的 Spatial Action 要求 Actor 稳定位于 Slot Cell。contracted 与 requesting 可以继续按 committed tail Cell 验证；extended 必须由 ActionSpatialRule 正式拒绝，不能只在 PlayerController 做特例拦截，也不能读取动画位置判断 Interaction。
 
-Causal-PIBT 核心必须用 original/current priority、parent/children、候选集合 `C_i`、搜索集合 `S_i`、priority inheritance、backtracking 与 request-cycle 检查表达。不能以递归 resolver、VISITING status、assignment snapshot/restore，或 retry/deadlock/corridor 特例替代正式状态模型。高级 deadlock、未来时间 reservation、edge reservation、congestion 与 traffic optimization 扩展不属于 V11.1，不能为了追求“绝对不会卡死”而擅自加入。
+Causal-PIBT 核心必须用 original/current priority、parent/children、候选集合 `C_i`、搜索集合 `S_i`、priority inheritance、backtracking 与 request-cycle 检查表达。不能以递归 resolver、VISITING status、assignment snapshot/restore，或 retry/deadlock/corridor 特例替代正式状态模型。高级 deadlock、未来时间 reservation、edge reservation、congestion 与 traffic optimization 扩展不属于 V11.2，不能为了追求“绝对不会卡死”而擅自加入。
 
 ## 9. AI 不拥有规则权威
 

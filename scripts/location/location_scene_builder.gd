@@ -114,7 +114,7 @@ func _build_entries_and_exits(scene: GridScene, location: LocationRuntime) -> vo
 				if arrival_index == 0
 				else "%s_%d" % [entry.entry_id, arrival_index]
 			)
-			marker.position = entry.get_center_position(arrival_index)
+			marker.position = GridSpace.cell_to_center_position(entry.arrival_cells[arrival_index])
 			entry_root.add_child(marker)
 	for location_exit in location.get_current_exits():
 		var exit_area := LocationExitArea.new()

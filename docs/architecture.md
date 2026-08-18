@@ -259,7 +259,7 @@ ActorRepresentation 负责 Cell → Pixel。contracted Actor 显示在 `GridSpac
 
 非 participant Actor 使用自己的 `current_cell` 参与 hard occupancy。Player-controlled Actor 不再是 external movement control，而是与 NPC 一样成为普通 Causal-PIBT participant；差异只在于 direction intent 与 target intent 生成不同的 `C_i`。玩家在 extended 中改变方向时，当前单步继续完成，之后从新 tail 使用最新缓存方向；释放输入则完成当前单步后停止。Location Change 也先清除方向 intent，并等待已经开始的逻辑单步完成，避免半格 Transfer。
 
-V11.1 只实现 Causal-PIBT 核心局部协调。当前只有已经持有 Movement Intent 的 Actor 会成为可继承 participant；没有 intent 的静止 Actor 是 hard obstacle，系统不会擅自替它生成移动目标。算法不提供 RHCR、SIPP、未来时间或 edge reservation、CBS / ECBS、完整 Joint MAPF、dead-end 特殊扩展、congestion guidance、traffic optimization、ORCA / RVO、Schedule、Goal 或 AI。在没有空闲节点或可行候选的拓扑中，Actor 仍可能合法 WAIT；本轮没有用特殊走廊、dead-end 或 retry 规则掩盖这一限制。
+V11.2 只实现 Causal-PIBT 核心局部协调。当前只有已经持有 Movement Intent 的 Actor 会成为可继承 participant；没有 intent 的静止 Actor 是 hard obstacle，系统不会擅自替它生成移动目标。算法不提供 RHCR、SIPP、未来时间或 edge reservation、CBS / ECBS、完整 Joint MAPF、dead-end 特殊扩展、congestion guidance、traffic optimization、ORCA / RVO、Schedule、Goal 或 AI。在没有空闲节点或可行候选的拓扑中，Actor 仍可能合法 WAIT；本轮没有用特殊走廊、dead-end 或 retry 规则掩盖这一限制。
 
 ## 世界时间
 

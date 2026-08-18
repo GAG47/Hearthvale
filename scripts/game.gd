@@ -270,8 +270,7 @@ func _commit_location_change(prepared_change: Dictionary) -> void:
 	moving_actor.state.current_location_id = next_location.location_id
 	moving_actor.state.local_cell = spawn_cell
 	(moving_actor.state as ActorState).facing = spawn_facing
-	if next_player_representation is ActorRepresentation:
-		(next_player_representation as ActorRepresentation).facing = spawn_facing
+	(next_player_representation as ActorRepresentation).refresh_visual()
 
 	world_root.add_child(next_location)
 	player_controller.activate_prepared_control(moving_actor, next_player_representation)

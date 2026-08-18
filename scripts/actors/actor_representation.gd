@@ -14,10 +14,6 @@ var instance_id: StringName:
 var facing: ActorState.Facing:
 	get:
 		return actor.facing if actor != null else ActorState.Facing.DOWN
-	set(value):
-		if actor != null:
-			(actor.state as ActorState).facing = value
-			_update_facing_visual()
 
 var world_position: Vector2:
 	get:
@@ -76,6 +72,10 @@ func prepare_actor(
 
 func finish_location_departure() -> void:
 	current_location = null
+
+
+func refresh_visual() -> void:
+	_update_facing_visual()
 
 
 func get_front_cell() -> Vector2i:
