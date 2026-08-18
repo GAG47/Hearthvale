@@ -50,9 +50,13 @@ Persistent state, movement facts, interaction rules and gameplay capabilities re
 
 ## 8. Movement 属于 Logical World
 
-Movement Target、Grid Pathfinding、Causal-PIBT 协调、连续移动推进与 Actor occupancy 都是逻辑世界能力。Location Scene 是否加载不能决定 Actor 是否能够移动；ActorRepresentation 只表现 ActorState，不拥有 NPC Movement State，也不能在销毁时把旧 NPC 坐标反写为世界事实。
+Movement Intent、Grid Pathfinding、Causal-PIBT 协调、连续移动推进与 Actor occupancy 都是逻辑世界能力。Player 与 NPC 都必须通过同一个 Logical Movement，以 `contracted → requesting → extended → contracted` 完成一次四向相邻 Cell Move。Location Scene 是否加载不能决定 Actor 是否能够移动；ActorRepresentation 只表现 ActorState，不能直接拥有任何 Actor 的正式位置权威，也不能在销毁时把旧坐标反写为世界事实。
 
-Causal-PIBT 当前只实现 contracted、requesting、extended、priority inheritance 与 backtracking 的核心模型。高级 deadlock、未来时间 reservation、edge reservation、congestion 与 traffic optimization 扩展不属于 V11，不能为了追求“绝对不会卡死”而擅自加入。
+PlayerController 只提供最新 direction intent，不直接设置 velocity、调用 Scene Physics 移动 Actor 或把 Representation 同步回 State。NPC 的 target intent 可以使用 AStarGrid2D 产生多个邻格候选；direction intent 只能包含指定邻格与 WAIT，不能由协调器替玩家自动改向。
+
+Hard occupancy 必须与请求意图区分：contracted 占 `{tail}`，requesting 仍只占 `{tail}`，extended 才占 `{tail, head}`。requesting head 不能成为 Location Entry 或其他外部系统的空气墙。
+
+Causal-PIBT 核心必须用 original/current priority、parent/children、候选集合 `C_i`、搜索集合 `S_i`、priority inheritance、backtracking 与 request-cycle 检查表达。不能以递归 resolver、VISITING status、assignment snapshot/restore，或 retry/deadlock/corridor 特例替代正式状态模型。高级 deadlock、未来时间 reservation、edge reservation、congestion 与 traffic optimization 扩展不属于 V11.1，不能为了追求“绝对不会卡死”而擅自加入。
 
 ## 9. AI 不拥有规则权威
 

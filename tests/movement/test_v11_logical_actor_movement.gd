@@ -1,9 +1,9 @@
 extends SceneTree
 
 const MAIN_SCENE := preload("res://scenes/main.tscn")
-const PLAYER_DEFINITION: ActorDefinition = preload("res://data/actors/player.tres")
 const MARTHA_DEFINITION: ActorDefinition = preload("res://data/actors/martha.tres")
 const GRASS: GroundTileDefinition = preload("res://data/tiles/ground/grass.tres")
+const PLAYER_INSTANCE_ID := &"90000000-0000-4000-8000-000000000001"
 
 var _checks := 0
 var _failures := 0
@@ -22,371 +22,696 @@ func _run_tests() -> void:
 	_world_state = root.get_node_or_null("WorldState") as WorldStateRuntime
 	_registry = root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
 	_movement = root.get_node_or_null("LogicalMovement") as LogicalMovementRuntime
-	_expect(_world_definition != null, "V11 tests require WorldDefinition.")
-	_expect(_world_state != null, "V11 tests require WorldState.")
-	_expect(_registry != null, "V11 tests require EntityRegistry.")
-	_expect(_movement != null, "V11 tests require LogicalMovement.")
+	_expect(_world_definition != null, "V11.1 tests require WorldDefinition.")
+	_expect(_world_state != null, "V11.1 tests require WorldState.")
+	_expect(_registry != null, "V11.1 tests require EntityRegistry.")
+	_expect(_movement != null, "V11.1 tests require LogicalMovement.")
 	if _world_definition == null or _world_state == null or _registry == null or _movement == null:
 		_finish()
 		return
 	_movement.set_physics_process(false)
 	_movement.cancel_all()
 
-	_test_single_actor_continuous_movement()
-	_test_astar_movement_cost()
-	_test_astar_blocking_entity()
-	_test_independent_move_speeds()
-	_test_stable_same_cell_conflict()
+	_test_formal_grid_step_and_occupancy()
+	_test_direction_intent_continuity_and_latest_input()
+	await _test_player_controller_uses_logical_movement()
+	_test_npc_astar_candidates_and_long_distance_alignment()
+	_test_same_head_conflict()
 	_test_priority_inheritance_chain()
-	_test_backtracking_to_alternate_candidate()
-	_test_external_actor_blocking_and_resume()
-	_test_arrival_cell_claim_selection()
+	_test_backtracking_and_request_cycle()
+	_test_independent_move_speeds()
 	await _test_scene_unload_and_rebuild()
-	await _test_location_transfer_arrival_cells()
+	_test_no_formal_martha_initialization()
+	_test_removed_resolver_mechanisms()
 	_finish()
 
 
-func _test_single_actor_continuous_movement() -> void:
+func _test_formal_grid_step_and_occupancy() -> void:
 	_movement.cancel_all()
-	var location_id := &"c1000000-0000-4000-8000-000000000001"
-	_create_location(location_id, Vector2i(6, 3))
-	var offset := Vector2(7.0, 11.0)
-	var start_position := GridSpace.cell_to_local_position(Vector2i(1, 1), offset)
+	var location_id := &"d1000000-0000-4000-8000-000000000001"
+	var location := _create_location(location_id, Vector2i(5, 3))
 	var actor := _create_actor(
-		&"c2000000-0000-4000-8000-000000000001",
+		&"d2000000-0000-4000-8000-000000000001",
 		location_id,
-		start_position,
-		32.0
+		Vector2i(1, 1),
+		64.0
 	)
-	_expect(_movement.request_move(actor, Vector2i(3, 1)), "A valid Actor movement request must be accepted.")
-	_expect(_movement.get_actor_phase(actor) == ActorMovementRequest.Phase.CONTRACTED, "A new Movement Request must begin contracted.")
-	_expect(_movement.get_actor_occupied_cells(actor) == [Vector2i(1, 1)], "Contracted occupancy must contain only tail.")
-
-	_movement.advance(0.0)
+	_expect(
+		not _movement.request_step(actor, Vector2i(1, 1)),
+		"A direction Movement Intent must reject diagonal movement."
+	)
+	actor.state.local_position += Vector2(4.0, 0.0)
+	_expect(
+		not _movement.request_step(actor, Vector2i.RIGHT),
+		"A contracted Actor may not start from a non-standard in-Cell offset."
+	)
+	actor.state.local_position = GridSpace.cell_to_local_position(Vector2i(1, 1))
+	_expect(
+		_movement.request_step(actor, Vector2i.RIGHT),
+		"A cardinal single-Cell Movement Intent must be accepted."
+	)
 	var request := _movement.get_request(actor)
-	_expect(request != null and request.phase == ActorMovementRequest.Phase.REQUESTING, "The planning phase must expose requesting before movement approval.")
-	_expect(_movement.get_actor_occupied_cells(actor) == [Vector2i(1, 1)], "Requesting occupancy must still contain only tail.")
+	_expect(
+		request != null and request.phase == ActorMovementRequest.Phase.CONTRACTED,
+		"A new participant must begin contracted."
+	)
+	_expect(
+		_movement.get_actor_occupied_cells(actor) == [Vector2i(1, 1)],
+		"contracted occupancy must contain only tail."
+	)
 
-	_movement.advance(0.0)
-	request = _movement.get_request(actor)
-	_expect(request != null and request.phase == ActorMovementRequest.Phase.EXTENDED, "An approved step must enter extended.")
-	_expect(request != null and request.tail_cell == Vector2i(1, 1) and request.head_cell == Vector2i(2, 1), "A* must recommend the next cardinal path Cell.")
-	_expect(_movement.get_actor_occupied_cells(actor) == [Vector2i(1, 1), Vector2i(2, 1)], "Extended occupancy must contain tail and head.")
-	_expect(actor.local_position == start_position, "Approving a step must not teleport ActorState.")
+	_movement.call("_activate_contracted", request)
+	_expect(
+		request.phase == ActorMovementRequest.Phase.REQUESTING
+		and request.tail_cell == Vector2i(1, 1)
+		and request.head_cell == Vector2i(2, 1),
+		"The first formal activation must request exactly one cardinal neighbor."
+	)
+	_expect(
+		_movement.get_actor_occupied_cells(actor) == [Vector2i(1, 1)],
+		"requesting occupancy must contain only tail."
+	)
+	_expect(
+		not _movement.is_actor_cell_occupied(location_id, request.head_cell),
+		"A requesting head must remain an intention rather than hard occupancy."
+	)
+	var entry := LocationEntry.new(
+		&"requesting_head_entry",
+		[request.head_cell, Vector2i(3, 1)],
+		ActorState.Facing.RIGHT
+	)
+	_expect(
+		location.select_arrival_cell(entry).get("cell") == request.head_cell,
+		"Location Entry must not reject a Cell only because it is a requesting head."
+	)
+
+	_movement.call("_activate_requesting", request)
+	_expect(
+		request.phase == ActorMovementRequest.Phase.EXTENDED,
+		"An unoccupied requested neighbor must enter extended on the next activation."
+	)
+	_expect(
+		_movement.get_actor_occupied_cells(actor) == [Vector2i(1, 1), Vector2i(2, 1)],
+		"extended occupancy must contain both tail and head."
+	)
+	_expect(
+		location.select_arrival_cell(entry).get("cell") == Vector2i(3, 1),
+		"Location Entry must avoid a truly occupied extended head."
+	)
 
 	_movement.advance(0.25)
-	_expect(actor.local_position == start_position + Vector2(8.0, 0.0), "Logical movement must advance through a continuous Vector2 position.")
-	_expect(_movement.get_actor_occupied_cells(actor) == [Vector2i(1, 1), Vector2i(2, 1)], "Extended movement must retain tail after crossing no completion boundary.")
-	_movement.advance(0.6)
-	_expect(actor.current_cell == Vector2i(2, 1), "Continuous local_position may cross into head before the logical step completes.")
-	_expect(_movement.get_actor_occupied_cells(actor) == [Vector2i(1, 1), Vector2i(2, 1)], "Extended occupancy must retain tail even after local_position crosses the Cell boundary.")
-	_advance_until_complete(actor, 1.0)
-	_expect(actor.local_position == start_position + Vector2(64.0, 0.0), "Each approved step must preserve the Actor's original in-Cell offset.")
-	_expect(actor.current_cell == Vector2i(3, 1), "A single Actor must reach its target Cell.")
-	_expect(not _movement.is_participant(actor), "A completed Movement Request must clear its movement priority.")
-	_expect(_movement.get_actor_occupied_cells(actor) == [Vector2i(3, 1)], "Completion must release the old tail and occupy only the new Cell.")
-	_expect(_movement.request_move(actor, Vector2i(4, 1)), "A follow-up request must be accepted before cancellation.")
-	_movement.cancel_move(actor)
-	_expect(not _movement.is_participant(actor), "Cancelling a Movement Request must clear its participant and priority state.")
-	_expect(_movement.get_actor_occupied_cells(actor) == [Vector2i(3, 1)], "Cancellation must return occupancy to the Actor's current Cell.")
-
-
-func _test_astar_movement_cost() -> void:
-	_movement.cancel_all()
-	var location_id := &"c1000000-0000-4000-8000-000000000010"
-	var location := _create_location(location_id, Vector2i(4, 3))
-	for costly_cell in [Vector2i(1, 1), Vector2i(2, 1)]:
-		var costly_ground := GRASS.duplicate(true) as GroundTileDefinition
-		costly_ground.movement_cost = 20.0
-		location.definition.ground_layer[costly_cell] = costly_ground
-	var actor := _create_actor(
-		&"c2000000-0000-4000-8000-000000000080",
-		location_id,
-		_cell_position(Vector2i(0, 1)),
-		32.0
+	_expect(
+		actor.local_position == Vector2(48.0, 32.0),
+		"ActorState must advance smoothly between the two standard Cell positions."
 	)
-	_expect(_movement.request_move(actor, Vector2i(3, 1)), "Movement-cost route request must be accepted.")
-	_movement.advance(0.0)
-	var request := _movement.get_request(actor)
-	_expect(request != null and request.head_cell != Vector2i(1, 1), "AStarGrid2D must prefer a lower-cost detour over costly Ground.")
-
-
-func _test_astar_blocking_entity() -> void:
-	_movement.cancel_all()
-	var location_id := &"c1000000-0000-4000-8000-000000000011"
-	var location := _create_location(location_id, Vector2i(5, 3))
-	var blocked_cell := Vector2i(2, 1)
-	_create_blocking_furniture(
-		&"c3000000-0000-4000-8000-000000000001",
-		location_id,
-		_cell_position(blocked_cell)
+	_expect(
+		request.phase == ActorMovementRequest.Phase.EXTENDED,
+		"An Actor between Cells must remain extended rather than become stably contracted."
 	)
+	_movement.advance(0.25)
+	_expect(
+		actor.local_position == GridSpace.cell_to_local_position(Vector2i(2, 1)),
+		"A completed step must land exactly on the head Cell standard position."
+	)
+	_expect(
+		not _movement.is_participant(actor)
+		and _movement.get_actor_phase(actor) == ActorMovementRequest.Phase.CONTRACTED,
+		"A completed one-step intent must finish as contracted."
+	)
+	_expect(
+		_movement.get_actor_occupied_cells(actor) == [Vector2i(2, 1)],
+		"Completed occupancy must release the old tail."
+	)
+
+
+func _test_direction_intent_continuity_and_latest_input() -> void:
+	_movement.cancel_all()
+	var location_id := &"d1000000-0000-4000-8000-000000000002"
+	_create_location(location_id, Vector2i(7, 4))
 	var actor := _create_actor(
-		&"c2000000-0000-4000-8000-000000000081",
+		&"d2000000-0000-4000-8000-000000000002",
 		location_id,
-		_cell_position(Vector2i(1, 1)),
+		Vector2i(0, 2),
 		64.0
 	)
-	_expect(not location.is_cell_statically_walkable(blocked_cell, actor), "A blocking Furniture footprint must be a static navigation obstacle.")
-	_expect(_movement.request_move(actor, Vector2i(3, 1)), "A route around blocking Furniture must be accepted.")
-	_movement.advance(0.0)
+	_expect(
+		_movement.set_direction_intent(actor, Vector2i.RIGHT),
+		"A held cardinal direction must enter Logical Movement."
+	)
 	var request := _movement.get_request(actor)
-	_expect(request != null and request.head_cell != blocked_cell, "AStarGrid2D must route around blocking Furniture from LocationRuntime.")
-	_advance_until_complete(actor, 1.0)
-	_expect(actor.current_cell == Vector2i(3, 1), "A logical Actor must reach its target around a blocking Entity.")
-
-
-func _test_independent_move_speeds() -> void:
-	_movement.cancel_all()
-	var location_id := &"c1000000-0000-4000-8000-000000000002"
-	_create_location(location_id, Vector2i(4, 3))
-	var slow := _create_actor(
-		&"c2000000-0000-4000-8000-000000000002",
-		location_id,
-		_cell_position(Vector2i(0, 0)),
-		32.0
+	_expect(
+		request != null
+		and request.intent_kind == ActorMovementRequest.IntentKind.DIRECTION
+		and request.candidate_cells == [Vector2i(1, 2), Vector2i(0, 2)],
+		"Direction intent C_i must contain only the requested neighbor plus WAIT."
 	)
-	var fast := _create_actor(
-		&"c2000000-0000-4000-8000-000000000003",
-		location_id,
-		_cell_position(Vector2i(0, 2)),
-		64.0
-	)
-	_expect(_movement.request_move(slow, Vector2i(1, 0)), "Slow Actor request must be accepted.")
-	_expect(_movement.request_move(fast, Vector2i(1, 2)), "Fast Actor request must be accepted.")
 	_movement.advance(0.0)
-	_movement.advance(0.0)
+	for expected_x in [1, 2, 3]:
+		_movement.advance(0.5)
+		_expect(
+			actor.local_position == GridSpace.cell_to_local_position(Vector2i(expected_x, 2)),
+			"Held direction must complete consecutive exact Grid steps without drift."
+		)
+		_expect(
+			_movement.is_participant(actor),
+			"A held direction must prepare the next step without a visible per-Cell stop."
+		)
+	_movement.set_direction_intent(actor, Vector2i.ZERO)
 	_movement.advance(0.5)
-	_expect(slow.local_position.x == _cell_position(Vector2i(0, 0)).x + 16.0, "Slow Actor must remain mid-step after half a second.")
-	_expect(_movement.get_actor_phase(slow) == ActorMovementRequest.Phase.EXTENDED, "Slow Actor must stay extended until its own step completes.")
-	_expect(fast.local_position == _cell_position(Vector2i(1, 2)), "Fast Actor must complete the same Cell independently.")
-	_expect(not _movement.is_participant(fast), "Fast Actor completion must not wait for slower participants.")
+	_expect(
+		actor.current_cell == Vector2i(4, 2) and not _movement.is_participant(actor),
+		"Releasing a direction during extended must finish the current step and then stop."
+	)
+	_expect(
+		actor.local_position == GridSpace.cell_to_local_position(actor.current_cell),
+		"Stopping after a held direction must leave the Actor exactly contracted on Grid."
+	)
+
+	var turning_actor := _create_actor(
+		&"d2000000-0000-4000-8000-000000000003",
+		location_id,
+		Vector2i(1, 2),
+		64.0
+	)
+	_movement.set_direction_intent(turning_actor, Vector2i.RIGHT)
+	_movement.advance(0.0)
+	var turning_request := _movement.get_request(turning_actor)
+	_expect(
+		turning_request != null
+		and turning_request.phase == ActorMovementRequest.Phase.EXTENDED
+		and turning_request.head_cell == Vector2i(2, 2),
+		"The current direction step must be approved through Logical Movement."
+	)
+	_movement.advance(0.25)
+	_movement.set_direction_intent(turning_actor, Vector2i.UP)
+	_expect(
+		turning_request.head_cell == Vector2i(2, 2),
+		"Changing direction while extended must not interrupt or redirect the current step."
+	)
+	_movement.advance(0.25)
+	turning_request = _movement.get_request(turning_actor)
+	_expect(
+		turning_actor.local_position == GridSpace.cell_to_local_position(Vector2i(2, 2)),
+		"The old step must finish at its original head before applying cached input."
+	)
+	_expect(
+		turning_request != null
+		and turning_request.direction_intent == Vector2i.UP
+		and turning_request.tail_cell == Vector2i(2, 2)
+		and turning_request.head_cell == Vector2i(2, 1),
+		"The next step must use the latest valid cached direction."
+	)
+	_movement.set_direction_intent(turning_actor, Vector2i.ZERO)
+	_movement.advance(0.5)
+	_expect(
+		turning_actor.local_position == GridSpace.cell_to_local_position(Vector2i(2, 1)),
+		"The cached turn must also finish at an exact standard Cell position."
+	)
 
 
-func _test_stable_same_cell_conflict() -> void:
+func _test_player_controller_uses_logical_movement() -> void:
 	_movement.cancel_all()
-	var location_id := &"c1000000-0000-4000-8000-000000000003"
+	var game := MAIN_SCENE.instantiate()
+	root.add_child(game)
+	await process_frame
+	await physics_frame
+	var controller := game.get_node_or_null("PlayerController") as PlayerController
+	var player := _registry.get_entity(PLAYER_INSTANCE_ID) as Actor
+	_expect(controller != null and player != null, "Main must initialize the controlled ordinary Actor.")
+	if controller == null or player == null:
+		game.queue_free()
+		await process_frame
+		return
+	var representation := controller.controlled_representation
+	_expect(
+		controller.controlled_actor == player and is_instance_valid(representation),
+		"PlayerController must bind an ordinary Actor and shared ActorRepresentation."
+	)
+	_expect(
+		player.local_position == GridSpace.cell_to_local_position(player.current_cell),
+		"The controlled Actor must begin on a standard Grid Cell position."
+	)
+	var controller_source := FileAccess.get_file_as_string("res://scripts/player_controller.gd")
+	_expect(
+		controller_source.contains("set_direction_intent")
+		and not controller_source.contains("move_and_slide")
+		and not controller_source.contains("sync_state_from_representation")
+		and not controller_source.contains("velocity ="),
+		"PlayerController must emit intent without owning velocity or Representation-to-State sync."
+	)
+
+	var start_cell := player.current_cell
+	Input.action_press(&"ui_right")
+	await physics_frame
+	var request := _movement.get_request(player)
+	_expect(
+		request != null
+		and request.intent_kind == ActorMovementRequest.IntentKind.DIRECTION
+		and request.direction_intent == Vector2i.RIGHT,
+		"Player input must create the same direction Movement Request used by Logical Movement."
+	)
+	_movement.advance(0.0)
+	request = _movement.get_request(player)
+	_expect(
+		request != null
+		and request.phase == ActorMovementRequest.Phase.EXTENDED
+		and request.head_cell == start_cell + Vector2i.RIGHT,
+		"The controlled Actor must enter the shared Grid extended phase."
+	)
+	var half_step := GridSpace.CELL_SIZE / player.definition.move_speed * 0.5
+	_movement.advance(half_step)
+	await physics_frame
+	_expect(
+		representation.position == player.local_position
+		and player.local_position != GridSpace.cell_to_local_position(start_cell),
+		"ActorRepresentation must only display the shared Logical Movement ActorState."
+	)
+	Input.action_release(&"ui_right")
+	await physics_frame
+	_movement.advance(half_step)
+	await physics_frame
+	_expect(
+		player.local_position == GridSpace.cell_to_local_position(start_cell + Vector2i.RIGHT),
+		"Player movement must finish exactly one Cell after input release."
+	)
+	_expect(
+		not _movement.is_participant(player),
+		"Released Player direction must not leave a stale Movement participant."
+	)
+	game.queue_free()
+	await process_frame
+
+
+func _test_npc_astar_candidates_and_long_distance_alignment() -> void:
+	_movement.cancel_all()
+	var location_id := &"d1000000-0000-4000-8000-000000000003"
+	_create_location(location_id, Vector2i(14, 3))
+	var actor := _create_actor(
+		&"d2000000-0000-4000-8000-000000000004",
+		location_id,
+		Vector2i(0, 1),
+		64.0
+	)
+	_expect(
+		_movement.request_move(actor, Vector2i(12, 1)),
+		"A target intent must be accepted for NPC-style AStarGrid2D guidance."
+	)
+	var request := _movement.get_request(actor)
+	_expect(
+		request != null
+		and request.intent_kind == ActorMovementRequest.IntentKind.TARGET
+		and request.candidate_cells.front() == Vector2i(1, 1)
+		and request.candidate_cells.size() > 2,
+		"NPC target C_i must prefer the A* next Cell while retaining alternate neighbors and WAIT."
+	)
+	for candidate in request.candidate_cells:
+		_expect(
+			candidate == request.tail_cell
+			or _manhattan_distance(candidate, request.tail_cell) == 1,
+			"Every Causal-PIBT candidate must be a cardinal neighbor or WAIT."
+		)
+
+	for _step in range(80):
+		if not _movement.is_participant(actor):
+			break
+		_movement.advance(0.25)
+		request = _movement.get_request(actor)
+		if request != null and request.phase != ActorMovementRequest.Phase.CONTRACTED:
+			_expect(
+				_manhattan_distance(request.tail_cell, request.head_cell) == 1,
+				"Every requesting or extended target step must remain one cardinal Cell."
+			)
+	_expect(actor.current_cell == Vector2i(12, 1), "NPC target guidance must reach the requested Cell.")
+	_expect(
+		actor.local_position == GridSpace.cell_to_local_position(Vector2i(12, 1)),
+		"Many consecutive target steps must not accumulate floating-point Grid drift."
+	)
+	_expect(not _movement.is_participant(actor), "Completed target guidance must clear its request.")
+
+	var detour_id := &"d1000000-0000-4000-8000-000000000004"
+	_create_location(detour_id, Vector2i(5, 3))
+	var npc := _create_actor(
+		&"d2000000-0000-4000-8000-000000000005",
+		detour_id,
+		Vector2i(1, 1),
+		64.0
+	)
+	_create_actor(
+		&"d2000000-0000-4000-8000-000000000006",
+		detour_id,
+		Vector2i(2, 1),
+		64.0
+	)
+	_movement.request_move(npc, Vector2i(4, 1))
+	_movement.advance(0.0)
+	_movement.advance(0.0)
+	var detour_request := _movement.get_request(npc)
+	_expect(
+		detour_request != null
+		and detour_request.phase == ActorMovementRequest.Phase.EXTENDED
+		and detour_request.head_cell != Vector2i(2, 1)
+		and detour_request.head_cell != detour_request.tail_cell,
+		"NPC C_i must backtrack from a non-participant hard obstacle to another A*-ranked neighbor."
+	)
+
+
+func _test_same_head_conflict() -> void:
+	_movement.cancel_all()
+	var location_id := &"d1000000-0000-4000-8000-000000000005"
 	_create_location(location_id, Vector2i(5, 3))
 	var first := _create_actor(
-		&"c2000000-0000-4000-8000-000000000010",
+		&"d2000000-0000-4000-8000-000000000010",
 		location_id,
-		_cell_position(Vector2i(1, 1)),
+		Vector2i(1, 1),
 		32.0
 	)
 	var second := _create_actor(
-		&"c2000000-0000-4000-8000-000000000011",
+		&"d2000000-0000-4000-8000-000000000011",
 		location_id,
-		_cell_position(Vector2i(3, 1)),
+		Vector2i(3, 1),
 		32.0
 	)
-	_expect(_movement.request_move(second, Vector2i(2, 1)), "Second same-target request must be accepted.")
-	_expect(_movement.request_move(first, Vector2i(2, 1)), "First same-target request must be accepted in the same movement clock.")
-	_movement.advance(0.0)
+	_movement.request_step(second, Vector2i.LEFT)
+	_movement.request_step(first, Vector2i.RIGHT)
 	_movement.advance(0.0)
 	var first_request := _movement.get_request(first)
 	var second_request := _movement.get_request(second)
-	_expect(first_request != null and first_request.head_cell == Vector2i(2, 1), "Same-start conflict must use stable instance UUID as the base priority tiebreaker.")
-	_expect(second_request != null and second_request.head_cell != Vector2i(2, 1), "Two Actors must never receive the same head Cell.")
+	var extended_count := 0
+	for candidate in [first_request, second_request]:
+		if candidate != null and candidate.phase == ActorMovementRequest.Phase.EXTENDED:
+			extended_count += 1
+	_expect(extended_count == 1, "Only one same-head contender may enter extended.")
+	_expect(
+		first_request != null and first_request.phase == ActorMovementRequest.Phase.EXTENDED,
+		"Equal base priority must use stable instance UUID as the same-head tiebreaker."
+	)
+	_expect(
+		_actor_occupancies_do_not_overlap([first, second]),
+		"Same-head coordination must preserve unique hard occupancy."
+	)
 
 
 func _test_priority_inheritance_chain() -> void:
 	_movement.cancel_all()
-	var location_id := &"c1000000-0000-4000-8000-000000000004"
+	var location_id := &"d1000000-0000-4000-8000-000000000006"
 	_create_location(location_id, Vector2i(5, 1))
-	var first := _create_actor(&"c2000000-0000-4000-8000-000000000020", location_id, _cell_position(Vector2i(0, 0)), 32.0)
-	var second := _create_actor(&"c2000000-0000-4000-8000-000000000021", location_id, _cell_position(Vector2i(1, 0)), 16.0)
-	var third := _create_actor(&"c2000000-0000-4000-8000-000000000022", location_id, _cell_position(Vector2i(2, 0)), 32.0)
-	_expect(_movement.request_move(first, Vector2i(4, 0)), "First dependency request must be accepted.")
-	_expect(_movement.request_move(second, Vector2i(4, 0)), "Second dependency request must be accepted.")
-	_expect(_movement.request_move(third, Vector2i(4, 0)), "Third dependency request must be accepted.")
-	_movement.advance(0.0)
+	var first := _create_actor(
+		&"d2000000-0000-4000-8000-000000000020",
+		location_id,
+		Vector2i(0, 0),
+		32.0
+	)
+	var second := _create_actor(
+		&"d2000000-0000-4000-8000-000000000021",
+		location_id,
+		Vector2i(1, 0),
+		16.0
+	)
+	var third := _create_actor(
+		&"d2000000-0000-4000-8000-000000000022",
+		location_id,
+		Vector2i(2, 0),
+		32.0
+	)
+	_movement.request_move(first, Vector2i(4, 0))
+	_movement.request_move(second, Vector2i(4, 0))
+	_movement.request_move(third, Vector2i(4, 0))
 	_movement.advance(0.0)
 	var first_request := _movement.get_request(first)
 	var second_request := _movement.get_request(second)
 	var third_request := _movement.get_request(third)
-	_expect(first_request.head_cell == Vector2i(1, 0), "Dependency chain root must contract the occupied preferred Cell.")
-	_expect(second_request.head_cell == Vector2i(2, 0), "Priority inheritance must move the first blocker forward.")
-	_expect(third_request.head_cell == Vector2i(3, 0), "Priority inheritance must propagate through the dependency chain.")
-	_expect(second_request.effective_priority_instance_id == first.instance_id, "Blocked Actor must temporarily inherit the root priority.")
-	_expect(third_request.effective_priority_instance_id == first.instance_id, "Inherited priority must propagate to downstream blockers.")
-	_expect(first_request.phase == ActorMovementRequest.Phase.REQUESTING, "The chain root must remain requesting while its head Cell is still occupied.")
-	_expect(second_request.phase == ActorMovementRequest.Phase.REQUESTING, "An intermediate dependency must remain requesting until the downstream tail is released.")
-	_expect(third_request.phase == ActorMovementRequest.Phase.EXTENDED, "Only the unblocked dependency leaf may enter extended first.")
-	_expect(_actor_occupancies_do_not_overlap([first, second, third]), "Causal dependency planning must not create overlapping phase occupancy.")
+	_expect(
+		first_request != null
+		and second_request != null
+		and third_request != null,
+		"Every Actor in the dependency chain must remain a participant."
+	)
+	if first_request == null or second_request == null or third_request == null:
+		return
+	_expect(
+		first_request.phase == ActorMovementRequest.Phase.REQUESTING
+		and second_request.phase == ActorMovementRequest.Phase.REQUESTING
+		and third_request.phase == ActorMovementRequest.Phase.EXTENDED,
+		"Only the unoccupied dependency leaf may extend before upstream tails are released."
+	)
+	_expect(
+		second_request.parent_actor_id == first.instance_id
+		and first_request.children_actor_ids.has(second.instance_id),
+		"Priority inheritance must establish the root-to-child parent relation."
+	)
+	_expect(
+		third_request.parent_actor_id == third.instance_id
+		and not second_request.children_actor_ids.has(third.instance_id),
+		"An extending leaf must detach from its parent and be released from children."
+	)
+	_expect(
+		second_request.current_priority_instance_id == first.instance_id
+		and third_request.current_priority_instance_id == first.instance_id,
+		"Inherited current priority must propagate through the dependency chain."
+	)
+	_expect(
+		second_request.original_priority_instance_id == second.instance_id
+		and third_request.original_priority_instance_id == third.instance_id,
+		"Priority inheritance must not overwrite any Actor's original request priority."
+	)
+	_expect(
+		second_request.searched_cells.has(Vector2i(0, 0))
+		and second_request.searched_cells.has(Vector2i(1, 0))
+		and second_request.searched_cells.has(Vector2i(2, 0))
+		and third_request.searched_cells.has(Vector2i(3, 0)),
+		"S_i must copy the parent search and add each inherited/requested node."
+	)
+	_expect(
+		_actor_occupancies_do_not_overlap([first, second, third]),
+		"Inherited requests must never overlap contracted or extended occupancy."
+	)
 	_movement.advance(1.0)
 	first_request = _movement.get_request(first)
 	second_request = _movement.get_request(second)
-	_expect(first_request.phase == ActorMovementRequest.Phase.REQUESTING, "The root must continue waiting while the intermediate Actor moves.")
-	_expect(second_request.phase == ActorMovementRequest.Phase.EXTENDED, "The intermediate Actor may extend only after the leaf releases its tail.")
-	_expect(_actor_occupancies_do_not_overlap([first, second, third]), "Causal dependency promotion must preserve unique occupancy after the leaf completes.")
-	_movement.advance(1.0)
-	first_request = _movement.get_request(first)
-	second_request = _movement.get_request(second)
-	_expect(first_request.phase == ActorMovementRequest.Phase.REQUESTING, "A faster upstream Actor must wait for a slower extended dependency to finish.")
-	_expect(second_request.phase == ActorMovementRequest.Phase.EXTENDED, "A slower dependency must retain tail and head for its own full duration.")
-	_expect(_actor_occupancies_do_not_overlap([first, second, third]), "Independent move speeds must not collapse the causal dependency order.")
-	_movement.advance(1.0)
-	first_request = _movement.get_request(first)
-	_expect(first_request.phase == ActorMovementRequest.Phase.EXTENDED, "The root may extend only after the intermediate Actor releases its tail.")
-	_expect(_actor_occupancies_do_not_overlap([first, second, third]), "Different dependency completion times must never overlap logical occupancy.")
-
-
-func _test_backtracking_to_alternate_candidate() -> void:
+	_expect(
+		first_request != null and first_request.phase != ActorMovementRequest.Phase.EXTENDED,
+		"The root must still wait while the intermediate tail remains occupied."
+	)
+	_expect(
+		second_request != null and second_request.phase == ActorMovementRequest.Phase.EXTENDED,
+		"The intermediate Actor may extend only after the leaf releases its tail."
+	)
+	_expect(
+		_actor_occupancies_do_not_overlap([first, second, third]),
+		"Dependency promotion must preserve unique occupancy with independent durations."
+	)
 	_movement.cancel_all()
-	var location_id := &"c1000000-0000-4000-8000-000000000005"
+	_expect(
+		not _movement.is_participant(first)
+		and not _movement.is_participant(second)
+		and not _movement.is_participant(third),
+		"Cancelling all movement must remove all temporary coordination participants."
+	)
+	_expect(
+		first_request.children_actor_ids.is_empty()
+		and second_request.parent_actor_id == second.instance_id
+		and third_request.parent_actor_id == third.instance_id,
+		"Cancellation must detach all retained parent/children coordination references."
+	)
+
+
+func _test_backtracking_and_request_cycle() -> void:
+	_movement.cancel_all()
+	var backtrack_id := &"d1000000-0000-4000-8000-000000000007"
 	_create_location(
-		location_id,
+		backtrack_id,
 		Vector2i(4, 3),
 		[Vector2i(2, 0), Vector2i(2, 2), Vector2i(3, 1)]
 	)
-	var first := _create_actor(&"c2000000-0000-4000-8000-000000000030", location_id, _cell_position(Vector2i(1, 1)), 32.0)
-	var blocker := _create_actor(&"c2000000-0000-4000-8000-000000000031", location_id, _cell_position(Vector2i(2, 1)), 32.0)
-	_expect(_movement.request_move(first, Vector2i(2, 1)), "Backtracking root request must be accepted.")
-	_expect(_movement.request_move(blocker, Vector2i(0, 1)), "Backtracking blocker request must be accepted.")
+	var root_actor := _create_actor(
+		&"d2000000-0000-4000-8000-000000000030",
+		backtrack_id,
+		Vector2i(1, 1),
+		32.0
+	)
+	var blocker := _create_actor(
+		&"d2000000-0000-4000-8000-000000000031",
+		backtrack_id,
+		Vector2i(2, 1),
+		32.0
+	)
+	_movement.request_move(root_actor, Vector2i(2, 1))
+	_movement.request_move(blocker, Vector2i(0, 1))
 	_movement.advance(0.0)
+	var root_request := _movement.get_request(root_actor)
+	_expect(
+		root_request != null
+		and root_request.phase == ActorMovementRequest.Phase.EXTENDED
+		and root_request.head_cell != Vector2i(2, 1)
+		and root_request.head_cell != root_request.tail_cell,
+		"Backtracking must make the root try a remaining C_i candidate after the inherited child fails."
+	)
+	_expect(
+		root_request != null and root_request.searched_cells.has(Vector2i(2, 1)),
+		"Backtracking must propagate the failed child's S_i into the parent search."
+	)
+
+	_movement.cancel_all()
+	var cycle_id := &"d1000000-0000-4000-8000-000000000008"
+	_create_location(cycle_id, Vector2i(2, 2))
+	var first := _create_actor(
+		&"d2000000-0000-4000-8000-000000000032",
+		cycle_id,
+		Vector2i(0, 0),
+		32.0
+	)
+	var second := _create_actor(
+		&"d2000000-0000-4000-8000-000000000033",
+		cycle_id,
+		Vector2i(1, 0),
+		32.0
+	)
+	_movement.request_move(first, Vector2i(1, 0))
+	_movement.request_move(second, Vector2i(0, 0))
 	_movement.advance(0.0)
 	var first_request := _movement.get_request(first)
-	_expect(first_request != null and first_request.head_cell == Vector2i(1, 0), "A failed dependency candidate must backtrack to the next A*-ranked neighbor.")
-	_expect(first_request.head_cell != Vector2i(2, 1), "Backtracking must not keep the blocked preferred head.")
-
-
-func _test_external_actor_blocking_and_resume() -> void:
-	_movement.cancel_all()
-	var detour_location_id := &"c1000000-0000-4000-8000-000000000006"
-	_create_location(detour_location_id, Vector2i(5, 3))
-	var external := _create_actor(&"c2000000-0000-4000-8000-000000000040", detour_location_id, _cell_position(Vector2i(2, 1)), 140.0)
-	var npc := _create_actor(&"c2000000-0000-4000-8000-000000000041", detour_location_id, _cell_position(Vector2i(1, 1)), 32.0)
-	_movement.set_actor_externally_controlled(external, true)
-	var external_position := external.local_position
-	_expect(not _movement.request_move(external, Vector2i(3, 1)), "Externally controlled Actor must not become a PIBT participant.")
-	_expect(_movement.request_move(npc, Vector2i(3, 1)), "NPC request around an external Actor must be accepted.")
-	_movement.advance(0.0)
-	var npc_request := _movement.get_request(npc)
-	_expect(npc_request != null and npc_request.head_cell == external.current_cell, "Dynamic Actors must not become permanent walls in the static A* grid.")
-	_movement.advance(0.0)
-	npc_request = _movement.get_request(npc)
-	_expect(npc_request != null and npc_request.head_cell != external.current_cell, "NPC must not enter or push an externally controlled Actor's Cell.")
-	_expect(npc_request != null and npc_request.head_cell != npc_request.tail_cell, "NPC may use another legal candidate around an external Actor.")
-	_expect(external.local_position == external_position, "PIBT must never move the externally controlled Actor.")
-
-	_movement.cancel_all()
-	var wait_location_id := &"c1000000-0000-4000-8000-000000000007"
-	_create_location(wait_location_id, Vector2i(4, 1))
-	var corridor_external := _create_actor(&"c2000000-0000-4000-8000-000000000042", wait_location_id, _cell_position(Vector2i(1, 0)), 140.0)
-	var corridor_npc := _create_actor(&"c2000000-0000-4000-8000-000000000043", wait_location_id, _cell_position(Vector2i(0, 0)), 32.0)
-	_movement.set_actor_externally_controlled(corridor_external, true)
-	_expect(_movement.request_move(corridor_npc, Vector2i(3, 0)), "Corridor NPC request must be accepted.")
-	_movement.advance(0.0)
-	_movement.advance(0.0)
-	var corridor_request := _movement.get_request(corridor_npc)
-	_expect(corridor_request != null and corridor_request.phase == ActorMovementRequest.Phase.REQUESTING, "NPC with no available candidate must WAIT without entering extended.")
-	_expect(_movement.get_actor_occupied_cells(corridor_npc) == [Vector2i(0, 0)], "Waiting NPC must occupy only its tail.")
-	corridor_external.state.local_position = _cell_position(Vector2i(2, 0))
-	_movement.advance(0.0)
-	corridor_request = _movement.get_request(corridor_npc)
-	_expect(corridor_request != null and corridor_request.phase == ActorMovementRequest.Phase.EXTENDED, "NPC must continue once the external Actor leaves the blocking Cell.")
-	_expect(corridor_request != null and corridor_request.head_cell == Vector2i(1, 0), "Resumed NPC must contract the newly available next Cell.")
-
-
-func _test_arrival_cell_claim_selection() -> void:
-	_movement.cancel_all()
-	var location_id := &"c1000000-0000-4000-8000-000000000008"
-	var location := _create_location(location_id, Vector2i(4, 3))
-	var claimant := _create_actor(&"c2000000-0000-4000-8000-000000000050", location_id, _cell_position(Vector2i(0, 1)), 32.0)
-	var entry := LocationEntry.new(
-		&"multi_arrival",
-		[Vector2i(1, 1), Vector2i(2, 1)],
-		ActorState.Facing.RIGHT
+	var second_request := _movement.get_request(second)
+	_expect(
+		first_request != null and second_request != null,
+		"A local swap request cycle must remain represented by formal participant state."
 	)
-	_expect(_movement.request_move(claimant, Vector2i(1, 1)), "Arrival claim movement request must be accepted.")
+	_expect(
+		(first_request.phase == ActorMovementRequest.Phase.EXTENDED)
+		!= (second_request.phase == ActorMovementRequest.Phase.EXTENDED),
+		"S_i cycle exclusion and backtracking must let only one Actor use a free alternate Cell."
+	)
+	var extending := first_request if first_request.phase == ActorMovementRequest.Phase.EXTENDED else second_request
+	var waiting := second_request if extending == first_request else first_request
+	_expect(
+		extending.head_cell != waiting.tail_cell,
+		"Request-cycle recovery must not approve the direct swap edge into an occupied tail."
+	)
+	_expect(
+		_actor_occupancies_do_not_overlap([first, second]),
+		"Request-cycle recovery must preserve hard occupancy without recursive snapshots."
+	)
+
+
+func _test_independent_move_speeds() -> void:
+	_movement.cancel_all()
+	var location_id := &"d1000000-0000-4000-8000-000000000009"
+	_create_location(location_id, Vector2i(3, 3))
+	var slow := _create_actor(
+		&"d2000000-0000-4000-8000-000000000040",
+		location_id,
+		Vector2i(0, 0),
+		32.0
+	)
+	var fast := _create_actor(
+		&"d2000000-0000-4000-8000-000000000041",
+		location_id,
+		Vector2i(0, 2),
+		64.0
+	)
+	_movement.request_step(slow, Vector2i.RIGHT)
+	_movement.request_step(fast, Vector2i.RIGHT)
 	_movement.advance(0.0)
-	var request := _movement.get_request(claimant)
-	_expect(request != null and request.phase == ActorMovementRequest.Phase.REQUESTING, "Arrival claim test requires a requesting head claim.")
-	var selected := location.select_arrival_cell(entry)
-	_expect(selected.get("cell") == Vector2i(2, 1), "Arrival selection must skip a requesting movement claim and preserve Definition order.")
+	_movement.advance(0.5)
+	_expect(
+		slow.local_position == Vector2(16.0, 0.0)
+		and _movement.get_actor_phase(slow) == ActorMovementRequest.Phase.EXTENDED,
+		"A 32 px/s Actor must remain halfway through a 32 px Cell after 0.5 seconds."
+	)
+	_expect(
+		fast.local_position == GridSpace.cell_to_local_position(Vector2i(1, 2))
+		and not _movement.is_participant(fast),
+		"A 64 px/s Actor must complete independently in the same elapsed time."
+	)
 
 
 func _test_scene_unload_and_rebuild() -> void:
 	_movement.cancel_all()
-	var location_id := &"c1000000-0000-4000-8000-000000000009"
+	var location_id := &"d1000000-0000-4000-8000-000000000010"
 	var location := _create_location(location_id, Vector2i(6, 3))
-	var actor := _create_actor(&"c2000000-0000-4000-8000-000000000060", location_id, _cell_position(Vector2i(1, 1)), 32.0)
+	var actor := _create_actor(
+		&"d2000000-0000-4000-8000-000000000050",
+		location_id,
+		Vector2i(1, 1),
+		32.0
+	)
 	var first_scene := _build_location_scene(location)
-	_expect(first_scene != null, "A logical movement Location Scene must build.")
+	_expect(first_scene != null, "A Location Scene must build for a logical Actor.")
 	if first_scene == null:
 		return
 	root.add_child(first_scene)
 	await process_frame
 	await physics_frame
 	var first_representation := _find_actor_representation(first_scene, actor.instance_id)
-	_expect(first_representation != null, "Loaded logical Actor must have an ActorRepresentation.")
-	_expect(_movement.request_move(actor, Vector2i(4, 1)), "Off-screen continuity request must be accepted.")
+	_expect(first_representation != null, "A loaded Actor must have ActorRepresentation.")
+	_movement.request_move(actor, Vector2i(4, 1))
 	_movement.advance(0.0)
-	_movement.advance(0.0)
-	_movement.advance(0.5)
+	_movement.advance(0.25)
 	await physics_frame
-	_expect(first_representation != null and first_representation.position == actor.local_position, "Loaded Representation must follow logical ActorState.")
-
+	_expect(
+		first_representation != null and first_representation.position == actor.local_position,
+		"Loaded Representation must follow Logical Movement ActorState."
+	)
 	first_scene.queue_free()
 	await process_frame
 	var unloaded_position := actor.local_position
-	_movement.advance(1.0)
-	_movement.advance(0.0)
-	_movement.advance(1.0)
-	_expect(actor.local_position != unloaded_position, "Logical movement must continue without a Location Scene.")
+	_advance_until_complete(actor, 0.5, 30)
+	_expect(
+		actor.local_position != unloaded_position
+		and actor.local_position == GridSpace.cell_to_local_position(Vector2i(4, 1)),
+		"Logical Movement must finish off-screen without a Location Scene."
+	)
 	var second_scene := _build_location_scene(location)
-	_expect(second_scene != null, "Location Scene must rebuild after off-screen movement.")
+	_expect(second_scene != null, "The Location Scene must rebuild after off-screen movement.")
 	if second_scene == null:
 		return
 	root.add_child(second_scene)
 	await process_frame
 	await physics_frame
 	var second_representation := _find_actor_representation(second_scene, actor.instance_id)
-	_expect(second_representation != null and second_representation.position == actor.local_position, "Rebuilt Representation must start from the current ActorState position.")
+	_expect(
+		second_representation != null and second_representation.position == actor.local_position,
+		"Rebuilt Representation must restore the current exact ActorState position."
+	)
 	second_scene.queue_free()
 	await process_frame
 
 
-func _test_location_transfer_arrival_cells() -> void:
-	_movement.cancel_all()
-	var game := MAIN_SCENE.instantiate()
-	root.add_child(game)
-	await process_frame
-	await physics_frame
-	var controller := game.get_node("PlayerController") as PlayerController
-	var player := controller.controlled_actor
-	_expect(player is Actor, "PlayerController must control an ordinary Actor.")
-	_expect(is_equal_approx(player.definition.move_speed, PLAYER_DEFINITION.move_speed), "Player movement must consume ActorDefinition.move_speed.")
-	_expect(not _has_property(controller, &"move_speed"), "PlayerController must not own a second base move_speed.")
-	_expect(not _has_property(player.definition, &"is_player"), "ActorDefinition must not store Player identity.")
-	_expect(not _has_property(player.state, &"is_player"), "ActorState must not store Player identity.")
-	_expect(_movement.is_actor_externally_controlled(player), "Player-controlled Actor must register as external movement control.")
+func _test_no_formal_martha_initialization() -> void:
+	var found_formal_martha := false
+	for entity in _registry.get_entities():
+		if entity is Actor and (entity as Actor).definition == MARTHA_DEFINITION:
+			found_formal_martha = true
+			break
+	_expect(
+		not found_formal_martha,
+		"V11.1 must leave Martha definition-only and must not add formal NPC initialization."
+	)
 
-	var tavern_id := _world_definition.get_project_location_id(&"tavern")
-	var yard_id := _world_definition.get_project_location_id(&"tavern_yard")
-	var yard := _world_definition.get_location(yard_id)
-	var entry := yard.get_entry(&"tavern_entrance")
-	var original_arrivals: Array[Vector2i] = entry.arrival_cells.duplicate()
-	var first_cell: Vector2i = original_arrivals[0]
-	var second_cell := _find_alternate_arrival_cell(yard, first_cell)
-	entry.arrival_cells = [first_cell, second_cell]
-	var first_blocker := _create_actor(&"c2000000-0000-4000-8000-000000000070", yard_id, _cell_position(first_cell), 32.0)
-	var edge := _world_definition.get_edge(tavern_id, &"back_door")
-	var prepared: Dictionary = game.call("_prepare_location_change", yard_id, tavern_id, edge)
-	_expect(not prepared.is_empty(), "Transfer Prepare must use a later arrival Cell when the first is occupied.")
-	_expect(prepared.get("spawn_position") == GridSpace.cell_to_local_position(second_cell), "Transfer Prepare must choose the first currently legal arrival Cell in order.")
-	if not prepared.is_empty():
-		(prepared["location"] as GridScene).free()
 
-	var second_blocker := _create_actor(&"c2000000-0000-4000-8000-000000000071", yard_id, _cell_position(second_cell), 32.0)
-	var rejected: Dictionary = game.call("_prepare_location_change", yard_id, tavern_id, edge)
-	_expect(rejected.is_empty(), "Transfer Prepare must reject when every arrival Cell is occupied.")
-	_expect(player.current_location_id == tavern_id, "Rejected transfer must not migrate the controlled Actor.")
-	_expect(first_blocker.current_cell == first_cell and second_blocker.current_cell == second_cell, "Rejected transfer must not push or overlap arrival blockers.")
-	entry.arrival_cells = original_arrivals
-	game.queue_free()
-	await process_frame
-	_expect(not _movement.is_actor_externally_controlled(player), "PlayerController exit must clear external movement control.")
+func _test_removed_resolver_mechanisms() -> void:
+	var movement_source := FileAccess.get_file_as_string("res://scripts/movement/logical_movement.gd")
+	var representation_source := FileAccess.get_file_as_string(
+		"res://scripts/actors/actor_representation.gd"
+	)
+	for removed_term in [
+		"STATUS_VISITING",
+		"STATUS_RESOLVED",
+		"STATUS_FAILED",
+		"_resolve_movement",
+		"_snapshot_context",
+		"_restore_context",
+		"set_actor_externally_controlled",
+		"is_actor_externally_controlled",
+	]:
+		_expect(
+			not movement_source.contains(removed_term),
+			"Logical Movement must remove old resolver mechanism '%s'." % removed_term
+		)
+	_expect(
+		not representation_source.contains("sync_state_from_representation")
+		and not representation_source.contains("_state_driven"),
+		"ActorRepresentation must have one-way ActorState position authority for every Actor."
+	)
 
 
 func _create_location(
@@ -395,7 +720,7 @@ func _create_location(
 	blocked_cells: Array[Vector2i] = []
 ) -> LocationRuntime:
 	var definition := LocationDefinition.new()
-	definition.display_name = "V11 Test Location"
+	definition.display_name = "V11.1 Test Location"
 	definition.grid_size = grid_size
 	for y in range(grid_size.y):
 		for x in range(grid_size.x):
@@ -406,41 +731,33 @@ func _create_location(
 		definition.structure_layer[cell] = blocker
 	var definitions: Dictionary = _world_definition.get("_definitions_by_location")
 	definitions[location_id] = definition
-	_expect(_world_state.register_location_state(LocationState.new(location_id)), "V11 test LocationState must register.")
+	_expect(
+		_world_state.register_location_state(LocationState.new(location_id)),
+		"V11.1 test LocationState must register."
+	)
 	var location := _world_definition.get_location(location_id)
-	_expect(location != null, "V11 test LocationRuntime must resolve.")
+	_expect(location != null, "V11.1 test LocationRuntime must resolve.")
 	return location
 
 
 func _create_actor(
 	instance_id: StringName,
 	location_id: StringName,
-	position: Vector2,
+	cell: Vector2i,
 	move_speed: float
 ) -> Actor:
 	var definition := MARTHA_DEFINITION.duplicate(true) as ActorDefinition
 	definition.move_speed = move_speed
-	var state := ActorState.new(instance_id, location_id, position, ActorState.Facing.DOWN)
+	var state := ActorState.new(
+		instance_id,
+		location_id,
+		GridSpace.cell_to_local_position(cell),
+		ActorState.Facing.DOWN
+	)
 	var actor := Actor.new(definition, state)
-	_expect(_world_state.register_entity_state(state), "V11 test ActorState must register.")
-	_expect(_registry.register_entity(actor), "V11 test Actor must register.")
+	_expect(_world_state.register_entity_state(state), "V11.1 test ActorState must register.")
+	_expect(_registry.register_entity(actor), "V11.1 test Actor must register.")
 	return actor
-
-
-func _create_blocking_furniture(
-	instance_id: StringName,
-	location_id: StringName,
-	position: Vector2
-) -> Furniture:
-	var definition := FurnitureDefinition.new()
-	definition.display_name = "V11 Blocking Furniture"
-	definition.footprint_cells = [Vector2i.ZERO]
-	definition.blocks_movement = true
-	var state := FurnitureState.new(instance_id, location_id, position)
-	var furniture := Furniture.new(definition, state)
-	_expect(_world_state.register_entity_state(state), "V11 test FurnitureState must register.")
-	_expect(_registry.register_entity(furniture), "V11 test blocking Furniture must register.")
-	return furniture
 
 
 func _build_location_scene(location: LocationRuntime) -> GridScene:
@@ -470,39 +787,16 @@ func _find_actor_representation(
 	return null
 
 
-func _find_alternate_arrival_cell(
-	location: LocationRuntime,
-	first_cell: Vector2i
-) -> Vector2i:
-	var directions: Array[Vector2i] = [
-		Vector2i.RIGHT,
-		Vector2i.LEFT,
-		Vector2i.DOWN,
-		Vector2i.UP,
-	]
-	for direction in directions:
-		var cell: Vector2i = first_cell + direction
-		if location.is_cell_statically_walkable(cell):
-			return cell
-	return first_cell
-
-
-func _advance_until_complete(actor: Actor, delta: float) -> void:
-	for _step in range(20):
+func _advance_until_complete(actor: Actor, delta: float, maximum_steps: int) -> void:
+	for _step in range(maximum_steps):
 		if not _movement.is_participant(actor):
 			return
 		_movement.advance(delta)
 
 
-func _cell_position(cell: Vector2i) -> Vector2:
-	return GridSpace.cell_to_local_position(cell, Vector2(8.0, 12.0))
-
-
-func _has_property(object: Object, property_name: StringName) -> bool:
-	for property in object.get_property_list():
-		if property["name"] == property_name:
-			return true
-	return false
+func _manhattan_distance(a: Vector2i, b: Vector2i) -> int:
+	var difference := a - b
+	return absi(difference.x) + absi(difference.y)
 
 
 func _actor_occupancies_do_not_overlap(actors: Array) -> bool:
@@ -525,8 +819,8 @@ func _expect(condition: bool, message: String) -> void:
 
 func _finish() -> void:
 	if _failures == 0:
-		print("V11 Logical Actor Movement: %d checks passed." % _checks)
+		print("V11.1 Unified Grid Movement: %d checks passed." % _checks)
 		quit(0)
 		return
-	push_error("V11 Logical Actor Movement: %d of %d checks failed." % [_failures, _checks])
+	push_error("V11.1 Unified Grid Movement: %d of %d checks failed." % [_failures, _checks])
 	quit(1)

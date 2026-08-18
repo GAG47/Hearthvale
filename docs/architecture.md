@@ -99,7 +99,7 @@ Structure Layer 的权威形式是 `cell → StructureTileDefinition Resource`�
 
 ### Entries 与 Exits
 
-LocationEntry 直接保存 `entry_id`、有序 `arrival_cells` 与 Facing。Topology 只指出目标 Entry ID；LocationEntry 拥有该 Entry 在目标 Location 内的候选格子位置和朝向。Location Transfer 的 Prepare 阶段按 Definition 顺序选择首个静态可进入、且没有 Actor occupancy 或 movement claim 的 Cell，全部候选不可用时直接拒绝，Commit 不再依赖 Scene Physics 修正重叠。现有单 Cell Entry 迁移为只含一个元素的数组，因此原有落点顺序保持不变。
+LocationEntry 直接保存 `entry_id`、有序 `arrival_cells` 与 Facing。Topology 只指出目标 Entry ID；LocationEntry 拥有该 Entry 在目标 Location 内的候选格子位置和朝向。Location Transfer 的 Prepare 阶段按 Definition 顺序选择首个静态可进入、且没有 Actor hard occupancy 的 Cell，全部候选不可用时直接拒绝，Commit 不再依赖 Scene Physics 修正重叠。requesting head 只是意图，不会形成 Entry 空气墙。现有单 Cell Entry 迁移为只含一个元素的数组，因此原有落点顺序保持不变。
 
 LocationExit 直接保存对应的 `edge_key` 与本地 Cell Rect。SceneBuilder 根据它创建临时的 LocationExitArea 触发区域；Topology 继续独立负责该 Edge 连接到哪个 Location。
 
@@ -160,14 +160,14 @@ LocationSceneBuilder 只消费 LocationRuntime 已合并出的当前 Ground、De
 Prepare
 ├─ 解析目标 LocationRuntime
 ├─ 验证目标 LocationEntry
-├─ 按顺序选择首个无静态阻挡、Actor occupancy 或 movement claim 的 arrival Cell
+├─ 按顺序选择首个无静态阻挡或 Actor hard occupancy 的 arrival Cell
 ├─ 从当前 Location 数据生成全部静态层
 ├─ 通过 EntityRepresentationRegistry 准备全部 Entity Representations
 ├─ 验证 PlayerController 可接管目标 ActorRepresentation
 └─ 预检目标 Scene 可注册
         ↓ 全部成功
 Commit
-├─ 同步旧 ActorRepresentation 的最终位置
+├─ 确认迁移 Actor 已完成当前逻辑单步
 ├─ 修改迁移 ActorState 的 Location、位置与 Entry Facing
 ├─ 激活已经准备完成的目标 Scene
 ├─ PlayerController 换绑 Representation
@@ -183,7 +183,7 @@ Entity 是拥有独立 UUID `instance_id`、Definition Resource 引用和独立 
 
 Entity 大类表达根本结构或生命周期差异；Definition 表达具体内容是什么；Behavior / Component 表达能做什么；BehaviorState 保存可组合能力的实例变化。Bed、Chest、Sign 不建立逻辑子类，而由 FurnitureDefinition 与 Sleepable、Openable、Inspectable Behavior 组合表达。只有 Openable 当前需要独立 OpenableState。
 
-Representation 依赖 Entity，Entity 不依赖 Representation。ActorRepresentation 继续使用 CharacterBody2D，FurnitureRepresentation 继续使用 Node2D；统一的是 Factory 创建协议和逻辑绑定，而不是强迫所有表现继承同一个 Node 基类。普通 ActorRepresentation 每个 physics frame 从 ActorState 表现当前位置；仅当 PlayerController 正在直接控制该 Representation 时，位置才由 Representation 同步回同一个 ActorState。Logical Movement participant 会强制恢复 State-driven，避免 Scene 卸载时旧 NPC Representation 把旧位置反写回 State。
+Representation 依赖 Entity，Entity 不依赖 Representation。ActorRepresentation 继续使用 CharacterBody2D，FurnitureRepresentation 继续使用 Node2D；统一的是 Factory 创建协议和逻辑绑定，而不是强迫所有表现继承同一个 Node 基类。所有 ActorRepresentation 每个 physics frame 都从 ActorState 表现位置和朝向；PlayerController 也不能把 Representation 位置回写到 ActorState。ActorState 是 Player 与 NPC 共用的唯一正式位置权威，Representation 销毁或 Scene 卸载不会反写旧坐标。
 
 EntityRepresentationRegistry 扫描全部 Factory 并要求恰好一个匹配。零匹配或多匹配都使 Location Prepare 失败。Game 不按 Actor / Furniture 类型分支，也不持有具体 Entity Representation Scene。
 
@@ -211,7 +211,7 @@ Furniture 直接从 Definition-local footprint Cell 集合计算占用 world Cel
 
 ## Action 与 Interaction
 
-PlayerController 把玩家输入转化为移动或交互意图。它当前仍通过 ActorRepresentation 执行玩家自由连续移动，再把位置同步回 ActorState，但基础速度直接读取受控 Actor 的 ActorDefinition。PlayerController 不创建 PlayerDefinition、PlayerState 或 Player 专属 occupancy；它只是向一个普通 Actor 提供当前玩家控制。
+PlayerController 把玩家输入转化为方向移动意图或交互意图。移动输入只写入 LogicalMovementRuntime 的最新四向 direction intent；PlayerController 不设置 velocity、不调用 `move_and_slide()`、不移动 ActorRepresentation，也不回写 ActorState。它不创建 PlayerDefinition、PlayerState 或 Player 专属 occupancy，只向一个普通 Actor 提供当前玩家控制。
 
 PlayerController 直接从当前 LocationRuntime 查询 Entity，按 Actor 当前 Cell、facing、Action UseSlot 和当前 Runtime 有效性选择候选；有明确方向限制且当前 facing 被允许的 Slot 优先于 unrestricted Slot，完全同级时按稳定 instance UUID 排序。Representation、Scene 索引和物理节点都不是交互目标的逻辑来源。
 
@@ -222,38 +222,42 @@ WorldAction 使用逻辑 EntityState 验证同一 Location，然后由 ActionSpa
 Movement 是 Logical World 能力。正式数据流为：
 
 ```text
-Actor + target_cell
+PlayerController direction intent / NPC target intent
   ↓
-AStarGrid2D 静态路线
+LogicalMovementRuntime
+  ├─ direction：指定邻格 + WAIT
+  └─ target：AStarGrid2D 静态路线候选
   ↓
 Causal-PIBT 当前一步协调
   ↓
-LogicalMovementRuntime 连续推进
+ActorDefinition.move_speed 连续推进
   ↓
 ActorState.local_position
   ↓
 ActorRepresentation（存在时）
 ```
 
-`LogicalMovementRuntime` 是独立于 Location Scene 的 Autoload。Movement Request 只保存 Actor、请求开始时的 Location、当前 Location 内的 `target_cell`、基础与临时有效 priority、当前 phase、tail/head Cell、候选 Cell，以及一格连续位移的起止坐标。Location Scene 是否加载不影响 Request 推进；重新生成 ActorRepresentation 时，它直接从当时的 ActorState 位置开始表现。
+`LogicalMovementRuntime` 是独立于 Location Scene 的 Autoload。Player 与 NPC 都进入同一个 Request 集合。每个 `ActorMovementRequest` 保存 intent kind、目标或指定方向、original/current priority、contracted/requesting/extended phase、tail/head、parent/children、按优先顺序维护的候选集合 `C_i`、已搜索集合 `S_i`，以及一格连续位移的标准起止坐标。Location Scene 是否加载不影响 Request 推进；重新生成 ActorRepresentation 时，它直接从当时的 ActorState 位置开始表现。
 
 全局路线由 `AStarGrid2D` 直接消费 LocationRuntime 的当前逻辑数据建立，只允许上下左右移动。Location bounds、Ground walkability、Ground movement cost、Structure 和 blocking Furniture / Entity 来自同一份 Location Definition + State 合并结果；Scene、TileMap、Physics Collision、NavigationAgent2D 或 NavMesh 都不是路线来源。动态 Actor 不写入静态 A* 墙，它们由 Causal-PIBT 处理。
 
-每次准备一小步时，Runtime 从当前 tail 取得可到达 target 的四向静态合法邻格，按 A* 剩余成本排序，并保证 A* 推荐 next Cell 优先，最后追加 WAIT。PIBT 如果让 Actor 临时偏离主路径，下一次 contracted 会从新 tail 重新建图和排序。
+NPC target intent 每次从当前 tail 取得可到达 target 的四向静态合法邻格，按 A* 剩余成本排序，并保证 A* 推荐 next Cell 优先，最后追加 WAIT；PIBT 临时改选后，下一次 contracted 从新 tail 重新取得 guidance。direction intent 的 `C_i` 只包含 Controller 指定邻格与 WAIT，因此协调不会把玩家自动改向其他邻格。
 
 局部协调使用 Causal-PIBT 的核心三阶段：
 
 - contracted：稳定占据 `{tail}`；
-- requesting：请求 `tail → head`，逻辑占用仍为 `{tail}`，但 head 是可查询的 movement claim；
+- requesting：请求 `tail → head`，逻辑占用仍为 `{tail}`；head 只是协调意图，不是 hard occupancy；
 - extended：请求批准后连续移动，严格占据 `{tail, head}`，直到整格位移完成才收缩为新 `{tail}`。
 
-基础 priority 由 Movement Request 开始时间决定，同一 movement clock 使用 Actor instance UUID 稳定决胜。高优先请求遇到另一个 participant 时，阻挡者在本次协调中临时继承 priority 并递归尝试自己的候选；如果下游无法完成，Runtime 回滚本轮 assignments、head owners、递归状态与 Request 协调快照，上游继续尝试下一个候选。协调成功不会让整条依赖链同时进入 extended：只有 head 当前未被占用的依赖叶节点先开始移动，上游保持 requesting，直到下游真正完成并释放旧 tail 后才依次进入 extended。不同 Actor 速度不同时，整条链的 phase occupancy 仍不会重叠。Request 完成或取消后不再是 participant，临时 priority 也随之消失。
+基础 priority 由 Movement Request 开始时间决定，同一 movement clock 使用 Actor instance UUID 稳定决胜；current priority 只在当前协调关系中临时继承，original priority 不被覆盖。正式 activation 直接维护 parent/children、`C_i` 与 `S_i`：高优先 requesting Actor 指向另一个 participant 的 tail 时，阻挡者建立 parent 关系、继承 current priority，并从父级 `S_i` 继续搜索；child 没有候选时把 `S_i` 传播回 parent，parent 回到 contracted 并尝试剩余 `C_i`。request cycle 通过“child head 是否已经位于 parent `S_i`”识别并回退。相同 head 的 requesting contenders 按 current priority 只批准一个。实现不再使用 `STATUS_VISITING`、递归 `_resolve_movement()`、assignments/head owners 或 snapshot/restore 模拟继承与回溯。
 
-批准一步后，ActorState.local_position 通过 ActorDefinition.move_speed 连续向 `step_start_position + cell_direction * CELL_SIZE` 移动，因此保留原有格内 offset，不吸附到格子中心。不同 Actor 独立完成各自的 extended phase，不使用统一 movement timestep。即使连续坐标已经跨入 head Cell，extended 完成前仍同时占用 tail 与 head。
+协调成功不会让整条依赖链同时进入 extended：只有 head 当前没有 hard occupancy 的依赖叶节点先开始移动，上游保持 requesting，直到下游真正完成并释放旧 tail 后才依次进入 extended。不同 Actor 速度不同时，整条链的 phase occupancy 仍不会重叠。Request 完成、取消或 Actor 离开原 Location 后会清理 participant 及其 parent/children 关系。
 
-非 participant Actor 使用自己的 `current_cell` 参与动态占格。PlayerController 会把当前受控 Actor 注册为 external movement control：它仍是普通 Actor 并占据 `current_cell`，但不能成为 PIBT participant、继承 priority 或被 NPC 推动。NPC 遇到该 Cell 时只能改选其他候选或 WAIT。
+稳定 contracted Actor 必须位于 `GridSpace.cell_to_local_position(tail)`。批准一步时，起点强制使用 tail 的标准位置，ActorState.local_position 按 ActorDefinition.move_speed 连续移动到 head 的标准位置，完成时再次精确写入标准坐标，从而避免长期浮点漂移。不同 Actor 独立完成各自的 extended phase，不使用统一 movement timestep；即使连续坐标已经跨入 head Cell，extended 完成前仍同时占用 tail 与 head。
 
-V11 只实现 Causal-PIBT 核心局部协调。它不提供 RHCR、SIPP、未来时间或 edge reservation、CBS / ECBS、完整 Joint MAPF、dead-end 特殊扩展、congestion guidance、traffic optimization、ORCA / RVO、Schedule、Goal 或 AI。普通 Causal-PIBT 在特定死胡同与拓扑中仍可能等待或无法消解，是当前明确限制。
+非 participant Actor 使用自己的 `current_cell` 参与 hard occupancy。Player-controlled Actor 不再是 external movement control，而是与 NPC 一样成为普通 Causal-PIBT participant；差异只在于 direction intent 与 target intent 生成不同的 `C_i`。玩家在 extended 中改变方向时，当前单步继续完成，之后从新 tail 使用最新缓存方向；释放输入则完成当前单步后停止。Location Change 也先清除方向 intent，并等待已经开始的逻辑单步完成，避免半格 Transfer。
+
+V11.1 只实现 Causal-PIBT 核心局部协调。当前只有已经持有 Movement Intent 的 Actor 会成为可继承 participant；没有 intent 的静止 Actor 是 hard obstacle，系统不会擅自替它生成移动目标。算法不提供 RHCR、SIPP、未来时间或 edge reservation、CBS / ECBS、完整 Joint MAPF、dead-end 特殊扩展、congestion guidance、traffic optimization、ORCA / RVO、Schedule、Goal 或 AI。在没有空闲节点或可行候选的拓扑中，Actor 仍可能合法 WAIT；本轮没有用特殊走廊、dead-end 或 retry 规则掩盖这一限制。
 
 ## 世界时间
 

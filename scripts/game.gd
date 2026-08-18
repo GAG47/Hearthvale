@@ -154,6 +154,13 @@ func _perform_location_change(
 	from_location_id: StringName,
 	edge: LocationEdgeDefinition
 ) -> void:
+	var movement := get_node_or_null("/root/LogicalMovement") as LogicalMovementRuntime
+	while (
+		movement != null
+		and player_controller.controlled_actor != null
+		and movement.is_participant(player_controller.controlled_actor)
+	):
+		await get_tree().physics_frame
 	var changed := _replace_location(edge.target_location_id, from_location_id, edge)
 	if is_instance_valid(player_controller.controlled_representation):
 		player_controller.set_physics_process(true)

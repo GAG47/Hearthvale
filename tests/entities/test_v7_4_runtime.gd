@@ -209,14 +209,18 @@ func _run_tests() -> void:
 	representation.facing = ActorState.Facing.DOWN
 
 	var initial_position := representation.position
-	Input.action_press(&"ui_right")
-	await physics_frame
-	await physics_frame
-	Input.action_release(&"ui_right")
-	await physics_frame
-	_expect(representation.position.x > initial_position.x, "PlayerController must apply movement input.")
+	await _expect_input_facing_visual(
+		representation,
+		&"ui_right",
+		ActorState.Facing.RIGHT,
+		"right"
+	)
+	_expect(
+		representation.position == initial_position + Vector2(GridSpace.CELL_SIZE, 0.0),
+		"PlayerController must complete one exact Grid Cell from movement input."
+	)
 	_expect(representation.facing == ActorState.Facing.RIGHT, "Movement must update ActorState.facing.")
-	_expect(player.local_position == representation.position, "Movement must synchronize ActorState.local_position.")
+	_expect(player.local_position == representation.position, "Representation must display ActorState.local_position.")
 
 	_place_actor(representation, Vector2i(13, 6), ActorState.Facing.RIGHT)
 	var pre_collision_position := representation.position
@@ -224,8 +228,10 @@ func _run_tests() -> void:
 	await create_timer(0.3).timeout
 	Input.action_release(&"ui_right")
 	await physics_frame
-	_expect(representation.position.x > pre_collision_position.x, "Player must approach blocking Furniture.")
-	_expect(representation.position.x < 450.0, "ActorRepresentation must collide with Chest FurnitureRepresentation.")
+	_expect(
+		representation.position == pre_collision_position,
+		"Logical Movement must reject the blocking Chest Cell before extended begins."
+	)
 
 	_test_interactions(controller, representation, game, chest)
 	var chest_state := chest.furniture_state
@@ -285,12 +291,16 @@ func _run_tests() -> void:
 	)
 
 	var yard_position := yard_representation.position
-	Input.action_press(&"ui_down")
-	await physics_frame
-	await physics_frame
-	Input.action_release(&"ui_down")
-	await physics_frame
-	_expect(yard_representation.position.y > yard_position.y, "Movement must continue after rebind.")
+	await _expect_input_facing_visual(
+		yard_representation,
+		&"ui_down",
+		ActorState.Facing.DOWN,
+		"down"
+	)
+	_expect(
+		yard_representation.position == yard_position + Vector2(0.0, GridSpace.CELL_SIZE),
+		"Grid movement must continue after Representation rebind."
+	)
 
 	game.call("request_location_change", &"tavern_door")
 	await _wait_for_transition(game)
@@ -397,9 +407,12 @@ func _place_actor(
 	cell: Vector2i,
 	facing: ActorState.Facing
 ) -> void:
-	representation.position = GridSpace.cell_to_local_position(cell, Vector2.ONE * 16.0)
+	var movement := root.get_node_or_null("LogicalMovement") as LogicalMovementRuntime
+	if movement != null:
+		movement.cancel_move(representation.actor)
+	representation.actor.state.local_position = GridSpace.cell_to_local_position(cell)
+	representation.position = representation.actor.local_position
 	representation.facing = facing
-	representation.sync_state_from_representation()
 
 
 func _get_actor_representations(location: GridScene) -> Array[ActorRepresentation]:
@@ -456,17 +469,36 @@ func _expect_input_facing_visual(
 	expected_facing: ActorState.Facing,
 	expected_direction: String
 ) -> void:
+	var start_cell := representation.actor.current_cell
+	var expected_offset := Vector2i.DOWN
+	match expected_facing:
+		ActorState.Facing.UP:
+			expected_offset = Vector2i.UP
+		ActorState.Facing.LEFT:
+			expected_offset = Vector2i.LEFT
+		ActorState.Facing.RIGHT:
+			expected_offset = Vector2i.RIGHT
 	Input.action_press(input_action)
 	await physics_frame
 	Input.action_release(input_action)
+	var movement := root.get_node_or_null("LogicalMovement") as LogicalMovementRuntime
+	for _frame in range(40):
+		await physics_frame
+		if movement == null or not movement.is_participant(representation.actor):
+			break
 	_expect(
 		representation.facing == expected_facing
 		and _get_actor_visual_path(representation)
 		== representation.actor.definition.get_visual(StringName(expected_direction)).resource_path,
-		"Input '%s' must set facing %s and immediately select visuals.%s."
+		"Input '%s' must set facing %s when Logical Movement starts and select visuals.%s."
 		% [input_action, expected_facing, expected_direction]
 	)
-	await physics_frame
+	_expect(
+		representation.actor.current_cell == start_cell + expected_offset
+		and representation.actor.local_position
+		== GridSpace.cell_to_local_position(start_cell + expected_offset),
+		"Input '%s' must finish one exact cardinal Grid step." % input_action
+	)
 
 
 func _get_visual_path_for_facing(
@@ -485,7 +517,7 @@ func _get_visual_path_for_facing(
 
 
 func _wait_for_transition(game: Node) -> void:
-	for _frame in range(8):
+	for _frame in range(60):
 		await process_frame
 		await physics_frame
 		if not game.get("transition_in_progress"):

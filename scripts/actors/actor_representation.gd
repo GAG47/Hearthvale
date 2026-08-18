@@ -6,7 +6,6 @@ const VISUAL_DIRECTIONS: Array[String] = ["up", "down", "left", "right"]
 var actor: Actor
 var current_location: GridScene
 var _visual_textures: Dictionary[String, Texture2D] = {}
-var _state_driven := true
 
 var instance_id: StringName:
 	get:
@@ -36,13 +35,12 @@ func get_entity() -> Entity:
 	return actor
 
 
+func _ready() -> void:
+	process_physics_priority = 100
+
+
 func _physics_process(_delta: float) -> void:
 	if actor == null:
-		return
-	var movement := _get_logical_movement()
-	if movement != null and movement.is_participant(actor):
-		_state_driven = true
-	if not _state_driven:
 		return
 	position = actor.local_position
 	_update_facing_visual()
@@ -75,29 +73,12 @@ func prepare_actor(
 	current_location = location
 	_visual_textures = loaded_visual_textures
 	position = target_local_position
-	var movement := _get_logical_movement()
-	_state_driven = movement == null or not movement.is_actor_externally_controlled(actor)
 	_update_facing_visual()
 	return true
 
 
 func finish_location_departure() -> void:
-	sync_state_from_representation()
 	current_location = null
-
-
-func sync_state_from_representation() -> void:
-	if _state_driven or actor == null or not is_instance_valid(current_location):
-		return
-	actor.state.current_location_id = current_location.location_id
-	actor.state.local_position = position
-
-
-func set_state_driven(enabled: bool) -> void:
-	_state_driven = enabled
-	if _state_driven and actor != null:
-		position = actor.local_position
-		_update_facing_visual()
 
 
 func get_front_cell() -> Vector2i:
@@ -158,17 +139,3 @@ func _get_facing_direction() -> String:
 			return "right"
 		_:
 			return "down"
-
-
-func _get_logical_movement() -> LogicalMovementRuntime:
-	var tree := Engine.get_main_loop() as SceneTree
-	return (
-		tree.root.get_node_or_null("LogicalMovement") as LogicalMovementRuntime
-		if tree != null
-		else null
-	)
-
-
-func _exit_tree() -> void:
-	if not _state_driven:
-		sync_state_from_representation()

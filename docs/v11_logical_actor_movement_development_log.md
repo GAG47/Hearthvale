@@ -163,3 +163,106 @@ V11 专项测试覆盖：
 - 主场景 headless smoke：正常启动并以 exit code 0 退出。
 
 EntityRegistry、Entity Representation、V7.5 与 V11 测试中的错误日志来自各自明确执行的失败分支断言，不是未处理回归。
+
+## V11.1 修正：Unified Grid Movement + Formal Causal-PIBT
+
+日期：2026-08-18
+
+本节记录 V11 初版之后的修正，不回写上文的历史实现状态。V11.1 处理了两个根本问题：初版 Player 仍由 ActorRepresentation 自由连续移动；初版局部协调以递归 resolver、VISITING status 与 snapshot/restore 模拟 priority inheritance/backtracking。两者均已替换。
+
+### 统一 Actor Grid Movement
+
+Player 与 NPC 现在都通过同一个 `LogicalMovementRuntime`，一次正式移动固定为：
+
+```text
+contracted(A)
+→ requesting(A, B)
+→ extended(A, B)
+→ contracted(B)
+```
+
+`B` 必须是 `A` 的上下左右相邻 Cell。contracted Actor 必须位于 `GridSpace.cell_to_local_position(A)`；进入 extended 时起点和目标都使用 tail/head 的标准坐标，ActorState.local_position 在两者之间按 `ActorDefinition.move_speed` 连续推进，完成后精确写入 head 标准坐标。不同 Actor 仍按各自速度独立完成，不建立统一 Movement Tick。
+
+PlayerController 不再设置 Representation velocity、不调用 `move_and_slide()`、不把 Representation 位置同步回 ActorState。它只把最新四向输入写为 direction intent。持续按键时，每个 Cell 仍是独立 Request，但前一步完成后立即从新 tail 创建下一步；extended 中改变方向不会中断当前步，完成后使用最新缓存方向；释放输入会完成当前步再停止。
+
+NPC target intent 继续使用 AStarGrid2D 生成全局 guidance：合法四向邻格按到 target 的剩余路径成本排序，A* 推荐 next Cell 优先，最后追加 WAIT。direction intent 的候选只包含指定邻格与 WAIT，因此 Causal-PIBT 不会替玩家自动选择另一方向。这个差异来自 intent kind，不来自 Player 身份字段。
+
+ActorRepresentation 现在对所有 Actor 都是单向表现：
+
+```text
+Controller / Pathfinding
+  ↓
+LogicalMovementRuntime
+  ↓
+ActorState
+  ↓
+ActorRepresentation
+```
+
+原 `_state_driven`、external movement control、`sync_state_from_representation()` 与相关切换入口均已删除。Scene 卸载后 LogicalMovementRuntime 继续推进 ActorState；重建 Scene 时 Representation 直接恢复当前状态。
+
+### 正式 Causal-PIBT participant 状态
+
+`ActorMovementRequest` 现在直接维护：
+
+- contracted / requesting / extended；
+- tail / head；
+- original priority 与 current/inherited priority；
+- parent 与 children；
+- 当前有序候选 `C_i`；
+- 当前搜索/排除集合 `S_i`；
+- intent kind、direction cache 以及连续一步的标准起止位置。
+
+每次 activation 对一个 participant 执行正式状态迁移。高优先 requesting Actor 指向另一个 participant 的 tail 时，阻挡者建立 parent 关系、登记为 parent child、继承 current priority，并复制 parent `S_i` 后继续从过滤后的 `C_i` 搜索。child 无候选时把 `S_i` 传播回 parent，过滤 parent 剩余 `C_i` 并令 parent 回到 contracted；parent 随后尝试剩余候选。child head 已存在于 parent `S_i` 时按 request-cycle 规则回到 contracted，不依赖递归 VISITING 标记。
+
+相同 head 的 requesting contenders 使用 current priority 只选一个 winner。依赖链中 head 仍被任何 hard occupancy 占据时，上游保持 requesting；只有空闲 head 的叶节点先进入 extended。叶节点释放 tail 后，上游才按因果顺序继续。因此不同 move_speed 不会让依赖链重叠占格。
+
+初版以下机制已删除：
+
+- `STATUS_VISITING / STATUS_RESOLVED / STATUS_FAILED`；
+- 递归 `_resolve_movement()`；
+- assignments / head owners / recursion context；
+- Request coordination snapshot/restore；
+- Player external movement control 特例。
+
+没有增加 retry_count、blocked_time、deadlock_counter、corridor/dead-end special case、reservation 或 congestion 规则。
+
+### Hard Occupancy 修正
+
+V11.1 的正式语义为：
+
+```text
+contracted(A)      occupied = {A}
+requesting(A, B)   occupied = {A}
+extended(A, B)     occupied = {A, B}
+contracted(B)      occupied = {B}
+```
+
+requesting head 只是协调意图，不再通过 `is_actor_cell_claimed` 对外形成 occupancy。Location Entry 的 `arrival_cells` 只避开 contracted Cell 与 extended tail/head；如果某 Cell 仅被另一个 Request 指为 head，Transfer Prepare 仍可选择该 Cell。若 Player 已进入 extended，Location Change 会先清除持续方向 intent，等待当前完整单步结束，再执行 Transfer，避免半格迁移。
+
+### 当前限制与边界
+
+V11.1 没有正式初始化 Martha，也没有新增 NPC bootstrap、spawn list、Schedule、Goal、AI、随机移动或第二套 Movement Grid。
+
+当前只有持有 Movement Intent 的 Actor 是可继承 participant；没有 intent 的静止 Actor 作为 hard obstacle，不会被系统擅自生成移动目标。没有空闲节点或剩余合法候选时，正式结果可以是 WAIT。普通 Causal-PIBT 的局部模型不保证解决所有死胡同、满占拓扑或长期拥堵；本轮没有加入 RHCR、SIPP、Reservation Table、Edge Reservation、CBS / ECBS、Joint MAPF、ORCA / RVO、Temporary Priority extension、congestion guidance、traffic optimization 或特殊死锁规则。
+
+### V11.1 验证
+
+专项测试重建为统一 Grid Movement 语义，覆盖：
+
+- Player 与 NPC 共用 LogicalMovementRuntime；
+- PlayerController intent-only 与 ActorRepresentation 单向表现；
+- cardinal-only、标准落格、平滑中间位置与长距离无漂移；
+- held direction 连续移动、extended 中最新方向缓存与释放后停止；
+- direction `C_i` 仅指定方向 + WAIT，target `C_i` 保留 A* 多候选；
+- contracted/requesting/extended hard occupancy；
+- requesting head 不阻挡 Location Entry；
+- same-head current priority 决胜；
+- parent/children 建立与释放；
+- original/current priority、`C_i/S_i` 传播、inheritance 与 backtracking；
+- request-cycle recovery 不依赖 STATUS_VISITING；
+- 不同 move_speed、Scene unload 与 Representation rebuild；
+- 未正式初始化 Martha；
+- 旧 resolver 与 external control API 的静态删除检查。
+
+当前专项结果为 `V11.1 Unified Grid Movement: 175 checks passed.`。V7.4 测试已同步移除自由移动与 Representation 回写假设，改为验证完整单格移动和逻辑阻挡；V7.5、V9、V10 以及基础 Definition / Registry / Representation 回归保持通过。

@@ -214,7 +214,7 @@ func is_actor_cell_available(cell: Vector2i, ignored_actor: Actor = null) -> boo
 	if not is_cell_statically_walkable(cell, ignored_actor):
 		return false
 	if movement_runtime != null:
-		return not movement_runtime.is_actor_cell_claimed(instance_id, cell, ignored_actor)
+		return not movement_runtime.is_actor_cell_occupied(instance_id, cell, ignored_actor)
 	for entity in get_entities_at(cell):
 		if entity is Actor and entity != ignored_actor:
 			return false

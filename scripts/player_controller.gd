@@ -9,6 +9,10 @@ var controlled_actor: Actor
 var controlled_representation: ActorRepresentation
 
 
+func _ready() -> void:
+	process_physics_priority = -100
+
+
 func _physics_process(_delta: float) -> void:
 	if controlled_actor == null or not is_instance_valid(controlled_representation):
 		return
@@ -16,13 +20,12 @@ func _physics_process(_delta: float) -> void:
 	if Input.is_action_just_pressed(&"interact"):
 		request_interaction()
 
-	var input_direction := _get_input_direction()
-	controlled_representation.velocity = input_direction * controlled_actor.definition.move_speed
-	if not input_direction.is_zero_approx():
-		_update_facing(input_direction)
+	var movement := _get_logical_movement()
+	if movement != null:
+		movement.set_direction_intent(controlled_actor, _get_input_direction())
 
-	controlled_representation.move_and_slide()
-	controlled_representation.sync_state_from_representation()
+
+func _process(_delta: float) -> void:
 	_sync_camera_position()
 
 
@@ -63,29 +66,30 @@ func release_controlled_representation() -> void:
 	_release_controlled_representation(true)
 
 
-func _release_controlled_representation(sync_state: bool) -> void:
+func _release_controlled_representation(_sync_state: bool) -> void:
+	var movement := _get_logical_movement()
+	if movement != null and controlled_actor != null:
+		movement.set_direction_intent(controlled_actor, Vector2i.ZERO)
 	if is_instance_valid(controlled_representation):
-		controlled_representation.velocity = Vector2.ZERO
-		if sync_state:
-			controlled_representation.sync_state_from_representation()
 		controlled_representation.remove_from_group(&"player")
 	controlled_representation = null
 
 
 func _assign_control(actor: Actor, representation: ActorRepresentation) -> void:
-	if controlled_actor != null and controlled_actor != actor:
-		_set_external_movement_control(controlled_actor, false)
+	var movement := _get_logical_movement()
+	if movement != null:
+		movement.cancel_move(actor)
+		movement.set_direction_intent(actor, Vector2i.ZERO)
 	controlled_actor = actor
 	controlled_representation = representation
-	controlled_representation.set_state_driven(false)
 	controlled_representation.add_to_group(&"player")
-	_set_external_movement_control(controlled_actor, true)
 	_sync_camera_position(true)
 
 
 func stop() -> void:
-	if is_instance_valid(controlled_representation):
-		controlled_representation.velocity = Vector2.ZERO
+	var movement := _get_logical_movement()
+	if movement != null and controlled_actor != null:
+		movement.set_direction_intent(controlled_actor, Vector2i.ZERO)
 
 
 func set_camera_bounds(bounds: Rect2) -> void:
@@ -107,7 +111,6 @@ func request_interaction() -> ActionResult:
 		action_completed.emit(unavailable_result)
 		return unavailable_result
 
-	controlled_representation.sync_state_from_representation()
 	var selection := _select_interaction()
 	var target := selection.get("entity") as Entity
 	if target == null:
@@ -188,7 +191,7 @@ func _get_location(location_id: StringName) -> LocationRuntime:
 	return world_definition.get_location(location_id) if world_definition != null else null
 
 
-func _get_input_direction() -> Vector2:
+func _get_input_direction() -> Vector2i:
 	var direction := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
 
 	if Input.is_physical_key_pressed(KEY_A):
@@ -201,25 +204,10 @@ func _get_input_direction() -> Vector2:
 		direction.y += 1.0
 
 	if absf(direction.x) > absf(direction.y):
-		return Vector2(signf(direction.x), 0.0)
+		return Vector2i(int(signf(direction.x)), 0)
 	if not is_zero_approx(direction.y):
-		return Vector2(0.0, signf(direction.y))
-	return Vector2.ZERO
-
-
-func _update_facing(direction: Vector2) -> void:
-	var next_facing := controlled_representation.facing
-	if absf(direction.x) > absf(direction.y):
-		next_facing = (
-			ActorState.Facing.RIGHT if direction.x > 0.0 else ActorState.Facing.LEFT
-		)
-	else:
-		next_facing = (
-			ActorState.Facing.DOWN if direction.y > 0.0 else ActorState.Facing.UP
-		)
-
-	if next_facing != controlled_representation.facing:
-		controlled_representation.facing = next_facing
+		return Vector2i(0, int(signf(direction.y)))
+	return Vector2i.ZERO
 
 
 func _sync_camera_position(reset_smoothing := false) -> void:
@@ -231,11 +219,11 @@ func _sync_camera_position(reset_smoothing := false) -> void:
 		camera.reset_smoothing()
 
 
-func _set_external_movement_control(actor: Actor, enabled: bool) -> void:
-	var movement := get_node_or_null("/root/LogicalMovement") as LogicalMovementRuntime
-	if movement != null:
-		movement.set_actor_externally_controlled(actor, enabled)
+func _get_logical_movement() -> LogicalMovementRuntime:
+	return get_node_or_null("/root/LogicalMovement") as LogicalMovementRuntime
 
 
 func _exit_tree() -> void:
-	_set_external_movement_control(controlled_actor, false)
+	var movement := _get_logical_movement()
+	if movement != null and controlled_actor != null:
+		movement.set_direction_intent(controlled_actor, Vector2i.ZERO)
