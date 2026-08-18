@@ -237,22 +237,22 @@ func _test_scene_lifecycle(
 	_expect(first_scene.location.get_entities_at(Vector2i(14, 6)).has(chest), "Cell Entity query must derive the Chest footprint from EntityState.")
 	var player_cell := player.current_cell
 	_expect(first_scene.location.is_cell_walkable(player_cell), "A default non-blocking Entity must not make its Cell unwalkable.")
-	var chest_position := chest.state.local_position
-	chest.state.local_position = GridSpace.cell_to_local_position(player_cell, Vector2.ONE * GridSpace.CELL_SIZE * 0.5)
+	var chest_cell := chest.state.local_cell
+	chest.state.local_cell = player_cell
 	_expect(not first_scene.location.is_cell_walkable(player_cell), "Location walkability must consume Furniture blocking through its Definition Resource.")
-	chest.state.local_position = chest_position
+	chest.state.local_cell = chest_cell
 
 	var chest_representation := _find_representation(first_scene, CHEST_INSTANCE_ID)
 	_expect(chest_representation != null, "The initial Scene must contain the Chest Representation.")
 	if chest_representation != null:
 		chest_representation.free()
-	var player_position := player.state.local_position
+	var saved_player_cell := player.state.local_cell
 	var player_facing := player.facing
-	player.state.local_position = GridSpace.cell_to_local_position(Vector2i(13, 6), Vector2.ONE * GridSpace.CELL_SIZE * 0.5)
+	player.state.local_cell = Vector2i(13, 6)
 	(player.state as ActorState).facing = ActorState.Facing.RIGHT
 	var controller := game.get_node("PlayerController") as PlayerController
 	_expect(controller.call("_select_interaction").get("entity") == chest, "Interaction must query Location Entities even when the target Representation is absent.")
-	player.state.local_position = player_position
+	player.state.local_cell = saved_player_cell
 	(player.state as ActorState).facing = player_facing
 
 	var chest_state := chest.state
@@ -316,7 +316,7 @@ func _find_representation(location: GridScene, instance_id: StringName) -> Node:
 
 
 func _wait_for_transition(game: Node) -> void:
-	for _frame in range(10):
+	for _frame in range(60):
 		await process_frame
 		await physics_frame
 		if not game.get("transition_in_progress"):

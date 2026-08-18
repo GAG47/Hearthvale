@@ -17,12 +17,15 @@ func _physics_process(_delta: float) -> void:
 	if controlled_actor == null or not is_instance_valid(controlled_representation):
 		return
 
-	if Input.is_action_just_pressed(&"interact"):
-		request_interaction()
-
+	var input_direction := _get_input_direction()
+	if input_direction != Vector2i.ZERO:
+		_update_facing(input_direction)
 	var movement := _get_logical_movement()
 	if movement != null:
-		movement.set_direction_intent(controlled_actor, _get_input_direction())
+		movement.set_direction_intent(controlled_actor, input_direction)
+
+	if Input.is_action_just_pressed(&"interact"):
+		request_interaction()
 
 
 func _process(_delta: float) -> void:
@@ -208,6 +211,19 @@ func _get_input_direction() -> Vector2i:
 	if not is_zero_approx(direction.y):
 		return Vector2i(0, int(signf(direction.y)))
 	return Vector2i.ZERO
+
+
+func _update_facing(direction: Vector2i) -> void:
+	if controlled_actor == null or not controlled_actor.state is ActorState:
+		return
+	var next_facing := ActorState.Facing.DOWN
+	if direction == Vector2i.UP:
+		next_facing = ActorState.Facing.UP
+	elif direction == Vector2i.LEFT:
+		next_facing = ActorState.Facing.LEFT
+	elif direction == Vector2i.RIGHT:
+		next_facing = ActorState.Facing.RIGHT
+	(controlled_actor.state as ActorState).facing = next_facing
 
 
 func _sync_camera_position(reset_smoothing := false) -> void:

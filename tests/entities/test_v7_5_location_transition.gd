@@ -114,7 +114,7 @@ func _run_tests() -> void:
 	var yard_representation := controller.controlled_representation
 	_expect(yard != null and yard.location_id == yard_id, "Commit must update current_location.")
 	_expect(player.current_location_id == yard_id, "Commit must migrate ActorState location.")
-	_expect(player.local_position == Vector2(384.0, 64.0), "Commit must use LocationEntry Cell position.")
+	_expect(player.current_cell == Vector2i(12, 2), "Commit must use LocationEntry logical Cell.")
 	_expect(player.facing == ActorState.Facing.DOWN, "Commit must use LocationEntry facing.")
 	_expect(
 		is_instance_valid(yard_representation)
@@ -160,7 +160,7 @@ func _run_tests() -> void:
 	var returned_chest := _find_furniture_representation(returned_tavern, CHEST_INSTANCE_ID)
 	_expect(returned_tavern.location_id == tavern_id, "Return Commit must restore Tavern.")
 	_expect(player.current_location_id == tavern_id, "Return Commit must migrate ActorState back.")
-	_expect(player.local_position == Vector2(576.0, 416.0), "Return must use back-door LocationEntry Cell.")
+	_expect(player.current_cell == Vector2i(18, 13), "Return must use back-door LocationEntry Cell.")
 	_expect(player.facing == ActorState.Facing.UP, "Return must use back-door Entry facing.")
 	_expect(not is_instance_valid(old_yard), "Return Commit must unload the prior Scene.")
 	_expect(
@@ -224,7 +224,7 @@ func _capture_world(
 		"controlled_representation": controller.controlled_representation,
 		"player_state": player.state,
 		"player_location": player.current_location_id,
-		"player_position": player.local_position,
+		"player_cell": player.current_cell,
 		"player_facing": player.facing,
 		"active_locations": active_locations,
 	}

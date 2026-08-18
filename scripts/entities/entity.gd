@@ -12,13 +12,9 @@ var current_location_id: StringName:
 	get:
 		return state.current_location_id if state != null else &""
 
-var local_position: Vector2:
-	get:
-		return state.local_position if state != null else Vector2.ZERO
-
 var current_cell: Vector2i:
 	get:
-		return GridSpace.local_position_to_cell(local_position)
+		return state.local_cell if state != null else Vector2i.ZERO
 
 
 func _init(p_state: EntityState) -> void:

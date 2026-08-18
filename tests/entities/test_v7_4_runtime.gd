@@ -96,8 +96,8 @@ func _run_tests() -> void:
 	var yard_id := world_definition.get_project_location_id(&"tavern_yard")
 	_expect(player.current_location_id == tavern_id, "Player must start in Tavern.")
 	_expect(
-		player.local_position == Vector2(384.0, 256.0),
-		"Player must preserve its existing initial local_position."
+		player.current_cell == Vector2i(12, 8),
+		"Player must preserve its existing initial logical Cell."
 	)
 	_expect(player.facing == ActorState.Facing.DOWN, "Player must start facing DOWN.")
 	_expect(
@@ -139,7 +139,7 @@ func _run_tests() -> void:
 		FurnitureState.new(
 			SECOND_CHEST_ENTITY_ID,
 			tavern_id,
-			Vector2.ZERO
+			Vector2i.ZERO
 		)
 	)
 	var second_openable_state := second_chest.get_openable_state()
@@ -220,7 +220,10 @@ func _run_tests() -> void:
 		"PlayerController must complete one exact Grid Cell from movement input."
 	)
 	_expect(representation.facing == ActorState.Facing.RIGHT, "Movement must update ActorState.facing.")
-	_expect(player.local_position == representation.position, "Representation must display ActorState.local_position.")
+	_expect(
+		representation.position == GridSpace.cell_to_center_position(player.current_cell),
+		"Representation must display the committed Actor Cell center."
+	)
 
 	_place_actor(representation, Vector2i(13, 6), ActorState.Facing.RIGHT)
 	var pre_collision_position := representation.position
@@ -274,7 +277,10 @@ func _run_tests() -> void:
 		== _get_visual_path_for_facing(player_definition, yard_representation.facing),
 		"A recreated ActorRepresentation must restore ActorState.facing."
 	)
-	_expect(player.local_position == Vector2(384.0, 64.0), "ActorState must use the target LocationEntry Cell position.")
+	_expect(
+		player.current_cell == Vector2i(12, 2),
+		"ActorState must use the target LocationEntry logical Cell."
+	)
 	_expect(controller.global_position == yard_representation.global_position, "Camera owner must follow the new Representation.")
 	if camera != null:
 		_expect(camera.limit_right == 768 and camera.limit_bottom == 576, "Camera bounds must update in Tavern Yard.")
@@ -410,8 +416,8 @@ func _place_actor(
 	var movement := root.get_node_or_null("LogicalMovement") as LogicalMovementRuntime
 	if movement != null:
 		movement.cancel_move(representation.actor)
-	representation.actor.state.local_position = GridSpace.cell_to_local_position(cell)
-	representation.position = representation.actor.local_position
+	representation.actor.state.local_cell = cell
+	representation.position = GridSpace.cell_to_center_position(cell)
 	representation.facing = facing
 
 
@@ -495,8 +501,8 @@ func _expect_input_facing_visual(
 	)
 	_expect(
 		representation.actor.current_cell == start_cell + expected_offset
-		and representation.actor.local_position
-		== GridSpace.cell_to_local_position(start_cell + expected_offset),
+		and representation.position
+		== GridSpace.cell_to_center_position(start_cell + expected_offset),
 		"Input '%s' must finish one exact cardinal Grid step." % input_action
 	)
 

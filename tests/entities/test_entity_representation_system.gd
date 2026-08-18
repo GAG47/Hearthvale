@@ -27,10 +27,10 @@ class MatchingFactory:
 	func prepare(
 		_entity: Entity,
 		_target_location,
-		target_local_position: Vector2
+		target_cell: Vector2i
 	) -> Node:
 		var representation := Node2D.new()
-		representation.position = target_local_position
+		representation.position = GridSpace.cell_to_center_position(target_cell)
 		return representation
 
 
@@ -52,7 +52,7 @@ func _run_tests() -> void:
 		ActorState.new(
 			&"11111111-1111-4111-8111-111111111111",
 			&"55555555-5555-4555-8555-555555555555",
-			Vector2(96.0, 128.0),
+			Vector2i(3, 4),
 			ActorState.Facing.LEFT
 		)
 	)
@@ -61,7 +61,7 @@ func _run_tests() -> void:
 		FurnitureState.new(
 			&"77777777-7777-4777-8777-777777777777",
 			&"55555555-5555-4555-8555-555555555555",
-			Vector2(160.0, 192.0)
+			Vector2i(5, 6)
 		)
 	)
 	var target_location := GridScene.new()
@@ -88,14 +88,17 @@ func _test_concrete_factories(
 	_expect(furniture_factory.supports(furniture), "Furniture Factory must support Furniture.")
 	_expect(not furniture_factory.supports(actor), "Furniture Factory must reject Actor.")
 
-	var actor_target_position := Vector2(224.0, 256.0)
-	var actor_node := actor_factory.prepare(actor, target_location, actor_target_position)
+	var actor_target_cell := Vector2i(7, 8)
+	var actor_node := actor_factory.prepare(actor, target_location, actor_target_cell)
 	_expect(actor_node is ActorRepresentation, "Actor Factory must prepare ActorRepresentation.")
 	if actor_node is ActorRepresentation:
 		var representation := actor_node as ActorRepresentation
 		_expect(representation.get_entity() == actor, "Actor Representation must expose its Entity.")
 		_expect(representation.current_location == target_location, "Actor preparation must bind target Location.")
-		_expect(representation.position == actor_target_position, "Actor preparation must use target position.")
+		_expect(
+			representation.position == GridSpace.cell_to_center_position(actor_target_cell),
+			"Actor preparation must display the target Cell center."
+		)
 		_expect(
 			representation.scene_file_path == "res://scenes/actors/actor_representation.tscn",
 			"Actor Factory must own shared Scene instantiation."
@@ -103,11 +106,11 @@ func _test_concrete_factories(
 	if is_instance_valid(actor_node):
 		actor_node.free()
 
-	var furniture_target_position := Vector2(288.0, 320.0)
+	var furniture_target_cell := Vector2i(9, 10)
 	var furniture_node := furniture_factory.prepare(
 		furniture,
 		target_location,
-		furniture_target_position
+		furniture_target_cell
 	)
 	_expect(
 		furniture_node is FurnitureRepresentation,
@@ -124,8 +127,8 @@ func _test_concrete_factories(
 			"Furniture preparation must bind target Location."
 		)
 		_expect(
-			representation.position == furniture_target_position,
-			"Furniture preparation must use target position."
+			representation.position == GridSpace.cell_to_center_position(furniture_target_cell),
+			"Single-Cell Furniture preparation must display the target Cell center."
 		)
 		_expect(
 			representation.scene_file_path
@@ -225,7 +228,7 @@ func _test_missing_factory_prepare_safety() -> void:
 	var old_location: GridScene = game.get("current_location")
 	var old_representation := controller.controlled_representation
 	var old_state_location := player.current_location_id
-	var old_state_position := player.local_position
+	var old_state_cell := player.current_cell
 	var old_state_facing := player.facing
 	var old_active_locations: Dictionary = world_state.get("_active_locations")
 	var old_active_reference := old_active_locations[old_location.location_id] as WeakRef
@@ -248,7 +251,7 @@ func _test_missing_factory_prepare_safety() -> void:
 	_expect(controller.controlled_actor == player, "Prepare failure must preserve controlled Actor.")
 	_expect(
 		player.current_location_id == old_state_location
-		and player.local_position == old_state_position
+		and player.current_cell == old_state_cell
 		and player.facing == old_state_facing,
 		"Prepare failure must preserve authoritative ActorState."
 	)

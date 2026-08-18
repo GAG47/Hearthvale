@@ -95,14 +95,7 @@ func get_footprint_local_cells() -> Array[Vector2i]:
 
 
 func get_footprint_origin_cell() -> Vector2i:
-	var footprint_cells := get_footprint_local_cells()
-	if footprint_cells.is_empty():
-		return current_cell
-	var footprint_bounds := definition.get_footprint_bounds()
-	return current_cell - Vector2i(
-		floori(float(footprint_bounds.size.x) * 0.5),
-		floori(float(footprint_bounds.size.y) * 0.5)
-	) - footprint_bounds.position
+	return current_cell
 
 
 func get_occupied_grid_cells() -> Array[Vector2i]:

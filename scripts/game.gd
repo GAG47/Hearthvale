@@ -3,26 +3,26 @@ extends Node2D
 const PLAYER_DEFINITION: ActorDefinition = preload("res://data/actors/player.tres")
 const PLAYER_INSTANCE_ID := &"90000000-0000-4000-8000-000000000001"
 const PLAYER_INITIAL_LOCATION_KEY := &"tavern"
-const PLAYER_INITIAL_LOCAL_POSITION := Vector2(384.0, 256.0)
+const PLAYER_INITIAL_CELL := Vector2i(12, 8)
 const PLAYER_INITIAL_FACING := ActorState.Facing.DOWN
 const FURNITURE_INSTANCES: Array[Dictionary] = [
 	{
 		"instance_id": &"5543caf7-2a10-4a40-84de-3a39ffdf670e",
 		"definition": preload("res://data/furniture/wooden_chest.tres"),
 		"location_key": &"tavern",
-		"local_position": Vector2(464.0, 208.0),
+		"local_cell": Vector2i(14, 6),
 	},
 	{
 		"instance_id": &"1d67bbf9-edc2-4264-a861-8bd3e3e61e15",
 		"definition": preload("res://data/furniture/sign.tres"),
 		"location_key": &"tavern",
-		"local_position": Vector2(432.0, 240.0),
+		"local_cell": Vector2i(13, 7),
 	},
 	{
 		"instance_id": &"a6ae5842-8c6d-4df2-9b80-a271b5496716",
 		"definition": preload("res://data/furniture/simple_bed.tres"),
 		"location_key": &"tavern",
-		"local_position": Vector2(656.0, 128.0),
+		"local_cell": Vector2i(20, 3),
 	},
 ]
 
@@ -106,7 +106,7 @@ func _initialize_player_actor() -> Actor:
 	var state := ActorState.new(
 		PLAYER_INSTANCE_ID,
 		initial_location_id,
-		PLAYER_INITIAL_LOCAL_POSITION,
+		PLAYER_INITIAL_CELL,
 		PLAYER_INITIAL_FACING
 	)
 	if not world_state.register_entity_state(state):
@@ -138,7 +138,7 @@ func _initialize_furniture_entities() -> bool:
 		var state := FurnitureState.new(
 			instance_data["instance_id"],
 			location_id,
-			instance_data["local_position"]
+			instance_data["local_cell"]
 		)
 		if not world_state.register_entity_state(state):
 			push_error("Game could not register FurnitureState '%s'." % state.instance_id)
@@ -209,7 +209,7 @@ func _prepare_location_change(
 	if moving_actor == null:
 		push_error("Location '%s' cannot prepare without the controlled Actor." % location_id)
 		return {}
-	var spawn_position := moving_actor.local_position
+	var spawn_cell := moving_actor.current_cell
 	if entry != null:
 		var arrival := location.select_arrival_cell(entry, moving_actor)
 		if arrival.is_empty():
@@ -218,13 +218,13 @@ func _prepare_location_change(
 				% [location_id, entry.entry_id]
 			)
 			return {}
-		spawn_position = GridSpace.cell_to_local_position(arrival["cell"])
+		spawn_cell = arrival["cell"]
 	var spawn_facing := entry.facing if entry != null else moving_actor.facing
 	var prepared_scene := location_scene_builder.prepare_scene(
 		location,
 		representation_registry,
 		moving_actor,
-		spawn_position
+		spawn_cell
 	)
 	if prepared_scene.is_empty():
 		return {}
@@ -251,7 +251,7 @@ func _prepare_location_change(
 		"location_runtime": location,
 		"location": next_location,
 		"moving_actor": moving_actor,
-		"spawn_position": spawn_position,
+		"spawn_cell": spawn_cell,
 		"spawn_facing": spawn_facing,
 		"player_representation": prepared_player_representation,
 	}
@@ -261,14 +261,14 @@ func _commit_location_change(prepared_change: Dictionary) -> void:
 	var definition: LocationDefinition = prepared_change["definition"]
 	var next_location: GridScene = prepared_change["location"]
 	var moving_actor: Actor = prepared_change["moving_actor"]
-	var spawn_position: Vector2 = prepared_change["spawn_position"]
+	var spawn_cell: Vector2i = prepared_change["spawn_cell"]
 	var spawn_facing: ActorState.Facing = prepared_change["spawn_facing"]
 	var next_player_representation: Node = prepared_change["player_representation"]
 	var previous_location := current_location
 
 	player_controller.finish_controlled_location_departure()
 	moving_actor.state.current_location_id = next_location.location_id
-	moving_actor.state.local_position = spawn_position
+	moving_actor.state.local_cell = spawn_cell
 	(moving_actor.state as ActorState).facing = spawn_facing
 	if next_player_representation is ActorRepresentation:
 		(next_player_representation as ActorRepresentation).facing = spawn_facing

@@ -103,7 +103,7 @@ func _test_irregular_footprint_slots() -> void:
 	_expect(slots.size() == expected_slots.size(), "L-shaped Furniture defaults must follow the real perimeter, not its bounding rectangle.")
 	for slot in slots:
 		_expect(expected_slots.get(slot.local_cell) == slot.allowed_facings, "L-shaped default UseSlot facing must preserve every adjacent legal direction.")
-	furniture.state.local_position += Vector2(2, 1) * GridSpace.CELL_SIZE
+	furniture.state.local_cell += Vector2i(2, 1)
 	_expect(furniture.get_occupied_grid_cells() == [Vector2i(5, 4), Vector2i(6, 4), Vector2i(5, 5)], "Moving an irregular Furniture footprint must translate every occupied Cell together.")
 	_expect(furniture.get_footprint_local_cells() == footprint, "Moving Furniture must not mutate its Definition-local footprint.")
 
@@ -171,7 +171,7 @@ func _test_irregular_furniture_collision() -> void:
 	var representation := FurnitureRepresentationFactory.new().prepare(
 		furniture,
 		location,
-		furniture.local_position
+		furniture.current_cell
 	) as FurnitureRepresentation
 	_expect(representation != null, "An L-shaped Furniture Representation must prepare successfully.")
 	if representation == null:
@@ -206,7 +206,7 @@ func _test_irregular_furniture_collision() -> void:
 	var rectangular_representation := FurnitureRepresentationFactory.new().prepare(
 		rectangular_furniture,
 		location,
-		rectangular_furniture.local_position
+		rectangular_furniture.current_cell
 	) as FurnitureRepresentation
 	_expect(rectangular_representation != null, "A rectangular Furniture Representation must prepare successfully.")
 	if rectangular_representation != null:
@@ -272,7 +272,7 @@ func _test_slot_entrances_and_movement() -> void:
 
 	var original_slot_cell := slot.local_cell
 	var original_entrance_cells := [entrances[0].local_cell, entrances[1].local_cell]
-	furniture.state.local_position += Vector2(2, 1) * GridSpace.CELL_SIZE
+	furniture.state.local_cell += Vector2i(2, 1)
 	_expect(slot.local_cell == original_slot_cell, "Moving EntityState must not modify UseSlot Definition coordinates.")
 	_expect([entrances[0].local_cell, entrances[1].local_cell] == original_entrance_cells, "Moving EntityState must not modify SlotEntrance Definition coordinates.")
 	_expect(furniture.get_use_slot_world_cell(slot) == Vector2i(6, 5), "UseSlot world Cell must follow EntityState movement.")
@@ -334,7 +334,7 @@ func _test_allowed_facing() -> void:
 		ActorState.new(
 			TEST_ACTOR_ID,
 			location_id,
-			_cell_center(target_origin + Vector2i.LEFT),
+			target_origin + Vector2i.LEFT,
 			ActorState.Facing.UP
 		)
 	)
@@ -353,7 +353,7 @@ func _test_missing_location_runtime_rejects() -> void:
 		ActorState.new(
 			&"a0000000-0000-4000-8000-000000000116",
 			TEST_LOCATION_ID,
-			_cell_center(Vector2i(2, 2)),
+			Vector2i(2, 2),
 			ActorState.Facing.RIGHT
 		)
 	)
@@ -388,7 +388,7 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 		return
 
 	var tavern_id := world_definition.get_project_location_id(&"tavern")
-	player.state.local_position = _cell_center(Vector2i(13, 6))
+	player.state.local_cell = Vector2i(13, 6)
 	(player.state as ActorState).facing = ActorState.Facing.RIGHT
 	_expect(chest.definition.use_slots.is_empty(), "Ordinary project Furniture must remain valid without explicit V10 data.")
 	var controller := game.get_node("PlayerController") as PlayerController
@@ -400,11 +400,11 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 	var foot_definition := SIGN_DEFINITION.duplicate(true) as FurnitureDefinition
 	foot_definition.blocks_movement = false
 	foot_definition.use_slots.clear()
-	var foot_state := FurnitureState.new(NON_BLOCKING_ID, tavern_id, _cell_center(foot_cell))
+	var foot_state := FurnitureState.new(NON_BLOCKING_ID, tavern_id, foot_cell)
 	var foot_entity := Furniture.new(foot_definition, foot_state)
 	_expect(world_state.register_entity_state(foot_state), "Non-blocking test EntityState must register.")
 	_expect(registry.register_entity(foot_entity), "Non-blocking test Entity must register.")
-	player.state.local_position = _cell_center(foot_cell)
+	player.state.local_cell = foot_cell
 	(player.state as ActorState).facing = ActorState.Facing.LEFT
 	_expect(controller.call("_select_interaction").get("entity") == foot_entity, "A non-blocking Entity must remain selectable from its foot UseSlot.")
 	_expect(WorldAction.new(&"inspect", player, foot_entity).execute().success, "A non-blocking Entity must remain interactable from its occupied Cell.")
@@ -426,7 +426,7 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 		[&"open"]
 	)
 	priority_definition.use_slots = [unrestricted_slot, facing_slot]
-	var priority_state := FurnitureState.new(FACING_PRIORITY_ID, tavern_id, _cell_center(foot_cell))
+	var priority_state := FurnitureState.new(FACING_PRIORITY_ID, tavern_id, foot_cell)
 	var priority_entity := Furniture.new(priority_definition, priority_state)
 	_expect(world_state.register_entity_state(priority_state), "Facing priority test EntityState must register.")
 	_expect(registry.register_entity(priority_entity), "Facing priority test Entity must register.")
@@ -450,7 +450,7 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 	var stable_state := FurnitureState.new(
 		&"a0000000-0000-4000-8000-000000000001",
 		tavern_id,
-		_cell_center(foot_cell)
+		foot_cell
 	)
 	var stable_entity := Furniture.new(stable_definition, stable_state)
 	_expect(world_state.register_entity_state(stable_state), "Stable restricted Slot test EntityState must register.")
@@ -498,7 +498,7 @@ func _create_furniture_with_footprint(
 	definition.blocks_movement = blocking
 	return Furniture.new(
 		definition,
-		FurnitureState.new(instance_id, TEST_LOCATION_ID, _footprint_center(origin_cell, _footprint_size(footprint)))
+		FurnitureState.new(instance_id, TEST_LOCATION_ID, origin_cell)
 	)
 
 
@@ -508,16 +508,6 @@ func _rectangular_footprint(size: Vector2i) -> Array[Vector2i]:
 		for x in range(size.x):
 			cells.append(Vector2i(x, y))
 	return cells
-
-
-func _footprint_size(footprint: Array[Vector2i]) -> Vector2i:
-	if footprint.is_empty():
-		return Vector2i.ONE
-	var max_cell := footprint[0]
-	for cell in footprint:
-		max_cell.x = maxi(max_cell.x, cell.x)
-		max_cell.y = maxi(max_cell.y, cell.y)
-	return max_cell + Vector2i.ONE
 
 
 func _create_location(registry: EntityRegistryRuntime) -> LocationRuntime:
@@ -586,19 +576,8 @@ func _find_slot(slots: Array[UseSlot], local_cell: Vector2i) -> UseSlot:
 	return null
 
 
-func _cell_center(cell: Vector2i) -> Vector2:
-	return GridSpace.cell_to_local_position(cell, Vector2.ONE * GridSpace.CELL_SIZE * 0.5)
-
-
-func _footprint_center(origin_cell: Vector2i, size: Vector2i) -> Vector2:
-	return GridSpace.cell_to_local_position(
-		origin_cell,
-		Vector2(size * GridSpace.CELL_SIZE) * 0.5
-	)
-
-
 func _wait_for_transition(game: Node) -> void:
-	for _frame in range(10):
+	for _frame in range(60):
 		await process_frame
 		await physics_frame
 		if not game.get("transition_in_progress"):

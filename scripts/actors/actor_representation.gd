@@ -25,10 +25,7 @@ var world_position: Vector2:
 
 var current_cell: Vector2i:
 	get:
-		if current_location == null:
-			return Vector2i.ZERO
-		var representation_local_position := current_location.to_local(global_position)
-		return GridSpace.local_position_to_cell(representation_local_position)
+		return actor.current_cell if actor != null else Vector2i.ZERO
 
 
 func get_entity() -> Entity:
@@ -42,14 +39,14 @@ func _ready() -> void:
 func _physics_process(_delta: float) -> void:
 	if actor == null:
 		return
-	position = actor.local_position
+	position = _get_actor_display_position(actor.current_cell)
 	_update_facing_visual()
 
 
 func prepare_actor(
 	p_actor: Actor,
 	location: GridScene,
-	target_local_position: Vector2
+	target_cell: Vector2i
 ) -> bool:
 	if p_actor == null or location == null:
 		push_error("ActorRepresentation preparation requires an Actor and target GridScene.")
@@ -72,7 +69,7 @@ func prepare_actor(
 	actor = p_actor
 	current_location = location
 	_visual_textures = loaded_visual_textures
-	position = target_local_position
+	position = _get_actor_display_position(target_cell)
 	_update_facing_visual()
 	return true
 
@@ -139,3 +136,23 @@ func _get_facing_direction() -> String:
 			return "right"
 		_:
 			return "down"
+
+
+func _get_actor_display_position(fallback_cell: Vector2i) -> Vector2:
+	var movement := _get_logical_movement()
+	var request := movement.get_request(actor) if movement != null else null
+	if request != null and request.phase == ActorMovementRequest.Phase.EXTENDED:
+		return GridSpace.cell_to_center_position(request.tail_cell).lerp(
+			GridSpace.cell_to_center_position(request.head_cell),
+			request.get_step_progress()
+		)
+	return GridSpace.cell_to_center_position(fallback_cell)
+
+
+func _get_logical_movement() -> LogicalMovementRuntime:
+	var tree := Engine.get_main_loop() as SceneTree
+	return (
+		tree.root.get_node_or_null("LogicalMovement") as LogicalMovementRuntime
+		if tree != null
+		else null
+	)

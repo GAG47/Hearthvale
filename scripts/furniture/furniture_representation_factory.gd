@@ -13,7 +13,7 @@ func supports(entity: Entity) -> bool:
 func prepare(
 	entity: Entity,
 	target_location,
-	target_local_position: Vector2
+	target_cell: Vector2i
 ) -> Node:
 	if not entity is Furniture or not target_location is GridScene:
 		push_error("FurnitureRepresentationFactory requires Furniture and target GridScene.")
@@ -32,7 +32,7 @@ func prepare(
 	if not representation.prepare_furniture(
 		furniture,
 		location,
-		target_local_position
+		target_cell
 	):
 		representation.free()
 		return null

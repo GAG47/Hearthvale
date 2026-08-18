@@ -34,7 +34,7 @@ func _run_tests() -> void:
 	var actor_definition := _create_actor_definition("Test Actor")
 	var actor := Actor.new(
 		actor_definition,
-		ActorState.new(ACTOR_ID, LOCATION_ID, Vector2(32.0, 32.0), ActorState.Facing.RIGHT)
+		ActorState.new(ACTOR_ID, LOCATION_ID, Vector2i(1, 1), ActorState.Facing.RIGHT)
 	)
 	_expect(actor is Entity, "Actor must extend Entity.")
 	_expect(actor.definition == actor_definition, "Actor must directly hold its Definition Resource.")
@@ -44,20 +44,20 @@ func _run_tests() -> void:
 	_expect(not registry.register_entity(actor), "A duplicate instance_id must be rejected.")
 
 	var invalid_entity := TEST_ACTION_ENTITY.new(
-		ActorState.new(&"not-a-uuid", LOCATION_ID, Vector2.ZERO)
+		ActorState.new(&"not-a-uuid", LOCATION_ID, Vector2i.ZERO)
 	)
 	_expect(not registry.register_entity(invalid_entity), "An invalid Entity UUID must be rejected.")
 	_expect(not registry.register_entity(TEST_ACTION_ENTITY.new(null)), "An Entity without EntityState must be rejected.")
 	var missing_definition := Actor.new(
 		null,
-		ActorState.new(OTHER_ENTITY_ID, LOCATION_ID, Vector2.ZERO)
+		ActorState.new(OTHER_ENTITY_ID, LOCATION_ID, Vector2i.ZERO)
 	)
 	_expect(not registry.register_entity(missing_definition), "An Entity without a Definition Resource must be rejected.")
 
 	var furniture_definition := _create_furniture_definition("Test Furniture")
 	var furniture := Furniture.new(
 		furniture_definition,
-		FurnitureState.new(FURNITURE_ID, LOCATION_ID, Vector2(96.0, 96.0))
+		FurnitureState.new(FURNITURE_ID, LOCATION_ID, Vector2i(3, 3))
 	)
 	_expect(furniture is Entity, "Furniture must extend Entity.")
 	_expect(furniture.definition == furniture_definition, "Furniture must directly hold its Definition Resource.")
@@ -65,7 +65,7 @@ func _run_tests() -> void:
 	_expect(registry.get_entity(FURNITURE_ID) == furniture, "Registry must return Furniture.")
 
 	var generic_entity := TEST_ACTION_ENTITY.new(
-		ActorState.new(GENERIC_ENTITY_ID, LOCATION_ID, Vector2(64.0, 32.0), ActorState.Facing.RIGHT)
+		ActorState.new(GENERIC_ENTITY_ID, LOCATION_ID, Vector2i(2, 1), ActorState.Facing.RIGHT)
 	)
 	_expect(registry.register_entity(generic_entity), "EntityRegistry must accept another valid Entity subtype.")
 	var generic_result := WorldAction.new(&"test_action", actor, generic_entity).execute()
@@ -79,7 +79,7 @@ func _run_tests() -> void:
 	named_definition.behaviors = [openable]
 	var named_furniture := Furniture.new(
 		named_definition,
-		FurnitureState.new(OTHER_ENTITY_ID, LOCATION_ID, Vector2(80.0, 48.0))
+		FurnitureState.new(OTHER_ENTITY_ID, LOCATION_ID, Vector2i(2, 1))
 	)
 	var open_result := WorldAction.new(&"open", actor, named_furniture).execute()
 	_expect(open_result.success and open_result.message == "测试柜打开了。", "OpenableBehavior feedback must derive from FurnitureDefinition.display_name.")

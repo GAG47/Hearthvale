@@ -7,7 +7,7 @@ func prepare_scene(
 	location: LocationRuntime,
 	representation_registry: EntityRepresentationRegistry,
 	moving_entity: Entity = null,
-	moving_position: Vector2 = Vector2.ZERO
+	moving_cell: Vector2i = Vector2i.ZERO
 ) -> Dictionary:
 	if location == null or not location.is_valid() or representation_registry == null:
 		push_error("LocationSceneBuilder requires a valid Location and Representation Registry.")
@@ -38,8 +38,8 @@ func prepare_scene(
 		if factory == null:
 			scene.free()
 			return {}
-		var target_position := moving_position if entity == moving_entity else entity.local_position
-		var representation := factory.prepare(entity, scene, target_position)
+		var target_cell := moving_cell if entity == moving_entity else entity.current_cell
+		var representation := factory.prepare(entity, scene, target_cell)
 		if representation == null:
 			scene.free()
 			return {}
@@ -114,7 +114,7 @@ func _build_entries_and_exits(scene: GridScene, location: LocationRuntime) -> vo
 				if arrival_index == 0
 				else "%s_%d" % [entry.entry_id, arrival_index]
 			)
-			marker.position = entry.get_local_position(arrival_index)
+			marker.position = entry.get_center_position(arrival_index)
 			entry_root.add_child(marker)
 	for location_exit in location.get_current_exits():
 		var exit_area := LocationExitArea.new()

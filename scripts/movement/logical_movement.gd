@@ -237,16 +237,7 @@ func _can_accept_actor(actor: Actor) -> bool:
 
 
 func _can_accept_request(actor: Actor) -> bool:
-	return _can_accept_actor(actor) and _is_actor_on_standard_cell(actor)
-
-
-func _is_actor_on_standard_cell(actor: Actor) -> bool:
-	return (
-		actor != null
-		and actor.local_position.is_equal_approx(
-			GridSpace.cell_to_local_position(actor.current_cell)
-		)
-	)
+	return _can_accept_actor(actor)
 
 
 func _remove_invalid_requests() -> void:
@@ -264,14 +255,13 @@ func _advance_extended(delta: float) -> void:
 		var request := _requests[actor_id]
 		if request.phase != ActorMovementRequest.Phase.EXTENDED:
 			continue
-		var speed := maxf(request.actor.definition.move_speed, 0.0)
-		request.actor.state.local_position = request.actor.local_position.move_toward(
-			request.step_target_position,
-			speed * delta
+		request.step_elapsed = minf(
+			request.step_elapsed + delta,
+			request.step_duration
 		)
-		if not request.actor.local_position.is_equal_approx(request.step_target_position):
+		if request.step_elapsed < request.step_duration:
 			continue
-		request.actor.state.local_position = GridSpace.cell_to_local_position(request.head_cell)
+		request.actor.state.local_cell = request.head_cell
 		request.tail_cell = request.head_cell
 		request.head_cell = request.tail_cell
 		request.phase = ActorMovementRequest.Phase.CONTRACTED
@@ -433,9 +423,11 @@ func _backtrack_to_parent(request: ActorMovementRequest) -> void:
 
 func _start_extended(request: ActorMovementRequest) -> void:
 	request.phase = ActorMovementRequest.Phase.EXTENDED
-	request.step_start_position = GridSpace.cell_to_local_position(request.tail_cell)
-	request.step_target_position = GridSpace.cell_to_local_position(request.head_cell)
-	request.actor.state.local_position = request.step_start_position
+	request.step_elapsed = 0.0
+	request.step_duration = (
+		float(GridSpace.CELL_SIZE)
+		/ maxf(request.actor.definition.move_speed, 0.001)
+	)
 	_set_actor_facing(request.actor, request.head_cell - request.tail_cell)
 
 

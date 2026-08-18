@@ -16,7 +16,7 @@ func get_entity() -> Entity:
 func prepare_furniture(
 	p_furniture: Furniture,
 	location: GridScene,
-	target_local_position: Vector2
+	target_cell: Vector2i
 ) -> bool:
 	if p_furniture == null or location == null:
 		push_error("FurnitureRepresentation preparation requires Furniture and target GridScene.")
@@ -48,7 +48,7 @@ func prepare_furniture(
 
 	furniture = p_furniture
 	current_location = location
-	position = target_local_position
+	position = _get_footprint_center_position(target_cell)
 	_configure_blocking_collision(blocking_body)
 	sprite.texture = visual_texture
 	furniture.state_changed.connect(_on_furniture_state_changed)
@@ -57,17 +57,6 @@ func prepare_furniture(
 
 func get_occupied_grid_cells() -> Array[Vector2i]:
 	return furniture.get_occupied_grid_cells() if furniture != null else []
-
-
-func sync_state_from_representation() -> void:
-	if furniture == null or not is_instance_valid(current_location):
-		return
-	furniture.state.current_location_id = current_location.location_id
-	furniture.state.local_position = position
-
-
-func _exit_tree() -> void:
-	sync_state_from_representation()
 
 
 func _configure_blocking_collision(
@@ -122,3 +111,12 @@ func _load_visual_texture(p_furniture: Furniture) -> Texture2D:
 
 func _on_furniture_state_changed() -> void:
 	_update_visual()
+
+
+func _get_footprint_center_position(origin_cell: Vector2i) -> Vector2:
+	var bounds := furniture.definition.get_footprint_bounds()
+	var first_cell := origin_cell + bounds.position
+	return (
+		GridSpace.cell_to_local_position(first_cell)
+		+ Vector2(bounds.size * GridSpace.CELL_SIZE) * 0.5
+	)

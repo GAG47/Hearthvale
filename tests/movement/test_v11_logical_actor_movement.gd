@@ -4,6 +4,7 @@ const MAIN_SCENE := preload("res://scenes/main.tscn")
 const MARTHA_DEFINITION: ActorDefinition = preload("res://data/actors/martha.tres")
 const GRASS: GroundTileDefinition = preload("res://data/tiles/ground/grass.tres")
 const PLAYER_INSTANCE_ID := &"90000000-0000-4000-8000-000000000001"
+const CHEST_INSTANCE_ID := &"5543caf7-2a10-4a40-84de-3a39ffdf670e"
 
 var _checks := 0
 var _failures := 0
@@ -32,6 +33,7 @@ func _run_tests() -> void:
 	_movement.set_physics_process(false)
 	_movement.cancel_all()
 
+	_test_cell_authority_contract()
 	_test_formal_grid_step_and_occupancy()
 	_test_direction_intent_continuity_and_latest_input()
 	await _test_player_controller_uses_logical_movement()
@@ -44,6 +46,19 @@ func _run_tests() -> void:
 	_test_no_formal_martha_initialization()
 	_test_removed_resolver_mechanisms()
 	_finish()
+
+
+func _test_cell_authority_contract() -> void:
+	var state := ActorState.new(
+		&"d2000000-0000-4000-8000-000000000000",
+		&"d1000000-0000-4000-8000-000000000000",
+		Vector2i(7, 9),
+		ActorState.Facing.DOWN
+	)
+	var actor := Actor.new(MARTHA_DEFINITION, state)
+	_expect(state.local_cell == Vector2i(7, 9), "EntityState must store its logical position as Vector2i local_cell.")
+	_expect(not _has_property(state, &"local_position"), "EntityState must not retain local_position as a second logical authority.")
+	_expect(actor.current_cell == state.local_cell, "Entity.current_cell must directly expose the committed EntityState.local_cell.")
 
 
 func _test_formal_grid_step_and_occupancy() -> void:
@@ -60,12 +75,6 @@ func _test_formal_grid_step_and_occupancy() -> void:
 		not _movement.request_step(actor, Vector2i(1, 1)),
 		"A direction Movement Intent must reject diagonal movement."
 	)
-	actor.state.local_position += Vector2(4.0, 0.0)
-	_expect(
-		not _movement.request_step(actor, Vector2i.RIGHT),
-		"A contracted Actor may not start from a non-standard in-Cell offset."
-	)
-	actor.state.local_position = GridSpace.cell_to_local_position(Vector2i(1, 1))
 	_expect(
 		_movement.request_step(actor, Vector2i.RIGHT),
 		"A cardinal single-Cell Movement Intent must be accepted."
@@ -79,6 +88,7 @@ func _test_formal_grid_step_and_occupancy() -> void:
 		_movement.get_actor_occupied_cells(actor) == [Vector2i(1, 1)],
 		"contracted occupancy must contain only tail."
 	)
+	_expect(actor.state.local_cell == Vector2i(1, 1), "contracted ActorState.local_cell must equal tail.")
 
 	_movement.call("_activate_contracted", request)
 	_expect(
@@ -90,6 +100,10 @@ func _test_formal_grid_step_and_occupancy() -> void:
 	_expect(
 		_movement.get_actor_occupied_cells(actor) == [Vector2i(1, 1)],
 		"requesting occupancy must contain only tail."
+	)
+	_expect(
+		actor.state.local_cell == Vector2i(1, 1) and actor.current_cell == Vector2i(1, 1),
+		"requesting must leave the committed logical Cell at tail."
 	)
 	_expect(
 		not _movement.is_actor_cell_occupied(location_id, request.head_cell),
@@ -115,23 +129,33 @@ func _test_formal_grid_step_and_occupancy() -> void:
 		"extended occupancy must contain both tail and head."
 	)
 	_expect(
+		is_equal_approx(request.step_duration, 0.5)
+		and is_zero_approx(request.step_elapsed)
+		and is_zero_approx(request.get_step_progress()),
+		"An extended request must expose elapsed, duration, and normalized progress."
+	)
+	_expect(
 		location.select_arrival_cell(entry).get("cell") == Vector2i(3, 1),
 		"Location Entry must avoid a truly occupied extended head."
 	)
 
-	_movement.advance(0.25)
+	for progress_delta in [0.125, 0.125, 0.245]:
+		_movement.advance(progress_delta)
+		_expect(
+			request.phase == ActorMovementRequest.Phase.EXTENDED
+			and actor.state.local_cell == Vector2i(1, 1)
+			and actor.current_cell == Vector2i(1, 1),
+			"At 25%%, 50%%, and 99%% progress the committed logical Cell must remain tail."
+		)
+		_expect(
+			_movement.get_actor_occupied_cells(actor) == [Vector2i(1, 1), Vector2i(2, 1)],
+			"Every incomplete extended progress point must retain tail-and-head hard occupancy."
+		)
+	_expect(is_equal_approx(request.get_step_progress(), 0.99), "Step progress must derive from elapsed divided by duration.")
+	_movement.advance(0.01)
 	_expect(
-		actor.local_position == Vector2(48.0, 32.0),
-		"ActorState must advance smoothly between the two standard Cell positions."
-	)
-	_expect(
-		request.phase == ActorMovementRequest.Phase.EXTENDED,
-		"An Actor between Cells must remain extended rather than become stably contracted."
-	)
-	_movement.advance(0.25)
-	_expect(
-		actor.local_position == GridSpace.cell_to_local_position(Vector2i(2, 1)),
-		"A completed step must land exactly on the head Cell standard position."
+		actor.state.local_cell == Vector2i(2, 1) and actor.current_cell == Vector2i(2, 1),
+		"A completed step must commit ActorState.local_cell to head exactly once."
 	)
 	_expect(
 		not _movement.is_participant(actor)
@@ -169,8 +193,8 @@ func _test_direction_intent_continuity_and_latest_input() -> void:
 	for expected_x in [1, 2, 3]:
 		_movement.advance(0.5)
 		_expect(
-			actor.local_position == GridSpace.cell_to_local_position(Vector2i(expected_x, 2)),
-			"Held direction must complete consecutive exact Grid steps without drift."
+			actor.current_cell == Vector2i(expected_x, 2),
+			"Held direction must commit consecutive exact Grid Cells without drift."
 		)
 		_expect(
 			_movement.is_participant(actor),
@@ -182,10 +206,7 @@ func _test_direction_intent_continuity_and_latest_input() -> void:
 		actor.current_cell == Vector2i(4, 2) and not _movement.is_participant(actor),
 		"Releasing a direction during extended must finish the current step and then stop."
 	)
-	_expect(
-		actor.local_position == GridSpace.cell_to_local_position(actor.current_cell),
-		"Stopping after a held direction must leave the Actor exactly contracted on Grid."
-	)
+	_expect(actor.state.local_cell == actor.current_cell, "Stopping must leave one committed Cell authority.")
 
 	var turning_actor := _create_actor(
 		&"d2000000-0000-4000-8000-000000000003",
@@ -205,13 +226,14 @@ func _test_direction_intent_continuity_and_latest_input() -> void:
 	_movement.advance(0.25)
 	_movement.set_direction_intent(turning_actor, Vector2i.UP)
 	_expect(
-		turning_request.head_cell == Vector2i(2, 2),
+		turning_request.head_cell == Vector2i(2, 2)
+		and turning_actor.current_cell == Vector2i(1, 2),
 		"Changing direction while extended must not interrupt or redirect the current step."
 	)
 	_movement.advance(0.25)
 	turning_request = _movement.get_request(turning_actor)
 	_expect(
-		turning_actor.local_position == GridSpace.cell_to_local_position(Vector2i(2, 2)),
+		turning_actor.current_cell == Vector2i(2, 2),
 		"The old step must finish at its original head before applying cached input."
 	)
 	_expect(
@@ -224,8 +246,8 @@ func _test_direction_intent_continuity_and_latest_input() -> void:
 	_movement.set_direction_intent(turning_actor, Vector2i.ZERO)
 	_movement.advance(0.5)
 	_expect(
-		turning_actor.local_position == GridSpace.cell_to_local_position(Vector2i(2, 1)),
-		"The cached turn must also finish at an exact standard Cell position."
+		turning_actor.current_cell == Vector2i(2, 1),
+		"The cached turn must also finish at an exact logical Cell."
 	)
 
 
@@ -248,8 +270,8 @@ func _test_player_controller_uses_logical_movement() -> void:
 		"PlayerController must bind an ordinary Actor and shared ActorRepresentation."
 	)
 	_expect(
-		player.local_position == GridSpace.cell_to_local_position(player.current_cell),
-		"The controlled Actor must begin on a standard Grid Cell position."
+		representation.position == GridSpace.cell_to_center_position(player.current_cell),
+		"A contracted ActorRepresentation must begin at the committed Cell center."
 	)
 	var controller_source := FileAccess.get_file_as_string("res://scripts/player_controller.gd")
 	_expect(
@@ -281,23 +303,77 @@ func _test_player_controller_uses_logical_movement() -> void:
 	var half_step := GridSpace.CELL_SIZE / player.definition.move_speed * 0.5
 	_movement.advance(half_step)
 	await physics_frame
+	var expected_half_position := GridSpace.cell_to_center_position(start_cell).lerp(
+		GridSpace.cell_to_center_position(start_cell + Vector2i.RIGHT),
+		0.5
+	)
 	_expect(
-		representation.position == player.local_position
-		and player.local_position != GridSpace.cell_to_local_position(start_cell),
-		"ActorRepresentation must only display the shared Logical Movement ActorState."
+		representation.position.is_equal_approx(expected_half_position)
+		and player.current_cell == start_cell,
+		"ActorRepresentation must interpolate Cell centers while logical State remains at tail."
 	)
 	Input.action_release(&"ui_right")
 	await physics_frame
 	_movement.advance(half_step)
 	await physics_frame
 	_expect(
-		player.local_position == GridSpace.cell_to_local_position(start_cell + Vector2i.RIGHT),
+		player.current_cell == start_cell + Vector2i.RIGHT
+		and representation.position == GridSpace.cell_to_center_position(player.current_cell),
 		"Player movement must finish exactly one Cell after input release."
 	)
 	_expect(
 		not _movement.is_participant(player),
 		"Released Player direction must not leave a stale Movement participant."
 	)
+
+	var chest := _registry.get_entity(CHEST_INSTANCE_ID) as Furniture
+	_expect(chest != null, "Blocked-facing integration requires the project Chest.")
+	if chest != null:
+		_movement.cancel_all()
+		var interaction_cell := Vector2i(13, 6)
+		player.state.local_cell = interaction_cell
+		(player.state as ActorState).facing = ActorState.Facing.UP
+		representation.position = GridSpace.cell_to_center_position(interaction_cell)
+		Input.action_press(&"ui_right")
+		await physics_frame
+		Input.action_release(&"ui_right")
+		await physics_frame
+		_expect(
+			player.current_cell == interaction_cell
+			and player.facing == ActorState.Facing.RIGHT
+			and not _movement.is_participant(player),
+			"Facing must update immediately when blocking Furniture prevents the requested step."
+		)
+		var interaction_result := controller.request_interaction()
+		_expect(
+			interaction_result.success and interaction_result.target_id == CHEST_INSTANCE_ID,
+			"Facing a blocking Furniture must still permit its valid V10 interaction."
+		)
+
+		var action_id := chest.get_primary_action(player)
+		var spatial_action := WorldAction.new(action_id, player, chest)
+		_expect(
+			ActionSpatialRule.evaluate(spatial_action).allowed,
+			"A contracted Actor at a valid UseSlot must remain eligible for Spatial Action."
+		)
+		_expect(_movement.request_step(player, Vector2i.LEFT), "UseSlot phase test must create a stable step request.")
+		var spatial_request := _movement.get_request(player)
+		_movement.call("_activate_contracted", spatial_request)
+		_expect(
+			spatial_request.phase == ActorMovementRequest.Phase.REQUESTING
+			and ActionSpatialRule.evaluate(spatial_action).allowed,
+			"A requesting Actor still committed at the Slot Cell must remain eligible."
+		)
+		_movement.call("_activate_requesting", spatial_request)
+		(player.state as ActorState).facing = ActorState.Facing.RIGHT
+		var extended_decision := ActionSpatialRule.evaluate(spatial_action)
+		_expect(
+			spatial_request.phase == ActorMovementRequest.Phase.EXTENDED
+			and not extended_decision.allowed
+			and extended_decision.failure_code == &"actor_in_cell_transition",
+			"An extended Actor must be rejected by the world Spatial Rule before starting a UseSlot Action."
+		)
+		_movement.cancel_all()
 	game.queue_free()
 	await process_frame
 
@@ -343,8 +419,8 @@ func _test_npc_astar_candidates_and_long_distance_alignment() -> void:
 			)
 	_expect(actor.current_cell == Vector2i(12, 1), "NPC target guidance must reach the requested Cell.")
 	_expect(
-		actor.local_position == GridSpace.cell_to_local_position(Vector2i(12, 1)),
-		"Many consecutive target steps must not accumulate floating-point Grid drift."
+		actor.state.local_cell == Vector2i(12, 1),
+		"Many consecutive target steps must retain exact integer Cell authority without pixel drift."
 	)
 	_expect(not _movement.is_participant(actor), "Completed target guidance must clear its request.")
 
@@ -611,14 +687,25 @@ func _test_independent_move_speeds() -> void:
 	_movement.request_step(slow, Vector2i.RIGHT)
 	_movement.request_step(fast, Vector2i.RIGHT)
 	_movement.advance(0.0)
+	var slow_request := _movement.get_request(slow)
+	var fast_request := _movement.get_request(fast)
+	_expect(
+		slow_request != null
+		and fast_request != null
+		and is_equal_approx(slow_request.step_duration, 1.0)
+		and is_equal_approx(fast_request.step_duration, 0.5),
+		"ActorDefinition.move_speed must determine each Actor's independent Cell-step duration."
+	)
 	_movement.advance(0.5)
 	_expect(
-		slow.local_position == Vector2(16.0, 0.0)
+		slow.current_cell == Vector2i(0, 0)
+		and slow_request != null
+		and is_equal_approx(slow_request.get_step_progress(), 0.5)
 		and _movement.get_actor_phase(slow) == ActorMovementRequest.Phase.EXTENDED,
-		"A 32 px/s Actor must remain halfway through a 32 px Cell after 0.5 seconds."
+		"A 32 px/s Actor must remain logically at tail while halfway through its one-second step."
 	)
 	_expect(
-		fast.local_position == GridSpace.cell_to_local_position(Vector2i(1, 2))
+		fast.current_cell == Vector2i(1, 2)
 		and not _movement.is_participant(fast),
 		"A 64 px/s Actor must complete independently in the same elapsed time."
 	)
@@ -647,32 +734,56 @@ func _test_scene_unload_and_rebuild() -> void:
 	_movement.advance(0.0)
 	_movement.advance(0.25)
 	await physics_frame
+	var quarter_position := GridSpace.cell_to_center_position(Vector2i(1, 1)).lerp(
+		GridSpace.cell_to_center_position(Vector2i(2, 1)),
+		0.25
+	)
 	_expect(
-		first_representation != null and first_representation.position == actor.local_position,
-		"Loaded Representation must follow Logical Movement ActorState."
+		first_representation != null
+		and first_representation.position.is_equal_approx(quarter_position)
+		and actor.current_cell == Vector2i(1, 1),
+		"Loaded Representation must interpolate current progress without changing logical tail."
 	)
 	first_scene.queue_free()
 	await process_frame
-	var unloaded_position := actor.local_position
-	_advance_until_complete(actor, 0.5, 30)
-	_expect(
-		actor.local_position != unloaded_position
-		and actor.local_position == GridSpace.cell_to_local_position(Vector2i(4, 1)),
-		"Logical Movement must finish off-screen without a Location Scene."
-	)
-	var second_scene := _build_location_scene(location)
-	_expect(second_scene != null, "The Location Scene must rebuild after off-screen movement.")
-	if second_scene == null:
+
+	var midway_scene := _build_location_scene(location)
+	_expect(midway_scene != null, "A Location Scene must rebuild while an Actor is extended.")
+	if midway_scene == null:
 		return
-	root.add_child(second_scene)
+	root.add_child(midway_scene)
 	await process_frame
 	await physics_frame
-	var second_representation := _find_actor_representation(second_scene, actor.instance_id)
+	var midway_representation := _find_actor_representation(midway_scene, actor.instance_id)
 	_expect(
-		second_representation != null and second_representation.position == actor.local_position,
-		"Rebuilt Representation must restore the current exact ActorState position."
+		midway_representation != null
+		and midway_representation.position.is_equal_approx(quarter_position),
+		"A mid-step Scene rebuild must restore the existing tail/head progress instead of restarting."
 	)
-	second_scene.queue_free()
+	midway_scene.queue_free()
+	await process_frame
+
+	var unloaded_cell := actor.current_cell
+	_advance_until_complete(actor, 0.5, 30)
+	_expect(
+		actor.current_cell != unloaded_cell
+		and actor.current_cell == Vector2i(4, 1),
+		"Logical Movement must finish off-screen without a Location Scene."
+	)
+	var final_scene := _build_location_scene(location)
+	_expect(final_scene != null, "The Location Scene must rebuild after off-screen movement.")
+	if final_scene == null:
+		return
+	root.add_child(final_scene)
+	await process_frame
+	await physics_frame
+	var final_representation := _find_actor_representation(final_scene, actor.instance_id)
+	_expect(
+		final_representation != null
+		and final_representation.position == GridSpace.cell_to_center_position(actor.current_cell),
+		"Rebuilt contracted Representation must restore the committed Cell center."
+	)
+	final_scene.queue_free()
 	await process_frame
 
 
@@ -693,6 +804,13 @@ func _test_removed_resolver_mechanisms() -> void:
 	var representation_source := FileAccess.get_file_as_string(
 		"res://scripts/actors/actor_representation.gd"
 	)
+	var entity_state_source := FileAccess.get_file_as_string("res://scripts/entities/entity_state.gd")
+	var entity_source := FileAccess.get_file_as_string("res://scripts/entities/entity.gd")
+	var grid_source := FileAccess.get_file_as_string("res://scripts/location/grid_space.gd")
+	var furniture_representation_source := FileAccess.get_file_as_string(
+		"res://scripts/furniture/furniture_representation.gd"
+	)
+	var game_source := FileAccess.get_file_as_string("res://scripts/game.gd")
 	for removed_term in [
 		"STATUS_VISITING",
 		"STATUS_RESOLVED",
@@ -710,7 +828,32 @@ func _test_removed_resolver_mechanisms() -> void:
 	_expect(
 		not representation_source.contains("sync_state_from_representation")
 		and not representation_source.contains("_state_driven"),
-		"ActorRepresentation must have one-way ActorState position authority for every Actor."
+		"ActorRepresentation must remain a one-way Cell/progress consumer for every Actor."
+	)
+	_expect(
+		entity_state_source.contains("local_cell: Vector2i")
+		and not entity_state_source.contains("local_position"),
+		"EntityState source must expose only Cell-authoritative logical position."
+	)
+	_expect(
+		not entity_source.contains("local_position_to_cell")
+		and not grid_source.contains("local_position_to_cell"),
+		"Logical code must not derive an Entity Cell from pixel position."
+	)
+	_expect(
+		not movement_source.contains("move_toward")
+		and not movement_source.contains("local_position"),
+		"LogicalMovement must advance elapsed/duration rather than a per-frame Vector2 State."
+	)
+	_expect(
+		not furniture_representation_source.contains("state.local_cell =")
+		and not furniture_representation_source.contains("func _exit_tree"),
+		"FurnitureRepresentation must not synchronize Scene position back into logical State."
+	)
+	_expect(
+		not game_source.contains("spawn_position")
+		and not game_source.contains("local_position"),
+		"Initialization and Location transfer must pass and commit Cells only."
 	)
 
 
@@ -751,7 +894,7 @@ func _create_actor(
 	var state := ActorState.new(
 		instance_id,
 		location_id,
-		GridSpace.cell_to_local_position(cell),
+		cell,
 		ActorState.Facing.DOWN
 	)
 	var actor := Actor.new(definition, state)
@@ -807,6 +950,13 @@ func _actor_occupancies_do_not_overlap(actors: Array) -> bool:
 				return false
 			occupied[cell] = true
 	return true
+
+
+func _has_property(object: Object, property_name: StringName) -> bool:
+	for property in object.get_property_list():
+		if property["name"] == property_name:
+			return true
+	return false
 
 
 func _expect(condition: bool, message: String) -> void:

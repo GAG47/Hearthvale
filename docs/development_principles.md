@@ -50,11 +50,17 @@ Persistent state, movement facts, interaction rules and gameplay capabilities re
 
 ## 8. Movement 属于 Logical World
 
-Movement Intent、Grid Pathfinding、Causal-PIBT 协调、连续移动推进与 Actor occupancy 都是逻辑世界能力。Player 与 NPC 都必须通过同一个 Logical Movement，以 `contracted → requesting → extended → contracted` 完成一次四向相邻 Cell Move。Location Scene 是否加载不能决定 Actor 是否能够移动；ActorRepresentation 只表现 ActorState，不能直接拥有任何 Actor 的正式位置权威，也不能在销毁时把旧坐标反写为世界事实。
+Location Logical World 的正式空间单位只有 `Vector2i` Grid Cell。EntityState 只保存 `local_cell`，不能同时保存 pixel `local_position`，也不能从 Representation、Scene transform 或连续 Vector2 反推 Entity 当前 Cell。`Entity.current_cell` 表示已经提交的稳定 Cell，不等于 Actor 在 Movement phase 中的完整 occupancy。
 
-PlayerController 只提供最新 direction intent，不直接设置 velocity、调用 Scene Physics 移动 Actor 或把 Representation 同步回 State。NPC 的 target intent 可以使用 AStarGrid2D 产生多个邻格候选；direction intent 只能包含指定邻格与 WAIT，不能由协调器替玩家自动改向。
+Movement Intent、Grid Pathfinding、Causal-PIBT 协调、Step progress 与 Actor occupancy 都是逻辑世界能力。Player 与 NPC 都必须通过同一个 Logical Movement，以 `contracted → requesting → extended → contracted` 完成一次四向相邻 Cell Move。ActorState.local_cell 在 contracted、requesting 和整个 extended 期间保持 tail，只在 Step 完成时一次性 Commit 为 head。Location Scene 是否加载不能决定 Actor 是否能够移动。
+
+ActorRepresentation 只把 committed Cell 与 Movement tail/head/progress 转换为 Scene `Vector2`：稳定位置使用 Cell Center，extended 使用两个 Cell Center 之间的插值。平滑像素位移是 Representation，不是连续 Logical Position；Representation 不能拥有正式位置权威，也不能在销毁时把旧坐标反写为世界事实。
+
+PlayerController 只提供最新 direction intent，不直接设置 velocity、调用 Scene Physics 移动 Actor 或把 Representation 同步回 State。方向输入必须立即更新普通 Actor facing，再尝试移动；Step 被阻挡时可以不移动，但 facing 仍应改变。NPC 的 target intent 可以使用 AStarGrid2D 产生多个邻格候选；direction intent 只能包含指定邻格与 WAIT，不能由协调器替玩家自动改向。
 
 Hard occupancy 必须与请求意图区分：contracted 占 `{tail}`，requesting 仍只占 `{tail}`，extended 才占 `{tail, head}`。requesting head 不能成为 Location Entry 或其他外部系统的空气墙。
+
+需要 UseSlot 的 Spatial Action 要求 Actor 稳定位于 Slot Cell。contracted 与 requesting 可以继续按 committed tail Cell 验证；extended 必须由 ActionSpatialRule 正式拒绝，不能只在 PlayerController 做特例拦截，也不能读取动画位置判断 Interaction。
 
 Causal-PIBT 核心必须用 original/current priority、parent/children、候选集合 `C_i`、搜索集合 `S_i`、priority inheritance、backtracking 与 request-cycle 检查表达。不能以递归 resolver、VISITING status、assignment snapshot/restore，或 retry/deadlock/corridor 特例替代正式状态模型。高级 deadlock、未来时间 reservation、edge reservation、congestion 与 traffic optimization 扩展不属于 V11.1，不能为了追求“绝对不会卡死”而擅自加入。
 

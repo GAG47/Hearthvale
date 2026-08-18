@@ -13,7 +13,7 @@ func supports(entity: Entity) -> bool:
 func prepare(
 	entity: Entity,
 	target_location,
-	target_local_position: Vector2
+	target_cell: Vector2i
 ) -> Node:
 	if not entity is Actor or not target_location is GridScene:
 		push_error("ActorRepresentationFactory requires an Actor and target GridScene.")
@@ -29,7 +29,7 @@ func prepare(
 
 	var actor := entity as Actor
 	var location := target_location as GridScene
-	if not representation.prepare_actor(actor, location, target_local_position):
+	if not representation.prepare_actor(actor, location, target_cell):
 		representation.free()
 		return null
 	representation.name = "Actor_%s" % String(actor.instance_id).substr(0, 8)

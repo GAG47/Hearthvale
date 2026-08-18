@@ -17,7 +17,7 @@ func _init(
 	facing = p_facing
 
 
-func get_local_position(arrival_index := 0) -> Vector2:
+func get_center_position(arrival_index := 0) -> Vector2:
 	if arrival_index < 0 or arrival_index >= arrival_cells.size():
 		return Vector2.ZERO
-	return GridSpace.cell_to_local_position(arrival_cells[arrival_index])
+	return GridSpace.cell_to_center_position(arrival_cells[arrival_index])

@@ -266,3 +266,73 @@ V11.1 没有正式初始化 Martha，也没有新增 NPC bootstrap、spawn list�
 - 旧 resolver 与 external control API 的静态删除检查。
 
 当前专项结果为 `V11.1 Unified Grid Movement: 175 checks passed.`。V7.4 测试已同步移除自由移动与 Representation 回写假设，改为验证完整单格移动和逻辑阻挡；V7.5、V9、V10 以及基础 Definition / Registry / Representation 回归保持通过。
+
+## V11.1 最终架构修正：Cell-Authoritative Entity State
+
+日期：2026-08-18
+
+本节记录 V11.1 正式 Causal-PIBT 完成后的最后一轮空间权威修正，不回写前述 V11 / V11.1 历史实现。Causal-PIBT 的 parent/children、original/current priority、`C_i`、`S_i`、inheritance、backtracking 与 request-cycle 主体没有重新设计；本轮只删除 Logical World 中残留的连续坐标权威，并修正 Representation、Facing 与 Spatial Action 的集成。
+
+### EntityState 与 Location Logical World
+
+所有 Location Entity 的正式位置已从 `EntityState.local_position: Vector2` 迁移为 `EntityState.local_cell: Vector2i`。`Entity.current_cell` 直接返回 `state.local_cell`，不再调用 pixel-to-cell 转换。旧 `Entity.local_position` 与 `GridSpace.local_position_to_cell()` 已删除，因此 Logical World 不存在可与 Cell 冲突的第二位置真相。
+
+Furniture 的 `local_cell` 明确定义为 footprint origin：world occupied Cell、UseSlot 与 SlotEntrance 都由 origin 加 Definition-local Cell 得到。FurnitureRepresentation 独立根据 footprint bounds 计算视觉中心，不会在 physics process 或退出 Scene 时把 Node2D position 写回 State。
+
+现有 Player 与 Furniture 初始化数据全部改为 Cell；Location Transfer Prepare 只传递 `spawn_cell`，Commit 直接写入 `ActorState.local_cell`。LocationEntry 的 Scene Marker 使用 arrival Cell center 仅作显示；arrival 选择继续只检查静态合法性与 Actor hard occupancy，requesting head 不构成阻挡。
+
+### Step Progress 与 Cell Commit
+
+`ActorMovementRequest` 删除 `step_start_position` / `step_target_position`，改为保存：
+
+- `tail_cell` / `head_cell` / phase；
+- `step_elapsed`；
+- `step_duration`；
+- 由 `elapsed / duration` 得到的归一化 progress。
+
+`step_duration = GridSpace.CELL_SIZE / ActorDefinition.move_speed`。LogicalMovement 在 extended 中只增加 elapsed，不逐帧修改 ActorState Vector2。正式 Cell 语义为：
+
+```text
+contracted(A)      ActorState.local_cell = A   occupied = {A}
+requesting(A, B)   ActorState.local_cell = A   occupied = {A}
+extended(A, B)     ActorState.local_cell = A   occupied = {A, B}
+progress >= 1      ActorState.local_cell = B   occupied = {B}
+```
+
+因此 `current_cell` 在 extended 期间仍是 committed tail；完整 occupancy 必须继续从 Movement tail/head/phase 查询。不同 move_speed 只产生不同 duration，不重新引入逐帧逻辑坐标。
+
+### Representation 与 Scene 生命周期
+
+`GridSpace.cell_to_local_position()` 保留 Cell origin 语义，并新增 `cell_to_center_position()`。ActorRepresentation 在 contracted 时显示于 committed Cell Center；extended 时显示于：
+
+```text
+lerp(cell_center(tail), cell_center(head), progress)
+```
+
+插值结果只属于 Scene，不写回 ActorState。LocationSceneBuilder 与 EntityRepresentationFactory 现在传递 Cell 而不是 pixel target position。Scene 卸载期间 LogicalMovement 继续推进 elapsed/duration；Scene 在 extended 中途重建时，ActorRepresentation 直接读取现有 tail/head/progress 恢复正确插值位置，不会从 0 重新播放。
+
+### Facing 与 Spatial Action
+
+PlayerController 仍只产生 direction intent。方向输入先立即更新普通 `ActorState.facing`，再尝试提交相邻 Cell Step；即使墙、Furniture 或其他 Actor 阻挡移动，玩家仍留在原 Cell，但可以正确转身并执行面对目标的 V10 Interaction。
+
+ActionSpatialRule 增加统一世界规则：contracted 与 requesting Actor 在满足 UseSlot / facing 条件时仍可开始 Spatial Action；extended Actor 以 `actor_in_cell_transition` 拒绝，因为它正在两个 Cell 间迁移，不稳定占据单一 Slot Cell。Interaction 全程只消费 Logical Cell、Facing、UseSlot、SlotEntrance 与 LocationRuntime，不读取动画像素位置。
+
+### 验证与边界
+
+V11.1 专项测试新增或修正了以下覆盖：
+
+- EntityState 只有 `local_cell`，`current_cell` 直接来自 committed Cell；
+- contracted / requesting / extended 的 local_cell 与 hard occupancy；
+- 25%、50%、99% progress 均保持 tail，完成时一次 Commit 到 head；
+- elapsed / duration / progress 与不同 move_speed duration；
+- 长距离移动只提交整数 Cell，不存在 pixel-to-cell 累计漂移；
+- contracted Cell Center、extended center-to-center 插值；
+- Scene 中途卸载、extended 中途重建与离屏完成；
+- 阻挡方向输入仍立即改变 facing，并可面对 blocking Furniture 交互；
+- contracted / requesting UseSlot Action 保持有效，extended 正式拒绝；
+- requesting head 不阻挡 Location Entry；
+- inheritance、backtracking、request-cycle 与 same-head 决胜继续通过。
+
+本轮没有正式初始化 Martha，没有增加 NPC bootstrap、Schedule、Goal、AI、随机移动、第二套 Movement Grid、Reservation、Congestion Guidance 或 corridor/dead-end 特例。正式 Causal-PIBT 仅做适配 Cell-authoritative State 所必需的 Step commit 修改。
+
+最终回归结果：ActorDefinition 29、EntityRegistry 24、Entity Representation 41、FurnitureDefinition 27、V7.4.1 119、V7.5 39、V9 2230、V10 132、V11.1 200 checks 全部通过；主场景 headless smoke 以 exit code 0 退出。Registry、Representation 与 V7.5 输出中的 error 日志来自测试明确覆盖的预期失败分支。

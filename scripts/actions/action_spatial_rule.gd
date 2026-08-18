@@ -11,6 +11,11 @@ static func evaluate(action: WorldAction) -> ActionRuleDecision:
 		return ActionRuleDecision.reject("行为发起者或目标不属于有效地点。", &"location_missing")
 	if action.actor.current_location_id != action.target.current_location_id:
 		return ActionRuleDecision.reject("行为发起者与目标不在同一个地点。", &"target_not_in_same_location")
+	if _is_actor_extended(action.actor):
+		return ActionRuleDecision.reject(
+			"行为发起者正在格子之间移动。",
+			&"actor_in_cell_transition"
+		)
 
 	var location := _get_location(action.actor.current_location_id)
 	if location == null:
@@ -31,3 +36,14 @@ static func _get_location(location_id: StringName) -> LocationRuntime:
 		return null
 	var world_definition := tree.root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
 	return world_definition.get_location(location_id) if world_definition != null else null
+
+
+static func _is_actor_extended(actor: Actor) -> bool:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return false
+	var movement := tree.root.get_node_or_null("LogicalMovement") as LogicalMovementRuntime
+	return (
+		movement != null
+		and movement.get_actor_phase(actor) == ActorMovementRequest.Phase.EXTENDED
+	)

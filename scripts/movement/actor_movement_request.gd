@@ -20,8 +20,8 @@ var direction_intent := Vector2i.ZERO
 var phase := Phase.CONTRACTED
 var tail_cell: Vector2i
 var head_cell: Vector2i
-var step_start_position := Vector2.ZERO
-var step_target_position := Vector2.ZERO
+var step_elapsed := 0.0
+var step_duration := 0.0
 var original_priority_started_at := 0
 var original_priority_instance_id := &""
 var current_priority_started_at := 0
@@ -72,3 +72,11 @@ func get_occupied_cells() -> Array[Vector2i]:
 	if phase == Phase.EXTENDED and head_cell != tail_cell:
 		cells.append(head_cell)
 	return cells
+
+
+func get_step_progress() -> float:
+	if phase != Phase.EXTENDED:
+		return 0.0
+	if step_duration <= 0.0:
+		return 1.0
+	return clampf(step_elapsed / step_duration, 0.0, 1.0)
