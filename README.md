@@ -9,7 +9,7 @@ Hearthvale 是一款中世纪西幻 RPG / Living World 游戏。玩家作为世�
 
 ## 当前状态
 
-当前世界采用 Location-First 数据架构。Project Definition 是 Godot Custom Resource，Actor、Furniture 与 Location Instance 直接持有对应的强类型 `.tres` 引用；State 只保存具体实例的运行事实，Entity 与 Location Instance UUID 继续保持独立身份。LocationDefinition 直接描述 Topology，以及 Ground、Decoration、Structure 三层 Cell Tile Resource 和 Entries / Exits；LocationState 只保存三层 Resource sparse overrides，Entity 归属仍唯一来自 EntityState。Entity Definition 可以通过 UseSlot 与 SlotEntrance 表达各 Action 的局部交互位置，LocationRuntime 负责转换和验证当前世界 Cell。LocationSceneBuilder 从当前 Location 动态生成 GridScene，再沿用 V8 Factory / Registry 创建 Entity Representations；固定地图 `.tscn` 不是世界真相。Location 切换继续采用失败安全的 Prepare → Commit，Scene 卸载不影响 Definition Resource、LocationState、Entity 或 EntityState。
+当前世界采用 Location-First 数据架构。Project Definition 是 Godot Custom Resource，Actor、Furniture 与 Location Instance 直接持有对应的强类型 `.tres` 引用；State 只保存具体实例的运行事实，Entity 与 Location Instance UUID 继续保持独立身份。LocationDefinition 直接描述 Topology，以及 Ground、Decoration、Structure 三层 Cell Tile Resource 和 Entries / Exits；LocationState 只保存三层 Resource sparse overrides，Entity 归属仍唯一来自 EntityState。Entity Definition 可以通过 UseSlot 与 SlotEntrance 表达各 Action 的局部交互位置，LocationRuntime 负责转换和验证当前世界 Cell。Actor 的逻辑移动由独立于 Scene 的 AStarGrid2D + Causal-PIBT Runtime 推进，连续位置、速度和 occupancy 仍属于普通 Actor 系统；PlayerController 只是控制其中一个 Actor。LocationSceneBuilder 从当前 Location 动态生成 GridScene，再沿用 V8 Factory / Registry 创建 Entity Representations；固定地图 `.tscn` 不是世界真相。Location 切换继续采用失败安全的 Prepare → Commit，Entry 支持按顺序选择多个 arrival Cells，Scene 卸载不影响 Definition Resource、LocationState、Entity、EntityState 或 NPC Movement。
 
 ## 目录
 
@@ -49,3 +49,4 @@ scripts/  游戏脚本
 - [V8：Entity Representation System](docs/v8_entity_representation_system_development_log.md)
 - [V9：Location-First World Data](docs/v9_location_first_world_data_development_log.md)
 - [V10：Entity Interaction Space](docs/v10_entity_interaction_space_development_log.md)
+- [V11：Logical Actor Movement](docs/v11_logical_actor_movement_development_log.md)

@@ -4,6 +4,7 @@ extends RefCounted
 var definition: LocationDefinition
 var state: LocationState
 var entity_registry: EntityRegistryRuntime
+var movement_runtime: LogicalMovementRuntime
 
 var instance_id: StringName:
 	get:
@@ -17,11 +18,13 @@ var location_id: StringName:
 func _init(
 	p_definition: LocationDefinition,
 	p_state: LocationState,
-	p_entity_registry: EntityRegistryRuntime
+	p_entity_registry: EntityRegistryRuntime,
+	p_movement_runtime: LogicalMovementRuntime = null
 ) -> void:
 	definition = p_definition
 	state = p_state
 	entity_registry = p_entity_registry
+	movement_runtime = p_movement_runtime
 
 
 func is_valid() -> bool:
@@ -136,7 +139,14 @@ func get_entities() -> Array[Entity]:
 func get_entities_at(cell: Vector2i) -> Array[Entity]:
 	var entities: Array[Entity] = []
 	for entity in get_entities():
-		if entity.get_occupied_grid_cells().has(cell):
+		var occupied_cells: Array[Vector2i] = []
+		if entity is Actor and movement_runtime != null:
+			occupied_cells.append_array(
+				movement_runtime.get_actor_occupied_cells(entity as Actor)
+			)
+		else:
+			occupied_cells.append_array(entity.get_occupied_grid_cells())
+		if occupied_cells.has(cell):
 			entities.append(entity)
 	return entities
 
@@ -189,14 +199,39 @@ func is_cell_walkable(cell: Vector2i) -> bool:
 	return _is_cell_standable(cell)
 
 
+func is_cell_statically_walkable(cell: Vector2i, ignored_entity: Entity = null) -> bool:
+	if not _has_walkable_terrain(cell):
+		return false
+	for entity in get_entities_at(cell):
+		if entity == ignored_entity or entity is Actor:
+			continue
+		if entity.blocks_movement():
+			return false
+	return true
+
+
+func is_actor_cell_available(cell: Vector2i, ignored_actor: Actor = null) -> bool:
+	if not is_cell_statically_walkable(cell, ignored_actor):
+		return false
+	if movement_runtime != null:
+		return not movement_runtime.is_actor_cell_claimed(instance_id, cell, ignored_actor)
+	for entity in get_entities_at(cell):
+		if entity is Actor and entity != ignored_actor:
+			return false
+	return true
+
+
+func select_arrival_cell(entry: LocationEntry, moving_actor: Actor = null) -> Dictionary:
+	if entry == null:
+		return {}
+	for cell in entry.arrival_cells:
+		if is_actor_cell_available(cell, moving_actor):
+			return {"cell": cell}
+	return {}
+
+
 func _is_cell_standable(cell: Vector2i, ignored_entity: Entity = null) -> bool:
-	if cell.x < 0 or cell.y < 0 or cell.x >= definition.grid_size.x or cell.y >= definition.grid_size.y:
-		return false
-	var ground := get_ground_tile(cell)
-	if ground == null or not ground.walkable:
-		return false
-	var structure := get_structure_tile(cell)
-	if structure != null and structure.blocks_movement:
+	if not _has_walkable_terrain(cell):
 		return false
 	if entity_registry == null:
 		return false
@@ -205,4 +240,16 @@ func _is_cell_standable(cell: Vector2i, ignored_entity: Entity = null) -> bool:
 			continue
 		if entity.blocks_movement():
 			return false
+	return true
+
+
+func _has_walkable_terrain(cell: Vector2i) -> bool:
+	if cell.x < 0 or cell.y < 0 or cell.x >= definition.grid_size.x or cell.y >= definition.grid_size.y:
+		return false
+	var ground := get_ground_tile(cell)
+	if ground == null or not ground.walkable:
+		return false
+	var structure := get_structure_tile(cell)
+	if structure != null and structure.blocks_movement:
+		return false
 	return true

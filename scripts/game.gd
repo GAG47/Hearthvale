@@ -159,6 +159,7 @@ func _perform_location_change(
 		player_controller.set_physics_process(true)
 
 	if not changed:
+		action_result_label.text = "此路不通。"
 		push_error(
 			"Could not follow Location edge '%s/%s' to location_id '%s' at target_entry_id '%s'."
 			% [from_location_id, edge.edge_key, edge.target_location_id, edge.target_entry_id]
@@ -201,7 +202,16 @@ func _prepare_location_change(
 	if moving_actor == null:
 		push_error("Location '%s' cannot prepare without the controlled Actor." % location_id)
 		return {}
-	var spawn_position := entry.get_local_position() if entry != null else moving_actor.local_position
+	var spawn_position := moving_actor.local_position
+	if entry != null:
+		var arrival := location.select_arrival_cell(entry, moving_actor)
+		if arrival.is_empty():
+			push_error(
+				"Location Entry '%s/%s' has no currently available arrival Cell."
+				% [location_id, entry.entry_id]
+			)
+			return {}
+		spawn_position = GridSpace.cell_to_local_position(arrival["cell"])
 	var spawn_facing := entry.facing if entry != null else moving_actor.facing
 	var prepared_scene := location_scene_builder.prepare_scene(
 		location,

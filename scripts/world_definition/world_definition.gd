@@ -53,6 +53,7 @@ func get_location(location_id: StringName) -> LocationRuntime:
 		return null
 	var world_state := get_node_or_null("/root/WorldState") as WorldStateRuntime
 	var entity_registry := get_node_or_null("/root/EntityRegistry") as EntityRegistryRuntime
+	var movement_runtime := get_node_or_null("/root/LogicalMovement") as LogicalMovementRuntime
 	if world_state == null or entity_registry == null:
 		push_error("Location Runtime requires WorldState and EntityRegistry.")
 		return null
@@ -60,7 +61,12 @@ func get_location(location_id: StringName) -> LocationRuntime:
 	if state == null:
 		push_error("Location instance_id '%s' has no LocationState." % location_id)
 		return null
-	var location := LocationRuntime.new(location_definition, state, entity_registry)
+	var location := LocationRuntime.new(
+		location_definition,
+		state,
+		entity_registry,
+		movement_runtime
+	)
 	return location if location.is_valid() else null
 
 
@@ -205,11 +211,18 @@ func _validate_location_definition(
 			entry == null
 			or entry.entry_id.is_empty()
 			or entry_ids.has(entry.entry_id)
-			or not _cell_in_grid(entry.cell, definition.grid_size)
+			or entry.arrival_cells.is_empty()
 		):
 			push_error("LocationDefinition '%s' has an invalid LocationEntry." % definition_name)
 			valid = false
 			continue
+		for arrival_cell in entry.arrival_cells:
+			if not _cell_in_grid(arrival_cell, definition.grid_size):
+				push_error(
+					"LocationDefinition '%s' Entry '%s' has an invalid arrival Cell %s."
+					% [definition_name, entry.entry_id, arrival_cell]
+				)
+				valid = false
 		entry_ids[entry.entry_id] = true
 	for location_exit in definition.exits:
 		if (

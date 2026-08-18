@@ -13,3 +13,4 @@ visual_up = ExtResource("5_wriym")
 visual_down = ExtResource("2_3vj8c")
 visual_left = ExtResource("3_pkb5j")
 visual_right = ExtResource("4_pomml")
+move_speed = 140.0

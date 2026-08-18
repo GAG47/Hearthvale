@@ -49,7 +49,7 @@ Project Definition `.tres` 没有运行时更新入口。床损坏、家具开�
 
 Project Definitions 当前包括：
 
-- Player 与 Martha 的 ActorDefinition；
+- Player 与 Martha 使用的 ActorDefinition，其中 `move_speed` 是 PlayerController 与 Logical Movement 共用的 Actor 基础移动速度；
 - Chest、Sign、Bed 的 FurnitureDefinition；
 - GroundTileDefinition、DecorationTileDefinition 与 StructureTileDefinition；
 - Tavern、Town Street 与 Tavern Yard 的 LocationDefinition。
@@ -67,7 +67,7 @@ Location
 │  ├─ Ground Layer
 │  ├─ Decoration Layer
 │  ├─ Structure Layer
-│  ├─ Entries
+│  ├─ Entries（有序 arrival Cells）
 │  └─ Exits
 └─ Entities（由 EntityState 派生）
 ```
@@ -99,7 +99,7 @@ Structure Layer 的权威形式是 `cell → StructureTileDefinition Resource`�
 
 ### Entries 与 Exits
 
-LocationEntry 直接保存 `entry_id`、Cell 与 Facing。Topology 只指出目标 Entry ID；LocationEntry 拥有该 Entry 在目标 Location 内的格子位置和朝向，切换落点由 Cell 原点确定。
+LocationEntry 直接保存 `entry_id`、有序 `arrival_cells` 与 Facing。Topology 只指出目标 Entry ID；LocationEntry 拥有该 Entry 在目标 Location 内的候选格子位置和朝向。Location Transfer 的 Prepare 阶段按 Definition 顺序选择首个静态可进入、且没有 Actor occupancy 或 movement claim 的 Cell，全部候选不可用时直接拒绝，Commit 不再依赖 Scene Physics 修正重叠。现有单 Cell Entry 迁移为只含一个元素的数组，因此原有落点顺序保持不变。
 
 LocationExit 直接保存对应的 `edge_key` 与本地 Cell Rect。SceneBuilder 根据它创建临时的 LocationExitArea 触发区域；Topology 继续独立负责该 Edge 连接到哪个 Location。
 
@@ -110,7 +110,7 @@ Entity 所属 Location 与位置的唯一持久真相是：
 - `EntityState.current_location_id`；
 - `EntityState.local_position`。
 
-LocationState 不保存 `entity_ids` 或 `entity_positions`。LocationRuntime 通过 EntityRegistry 查询 `current_location_id == instance_id` 的 Entity，并可按 Entity footprint 派生 Cell 查询。未来如增加 Location 或 Cell 索引，它们也必须能从 EntityState 重建，不能成为第二份 Save Truth。
+LocationState 不保存 `entity_ids` 或 `entity_positions`。LocationRuntime 通过 EntityRegistry 查询 `current_location_id == instance_id` 的 Entity，并可按 Entity footprint 或 Actor 当前移动 phase 派生 Cell 查询。Actor 没有 Logical Movement Request 时占据 `current_cell`；有 Request 时由 contracted / requesting / extended 决定占格。未来如增加 Location 或 Cell 索引，它们也必须能从 EntityState 与当前逻辑 Runtime 重建，不能成为第二份 Save Truth。
 
 ## LocationState Sparse Overrides
 
@@ -146,7 +146,7 @@ GridScene
 
 LocationSceneBuilder 只消费 LocationRuntime 已合并出的当前 Ground、Decoration、Structure Cell Layer，以及直接的 Entries / Exits，并逐层创建静态空间和切换节点。它不按具体 Entity 类型创建 Actor 或 Furniture Node；Entity 表现仍由 V8 的 EntityRepresentationRegistry 与唯一匹配的 EntityRepresentationFactory 准备。三个 Tile Layer 使用固定 World TileSet，具体 TileDefinition 只保存 Tile 选择字段。
 
-现有 Tavern、Town Street 与 Tavern Yard 的静态入口位于 `data/world/project_world.tres`，并直接引用 `data/locations/` 中的三个 LocationDefinition Resource。三份固定地图 `.tscn` 已删除；LocationDefinition 没有 `scene_path`，Game 也不加载地点 PackedScene。SceneTree、TileMapLayer、Collision 与 Marker 都是可丢弃的下游表现。
+现有 Tavern、Town Street 与 Tavern Yard 的静态入口位于 `data/world/project_world.tres`，并直接引用 `data/locations/` 中的三个 LocationDefinition Resource。三份固定地图 `.tscn` 已删除；LocationDefinition 没有 `scene_path`，Game 也不加载地点 PackedScene。SceneTree、TileMapLayer、Collision 与 Marker 都是可丢弃的下游表现。一个 Entry 有多个 arrival Cell 时，SceneBuilder 可以为调试和表现创建多个 Marker，但 Marker 不参与落点合法性判断。
 
 离开 Location 会销毁 GridScene 及其中的 Entity Representations，但不会删除 LocationDefinition、LocationState、Entity 或 EntityState。再次进入时，系统从当前 LocationRuntime 完整重建 Scene，并让 Factory 把已有 Entity 绑定到新的 Representation。
 
@@ -160,6 +160,7 @@ LocationSceneBuilder 只消费 LocationRuntime 已合并出的当前 Ground、De
 Prepare
 ├─ 解析目标 LocationRuntime
 ├─ 验证目标 LocationEntry
+├─ 按顺序选择首个无静态阻挡、Actor occupancy 或 movement claim 的 arrival Cell
 ├─ 从当前 Location 数据生成全部静态层
 ├─ 通过 EntityRepresentationRegistry 准备全部 Entity Representations
 ├─ 验证 PlayerController 可接管目标 ActorRepresentation
@@ -182,7 +183,7 @@ Entity 是拥有独立 UUID `instance_id`、Definition Resource 引用和独立 
 
 Entity 大类表达根本结构或生命周期差异；Definition 表达具体内容是什么；Behavior / Component 表达能做什么；BehaviorState 保存可组合能力的实例变化。Bed、Chest、Sign 不建立逻辑子类，而由 FurnitureDefinition 与 Sleepable、Openable、Inspectable Behavior 组合表达。只有 Openable 当前需要独立 OpenableState。
 
-Representation 依赖 Entity，Entity 不依赖 Representation。ActorRepresentation 继续使用 CharacterBody2D，FurnitureRepresentation 继续使用 Node2D；统一的是 Factory 创建协议和逻辑绑定，而不是强迫所有表现继承同一个 Node 基类。
+Representation 依赖 Entity，Entity 不依赖 Representation。ActorRepresentation 继续使用 CharacterBody2D，FurnitureRepresentation 继续使用 Node2D；统一的是 Factory 创建协议和逻辑绑定，而不是强迫所有表现继承同一个 Node 基类。普通 ActorRepresentation 每个 physics frame 从 ActorState 表现当前位置；仅当 PlayerController 正在直接控制该 Representation 时，位置才由 Representation 同步回同一个 ActorState。Logical Movement participant 会强制恢复 State-driven，避免 Scene 卸载时旧 NPC Representation 把旧位置反写回 State。
 
 EntityRepresentationRegistry 扫描全部 Factory 并要求恰好一个匹配。零匹配或多匹配都使 Location Prepare 失败。Game 不按 Actor / Furniture 类型分支，也不持有具体 Entity Representation Scene。
 
@@ -208,11 +209,51 @@ PlayerController + ActionSpatialRule
 
 Furniture 直接从 Definition-local footprint Cell 集合计算占用 world Cell，并由 Entity 当前 footprint origin 加上各自 `local_cell` 转换 UseSlot 与 SlotEntrance。FurnitureRepresentation 的 Physics collision 也只从同一份 `footprint_cells` 派生：每个 occupied local Cell 创建一个完整 `GridSpace.CELL_SIZE × GridSpace.CELL_SIZE` 的 RectangleShape2D，按 Cell 中心定位；不使用 bounding rectangle、不做 4px 内缩、不维护第二份 collision footprint 数据。non-blocking Furniture 保留对应 shape 但将其禁用。LocationRuntime 不生成、删除或修改 Definition，只复用当前 Ground、Structure 与 Entity 查询验证可用性。UseSlot 位于目标 Entity footprint 内时会忽略目标自身的 blocking，但仍检查 Ground、Structure 和其他 blocking Entity；SlotEntrance 必须是普通 Actor 当前可站立的 Cell。Definition 是否存在与当前是否可用是两件事。
 
-## Action、Interaction 与移动
+## Action 与 Interaction
 
-PlayerController 把输入转化为移动或交互意图。ActorRepresentation 在当前 Scene 中执行连续物理移动并把位置同步回 ActorState。PlayerController 直接从当前 LocationRuntime 查询 Entity，按 Actor 当前 Cell、facing、Action UseSlot 和当前 Runtime 有效性选择候选；有明确方向限制且当前 facing 被允许的 Slot 优先于 unrestricted Slot，完全同级时按稳定 instance UUID 排序。Representation、Scene 索引和物理节点都不是交互目标的逻辑来源。
+PlayerController 把玩家输入转化为移动或交互意图。它当前仍通过 ActorRepresentation 执行玩家自由连续移动，再把位置同步回 ActorState，但基础速度直接读取受控 Actor 的 ActorDefinition。PlayerController 不创建 PlayerDefinition、PlayerState 或 Player 专属 occupancy；它只是向一个普通 Actor 提供当前玩家控制。
+
+PlayerController 直接从当前 LocationRuntime 查询 Entity，按 Actor 当前 Cell、facing、Action UseSlot 和当前 Runtime 有效性选择候选；有明确方向限制且当前 facing 被允许的 Slot 优先于 unrestricted Slot，完全同级时按稳定 instance UUID 排序。Representation、Scene 索引和物理节点都不是交互目标的逻辑来源。
 
 WorldAction 使用逻辑 EntityState 验证同一 Location，然后由 ActionSpatialRule 要求 Actor 当前 Cell 匹配至少一个当前有效、朝向正确的 Action UseSlot。没有 LocationRuntime 时直接 reject，不再使用仅检查 Slot/facing 的 fallback。旧的“目标位于脚下或面前”判断已删除；默认 UseSlot 保留相同体验，并成为唯一交互空间权威。Entity 默认拒绝 Action 并默认不阻挡移动；Furniture 把具体检查与执行委派给 Behavior，并按 FurnitureDefinition 提供统一的移动阻挡结果。合法结果修改 EntityState 或 WorldTimeState；Representation 只刷新视觉。
+
+## Logical Actor Movement
+
+Movement 是 Logical World 能力。正式数据流为：
+
+```text
+Actor + target_cell
+  ↓
+AStarGrid2D 静态路线
+  ↓
+Causal-PIBT 当前一步协调
+  ↓
+LogicalMovementRuntime 连续推进
+  ↓
+ActorState.local_position
+  ↓
+ActorRepresentation（存在时）
+```
+
+`LogicalMovementRuntime` 是独立于 Location Scene 的 Autoload。Movement Request 只保存 Actor、请求开始时的 Location、当前 Location 内的 `target_cell`、基础与临时有效 priority、当前 phase、tail/head Cell、候选 Cell，以及一格连续位移的起止坐标。Location Scene 是否加载不影响 Request 推进；重新生成 ActorRepresentation 时，它直接从当时的 ActorState 位置开始表现。
+
+全局路线由 `AStarGrid2D` 直接消费 LocationRuntime 的当前逻辑数据建立，只允许上下左右移动。Location bounds、Ground walkability、Ground movement cost、Structure 和 blocking Furniture / Entity 来自同一份 Location Definition + State 合并结果；Scene、TileMap、Physics Collision、NavigationAgent2D 或 NavMesh 都不是路线来源。动态 Actor 不写入静态 A* 墙，它们由 Causal-PIBT 处理。
+
+每次准备一小步时，Runtime 从当前 tail 取得可到达 target 的四向静态合法邻格，按 A* 剩余成本排序，并保证 A* 推荐 next Cell 优先，最后追加 WAIT。PIBT 如果让 Actor 临时偏离主路径，下一次 contracted 会从新 tail 重新建图和排序。
+
+局部协调使用 Causal-PIBT 的核心三阶段：
+
+- contracted：稳定占据 `{tail}`；
+- requesting：请求 `tail → head`，逻辑占用仍为 `{tail}`，但 head 是可查询的 movement claim；
+- extended：请求批准后连续移动，严格占据 `{tail, head}`，直到整格位移完成才收缩为新 `{tail}`。
+
+基础 priority 由 Movement Request 开始时间决定，同一 movement clock 使用 Actor instance UUID 稳定决胜。高优先请求遇到另一个 participant 时，阻挡者在本次协调中临时继承 priority 并递归尝试自己的候选；如果下游无法完成，Runtime 回滚本轮 assignments、head owners、递归状态与 Request 协调快照，上游继续尝试下一个候选。协调成功不会让整条依赖链同时进入 extended：只有 head 当前未被占用的依赖叶节点先开始移动，上游保持 requesting，直到下游真正完成并释放旧 tail 后才依次进入 extended。不同 Actor 速度不同时，整条链的 phase occupancy 仍不会重叠。Request 完成或取消后不再是 participant，临时 priority 也随之消失。
+
+批准一步后，ActorState.local_position 通过 ActorDefinition.move_speed 连续向 `step_start_position + cell_direction * CELL_SIZE` 移动，因此保留原有格内 offset，不吸附到格子中心。不同 Actor 独立完成各自的 extended phase，不使用统一 movement timestep。即使连续坐标已经跨入 head Cell，extended 完成前仍同时占用 tail 与 head。
+
+非 participant Actor 使用自己的 `current_cell` 参与动态占格。PlayerController 会把当前受控 Actor 注册为 external movement control：它仍是普通 Actor 并占据 `current_cell`，但不能成为 PIBT participant、继承 priority 或被 NPC 推动。NPC 遇到该 Cell 时只能改选其他候选或 WAIT。
+
+V11 只实现 Causal-PIBT 核心局部协调。它不提供 RHCR、SIPP、未来时间或 edge reservation、CBS / ECBS、完整 Joint MAPF、dead-end 特殊扩展、congestion guidance、traffic optimization、ORCA / RVO、Schedule、Goal 或 AI。普通 Causal-PIBT 在特定死胡同与拓扑中仍可能等待或无法消解，是当前明确限制。
 
 ## 世界时间
 
@@ -222,4 +263,4 @@ WorldTimeState 是独立于 Entity 与 Location Scene 的世界级事实，只�
 
 ## 暂不规定的事项
 
-当前不实现 Location Editor、Dungeon / Town PCG、AI、Schedule、Goal、Behavior Tree、NPC Navigation、Pathfinding、SIPP、Reservation、Slot 占用预订、自动前往 SlotEntrance、从 Entrance 进入 UseSlot、坐下、躺下、动画、多人避让、Ownership、Home / Workplace、复杂地图破坏或完整 Save / Load 重构。当前不为这些方向预建 Manager、Registry、状态或移动流程；出现真实消费者后再设计。
+当前不实现 Location Editor、Dungeon / Town PCG、AI、Schedule、Goal、Behavior Tree、SIPP、未来时间 Reservation、Edge Reservation、CBS / ECBS、RHCR、ORCA / RVO、复杂 deadlock / congestion 扩展、Slot 占用预订、自动前往 SlotEntrance、从 Entrance 进入 UseSlot、坐下、躺下、动画、Ownership、Home / Workplace、复杂地图破坏或完整 Save / Load 重构。当前不为这些方向预建 Manager、Registry、状态或移动流程；出现真实消费者后再设计。

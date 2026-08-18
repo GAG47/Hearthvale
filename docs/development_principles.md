@@ -38,25 +38,35 @@
 
 具体功能应服务当前真实需求，同时避免把内容范围误当作长期能力边界。
 
-## 7. 玩家与 NPC 尽量遵循同一个世界
+## 7. Player 不是独立的世界实体类型
 
-如果玩家和 NPC 本质上执行的是同一种行为，应优先考虑共享同一套游戏规则，而不是维护两套平行系统。
+Player is not a separate world entity type.
 
-控制方式、信息来源和决策方式可以不同，但不应因此产生两套相互矛盾的世界规则。
+PlayerController only supplies player control to an Actor.
 
-## 8. AI 不拥有规则权威
+Persistent state, movement facts, interaction rules and gameplay capabilities remain the same Actor systems used by NPCs.
+
+控制方式、信息来源和决策方式可以不同，但不能因此建立 PlayerDefinition、PlayerState、PlayerMovementState 或 `is_player` 身份字段，也不能产生两套相互矛盾的世界规则。
+
+## 8. Movement 属于 Logical World
+
+Movement Target、Grid Pathfinding、Causal-PIBT 协调、连续移动推进与 Actor occupancy 都是逻辑世界能力。Location Scene 是否加载不能决定 Actor 是否能够移动；ActorRepresentation 只表现 ActorState，不拥有 NPC Movement State，也不能在销毁时把旧 NPC 坐标反写为世界事实。
+
+Causal-PIBT 当前只实现 contracted、requesting、extended、priority inheritance 与 backtracking 的核心模型。高级 deadlock、未来时间 reservation、edge reservation、congestion 与 traffic optimization 扩展不属于 V11，不能为了追求“绝对不会卡死”而擅自加入。
+
+## 9. AI 不拥有规则权威
 
 AI 可以创造内容、提出建议和辅助决策，但不能直接确定世界事实。
 
 确定性的世界状态变化仍由游戏规则验证，并由游戏系统执行。AI 输出不能成为绕过正常规则流程的特殊入口。
 
-## 9. 保持实现可理解
+## 10. 保持实现可理解
 
 优先采用简单、清晰、可追踪的实现，使行为来源、规则判断和状态变化能够被理解和定位。
 
 不要为了形式上的“高级架构”引入不必要的复杂度。只有在复杂度解决了真实问题时，才应承担它带来的维护成本。
 
-## 10. 用继承表达根本差异，用组合表达能力
+## 11. 用继承表达根本差异，用组合表达能力
 
 只有基础结构、生命周期或核心职责真正不同，才建立新的大类或继承层级。同一类实体之间“能做什么”的差异，优先通过数据与组合表达，不要不断建立 MerchantActor、GuardActor、BedFurniture、ChestFurniture 等类型来表示能力差异。
 
@@ -64,6 +74,6 @@ AI 可以创造内容、提出建议和辅助决策，但不能直接确定世�
 
 组合本身也不能成为过度设计的理由。只有真实能力、真实消费者或真实动态状态出现后，才建立对应 Behavior、Component 或 State；不为形式完整预建空组件和无消费者抽象。
 
-## 11. 保持开发日志的历史真实性
+## 12. 保持开发日志的历史真实性
 
 旧版本 development log 是对应版本实现状态的历史记录。后续架构变化不能作为重写旧日志的理由；只有发现旧日志本身存在事实错误时才允许修正，并且应明确这是后续修正，而不是静默改写历史。当前架构应记录在 `architecture.md`，当前版本的变化应记录在对应的 development log。

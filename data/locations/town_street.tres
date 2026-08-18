@@ -21,7 +21,7 @@
 [sub_resource type="Resource" id="Resource_tyrwl"]
 script = ExtResource("2_wp061")
 entry_id = &"tavern_entrance"
-cell = Vector2i(18, 10)
+arrival_cells = Array[Vector2i]([Vector2i(18, 10)])
 
 [sub_resource type="Resource" id="Resource_rdxxx"]
 script = ExtResource("3_63eer")

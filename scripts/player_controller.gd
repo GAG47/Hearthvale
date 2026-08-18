@@ -3,8 +3,6 @@ extends Node2D
 
 signal action_completed(result: ActionResult)
 
-@export var move_speed := 140.0
-
 @onready var camera: Camera2D = $Camera2D
 
 var controlled_actor: Actor
@@ -19,7 +17,7 @@ func _physics_process(_delta: float) -> void:
 		request_interaction()
 
 	var input_direction := _get_input_direction()
-	controlled_representation.velocity = input_direction * move_speed
+	controlled_representation.velocity = input_direction * controlled_actor.definition.move_speed
 	if not input_direction.is_zero_approx():
 		_update_facing(input_direction)
 
@@ -75,9 +73,13 @@ func _release_controlled_representation(sync_state: bool) -> void:
 
 
 func _assign_control(actor: Actor, representation: ActorRepresentation) -> void:
+	if controlled_actor != null and controlled_actor != actor:
+		_set_external_movement_control(controlled_actor, false)
 	controlled_actor = actor
 	controlled_representation = representation
+	controlled_representation.set_state_driven(false)
 	controlled_representation.add_to_group(&"player")
+	_set_external_movement_control(controlled_actor, true)
 	_sync_camera_position(true)
 
 
@@ -227,3 +229,13 @@ func _sync_camera_position(reset_smoothing := false) -> void:
 	if reset_smoothing:
 		reset_physics_interpolation()
 		camera.reset_smoothing()
+
+
+func _set_external_movement_control(actor: Actor, enabled: bool) -> void:
+	var movement := get_node_or_null("/root/LogicalMovement") as LogicalMovementRuntime
+	if movement != null:
+		movement.set_actor_externally_controlled(actor, enabled)
+
+
+func _exit_tree() -> void:
+	_set_external_movement_control(controlled_actor, false)

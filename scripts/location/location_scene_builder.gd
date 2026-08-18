@@ -107,10 +107,15 @@ func _build_entries_and_exits(scene: GridScene, location: LocationRuntime) -> vo
 	entry_root.name = "EntryPoints"
 	scene.add_child(entry_root)
 	for entry in location.get_current_entries():
-		var marker := Marker2D.new()
-		marker.name = String(entry.entry_id)
-		marker.position = entry.get_local_position()
-		entry_root.add_child(marker)
+		for arrival_index in range(entry.arrival_cells.size()):
+			var marker := Marker2D.new()
+			marker.name = (
+				String(entry.entry_id)
+				if arrival_index == 0
+				else "%s_%d" % [entry.entry_id, arrival_index]
+			)
+			marker.position = entry.get_local_position(arrival_index)
+			entry_root.add_child(marker)
 	for location_exit in location.get_current_exits():
 		var exit_area := LocationExitArea.new()
 		exit_area.name = "Exit_%s" % location_exit.edge_key

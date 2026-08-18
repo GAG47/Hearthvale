@@ -9,6 +9,7 @@ const VISUAL_DIRECTIONS: Array[StringName] = [&"up", &"down", &"left", &"right"]
 @export var visual_down: Texture2D
 @export var visual_left: Texture2D
 @export var visual_right: Texture2D
+@export var move_speed := 140.0
 @export var use_slots: Array[UseSlot] = []
 
 
