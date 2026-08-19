@@ -178,7 +178,7 @@ func _test_names_and_paths() -> void:
 	var location_registry_source := _read_text("res://scripts/location/location_registry.gd")
 	_expect(not location_source.contains("LogicalMovement") and not location_source.contains("movement_runtime"), "Location source must not reference LogicalMovement.")
 	_expect(not location_source.contains("select_" + "arrival_cell"), "Location arrival-cell selector must be fully removed.")
-	_expect(location_source.contains("entity.get_occupied_grid_cells()"), "Location Cell queries must use committed Entity footprint Cells.")
+	_expect(location_source.contains("entity.get_occupied_location_cells()"), "Location Cell queries must use committed Entity footprint Cells.")
 	_expect(location_registry_source.contains("func has_location("), "LocationRegistry must expose the instance-oriented has_location API.")
 	_expect(not location_registry_source.contains("func has("), "LocationRegistry must not retain a duplicate generic has API.")
 	_expect(not location_registry_source.contains("func _get("), "LocationRegistry must not retain a duplicate generic get property API.")
@@ -192,6 +192,8 @@ func _test_names_and_paths() -> void:
 	_expect(not logical_movement_source.contains("class_name"), "LogicalMovement Autoload must not declare a duplicate global class name.")
 	var actor_representation_source := _read_text("res://scripts/entities/actors/actor_representation.gd")
 	_expect(not actor_representation_source.contains("world_" + "position"), "ActorRepresentation must use native global_position directly.")
+	var furniture_representation_source := _read_text("res://scripts/entities/furniture/furniture_representation.gd")
+	_expect(not furniture_representation_source.contains("get_occupied_location_cells"), "FurnitureRepresentation must not wrap Furniture occupancy queries.")
 
 
 func _has_property(object: Object, property_name: StringName) -> bool:

@@ -89,7 +89,7 @@ func _test_irregular_footprint_slots() -> void:
 	)
 	var expected_location_cells := [Vector2i(3, 3), Vector2i(4, 3), Vector2i(3, 4)]
 	_expect(furniture.get_footprint_local_cells() == footprint, "Furniture must expose Definition-local footprint cells unchanged.")
-	_expect(furniture.get_occupied_grid_cells() == expected_location_cells, "An L-shaped footprint must occupy exactly its local cells in Location space.")
+	_expect(furniture.get_occupied_location_cells() == expected_location_cells, "An L-shaped footprint must occupy exactly its local cells in Location space.")
 	var slots := furniture.get_use_slots(&"inspect")
 	var expected_slots := {
 		Vector2i(0, -1): UseSlot.facing_mask(ActorState.Facing.DOWN),
@@ -104,7 +104,7 @@ func _test_irregular_footprint_slots() -> void:
 	for slot in slots:
 		_expect(expected_slots.get(slot.local_cell) == slot.allowed_facings, "L-shaped default UseSlot facing must preserve every adjacent legal direction.")
 	furniture.state.local_cell += Vector2i(2, 1)
-	_expect(furniture.get_occupied_grid_cells() == [Vector2i(5, 4), Vector2i(6, 4), Vector2i(5, 5)], "Moving an irregular Furniture footprint must translate every occupied Cell together.")
+	_expect(furniture.get_occupied_location_cells() == [Vector2i(5, 4), Vector2i(6, 4), Vector2i(5, 5)], "Moving an irregular Furniture footprint must translate every occupied Cell together.")
 	_expect(furniture.get_footprint_local_cells() == footprint, "Moving Furniture must not mutate its Definition-local footprint.")
 
 

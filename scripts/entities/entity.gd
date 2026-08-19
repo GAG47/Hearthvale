@@ -104,7 +104,7 @@ func apply_action(action: EntityAction) -> ActionResult:
 	)
 
 
-func get_occupied_grid_cells() -> Array[Vector2i]:
+func get_occupied_location_cells() -> Array[Vector2i]:
 	return [current_cell]
 
 

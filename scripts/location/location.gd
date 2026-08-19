@@ -131,7 +131,7 @@ func get_entities() -> Array[Entity]:
 func get_entities_at(cell: Vector2i) -> Array[Entity]:
 	var entities: Array[Entity] = []
 	for entity in get_entities():
-		if entity.get_occupied_grid_cells().has(cell):
+		if entity.get_occupied_location_cells().has(cell):
 			entities.append(entity)
 	return entities
 

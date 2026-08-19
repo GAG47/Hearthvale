@@ -125,7 +125,7 @@ Entity 所属 Location 与位置的唯一持久真相是：
 - `EntityState.current_location_id`；
 - `EntityState.local_cell: Vector2i`。
 
-Location Logical World 的正式空间单位只有 Location Cell。`Entity.current_cell` 直接返回 `state.local_cell`，语义是 Entity 已经提交的稳定逻辑 Cell，不再从 Scene 或像素 `Vector2` 反推。LocationState 不保存 `entity_ids` 或 `entity_positions`。Location 通过 EntityRegistry 查询 `current_location_id == instance_id` 的 Entity；`get_entities_at(cell)` 只使用 Entity 的 committed `local_cell` / footprint。extended Actor 的 State 仍在 tail，因此 Location 只在 tail 查到它，不会在 head 提前查到它。完整 `{tail, head}` hard occupancy 只由 LogicalMovement 查询。Location Entity Position 与 LogicalMovement transient occupancy 是两种不同事实。
+Location Logical World 的正式空间单位只有 Location Cell。`Entity.current_cell` 直接返回 `state.local_cell`，语义是 Entity 已经提交的稳定逻辑 Cell，不再从 Scene 或像素 `Vector2` 反推。LocationState 不保存 `entity_ids` 或 `entity_positions`。Location 通过 EntityRegistry 查询 `current_location_id == instance_id` 的 Entity；`get_entities_at(cell)` 使用 `Entity.get_occupied_location_cells()` 查询 committed `local_cell` / footprint。extended Actor 的 State 仍在 tail，因此 Location 只在 tail 查到它，不会在 head 提前查到它。完整 `{tail, head}` hard occupancy 只由 LogicalMovement 查询。Location Entity Position 与 LogicalMovement transient occupancy 是两种不同事实。
 
 ## LocationState Sparse Overrides
 
@@ -227,7 +227,7 @@ Location
 PlayerController + ActionSpatialRule
 ```
 
-Furniture 的 `EntityState.local_cell` 就是 footprint origin。Furniture 直接用 origin 加 Definition-local footprint Cell 计算占用 Location Cell，并用同一 origin 加 UseSlot / SlotEntrance 的 `local_cell` 完成 Location Cell 转换。FurnitureRepresentation 自己从 footprint bounds 计算视觉中心；这个 Scene `Vector2` 不会写回 State。Physics collision 也只从同一份 `footprint_cells` 派生：每个 occupied local Cell 创建一个完整 `LocationGridSpace.CELL_SIZE × LocationGridSpace.CELL_SIZE` 的 RectangleShape2D，按 Cell 中心定位；不使用 bounding rectangle、不做 4px 内缩、不维护第二份 collision footprint 数据。non-blocking Furniture 保留对应 shape 但将其禁用。Location 不生成、删除或修改 Definition，只复用当前 Ground、Structure 与 Entity 查询验证可用性。UseSlot 位于目标 Entity footprint 内时会忽略目标自身的 blocking，但仍检查 Ground、Structure 和其他 blocking Entity；SlotEntrance 必须是普通 Actor 当前可站立的 Cell。Definition 是否存在与当前是否可用是两件事。
+Furniture 的 `EntityState.local_cell` 就是 footprint origin。Furniture 直接用 origin 加 Definition-local footprint Cell 计算占用 Location Cell，并用同一 origin 加 UseSlot / SlotEntrance 的 `local_cell` 完成 Location Cell 转换。FurnitureRepresentation 自己从 footprint bounds 计算视觉中心；这个 Scene `Vector2` 不会写回 State。Physics collision 也只从同一份 `footprint_cells` 派生：每个 occupied Location Cell 创建一个完整 `LocationGridSpace.CELL_SIZE × LocationGridSpace.CELL_SIZE` 的 RectangleShape2D，按 Cell 中心定位；不使用 bounding rectangle、不做 4px 内缩、不维护第二份 collision footprint 数据。non-blocking Furniture 保留对应 shape 但将其禁用。Location 不生成、删除或修改 Definition，只复用当前 Ground、Structure 与 Entity 查询验证可用性。UseSlot 位于目标 Entity footprint 内时会忽略目标自身的 blocking，但仍检查 Ground、Structure 和其他 blocking Entity；SlotEntrance 必须是普通 Actor 当前可站立的 Cell。Definition 是否存在与当前是否可用是两件事。
 
 ## Action 与 Interaction
 

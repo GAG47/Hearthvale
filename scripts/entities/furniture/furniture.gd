@@ -98,7 +98,7 @@ func get_footprint_origin_cell() -> Vector2i:
 	return current_cell
 
 
-func get_occupied_grid_cells() -> Array[Vector2i]:
+func get_occupied_location_cells() -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
 	var origin := get_footprint_origin_cell()
 	for local_cell in get_footprint_local_cells():

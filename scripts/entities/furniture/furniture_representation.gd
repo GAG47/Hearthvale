@@ -55,10 +55,6 @@ func prepare_furniture(
 	return true
 
 
-func get_occupied_grid_cells() -> Array[Vector2i]:
-	return furniture.get_occupied_grid_cells() if furniture != null else []
-
-
 func _configure_blocking_collision(
 	blocking_body: StaticBody2D
 ) -> void:
