@@ -142,7 +142,7 @@ StateRegistry 只登记、持有和查询 LocationState、EntityState 与 GameTi
 
 ## LocationRegistry
 
-LocationRegistry 按 Location instance UUID 登记和查询当前逻辑 Location，提供 `register`、`has`、`get` 与 `get_all` 语义。`get_location()` 是纯查询：只返回已经注册的 Location，不读取 Definition / State，也不创建或登记任何对象。当前 ProjectWorld 的 project key → instance UUID 只作为启动期 lookup alias，不是第二份 Definition 权威。Location Definition 数据校验和 ProjectWorld 索引暂由 LocationRegistry 承接；Edge / Entry 的当前查询由 Location 本身负责，Registry 只做跨 Location 查找和委托。
+LocationRegistry 按 Location instance UUID 登记和查询当前逻辑 Location，提供 `register`、`has_location`、`get_location` 与 `get_all` 语义。`has_location()` 与 `get_location()` 都只针对已经注册的 Location 实例；Definition 已索引但尚未实例化时，前者返回 `false`，后者返回 `null`。它们不会读取 State、创建 Location 或自动登记对象。当前 ProjectWorld 的 project key → instance UUID 只作为启动期 lookup alias，不是第二份 Definition 权威。Location Definition 数据校验和 ProjectWorld 索引暂由 LocationRegistry 承接；Edge / Entry 的当前查询由 Location 本身负责，Registry 只做跨 Location 查找和委托。
 
 ## Scene 是 Location Representation
 

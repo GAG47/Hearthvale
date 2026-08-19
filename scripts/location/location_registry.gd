@@ -48,14 +48,6 @@ func register(location: Location, project_key: StringName = &"") -> bool:
 	return true
 
 
-func has(location_id: StringName) -> bool:
-	return _locations.has(location_id)
-
-
-func _get(property: StringName) -> Variant:
-	return _locations.get(property)
-
-
 func get_all() -> Array[Location]:
 	var locations: Array[Location] = []
 	var ids := _locations.keys()
@@ -66,7 +58,7 @@ func get_all() -> Array[Location]:
 
 
 func has_location(location_id: StringName) -> bool:
-	return has(location_id) or _definitions_by_location.has(location_id)
+	return _locations.has(location_id)
 
 
 func get_project_location_id(key: StringName) -> StringName:

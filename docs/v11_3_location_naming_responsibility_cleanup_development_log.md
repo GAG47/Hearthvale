@@ -26,7 +26,9 @@ Location Transfer 的调用方按 Entry 顺序组合两项查询：Location 判�
 
 ## LocationRegistry 与旧职责迁移
 
-新增 LocationRegistry，以 Location instance UUID 登记、索引和查询当前逻辑 Location，并提供 register、has、get 与 get_all 语义。Project key → instance UUID 作为当前启动数据的 lookup alias 保留，但不是 Definition 权威。
+新增 LocationRegistry，以 Location instance UUID 登记、索引和查询当前逻辑 Location，并提供 register、has_location、get_location 与 get_all 语义。Project key → instance UUID 作为当前启动数据的 lookup alias 保留，但不是 Definition 权威。
+
+`has_location()` 与 `get_location()` 只判断和返回已经注册的 Location 实例；Definition 索引存在但 Location 尚未实例化时，前者返回 `false`，后者返回 `null`。LocationRegistry 不保留重复的通用 `has()` 或 `_get()` 查询入口。
 
 V11.3 收尾中，`get_location()` 已收敛为纯查询：只返回 Registry 中已经注册的 Location；不存在时返回 `null`，不会查找 Definition / State、创建 LocationState、调用 `Location.new()` 或自动注册。当前 Project Location 的创建仍由 `Game._initialize_project_locations()` 显式完成。
 
