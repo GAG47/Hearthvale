@@ -1,4 +1,3 @@
-class_name LogicalMovementRuntime
 extends Node
 
 const DIRECTIONS: Array[Vector2i] = [
@@ -12,12 +11,12 @@ var _requests: Dictionary[StringName, ActorMovementRequest] = {}
 var _direction_intents: Dictionary[StringName, Vector2i] = {}
 var _movement_clock := 0
 var _location_registry: LocationRegistry
-var _entity_registry: EntityRegistryRuntime
+var _entity_registry: EntityRegistry
 
 
 func _ready() -> void:
 	_location_registry = get_node_or_null("/root/LocationRegistry") as LocationRegistry
-	_entity_registry = get_node_or_null("/root/EntityRegistry") as EntityRegistryRuntime
+	_entity_registry = get_node_or_null("/root/EntityRegistry") as EntityRegistry
 
 
 func _physics_process(delta: float) -> void:
@@ -674,7 +673,7 @@ func _resolve_dependencies() -> void:
 	if _location_registry == null:
 		_location_registry = get_node_or_null("/root/LocationRegistry") as LocationRegistry
 	if _entity_registry == null:
-		_entity_registry = get_node_or_null("/root/EntityRegistry") as EntityRegistryRuntime
+		_entity_registry = get_node_or_null("/root/EntityRegistry") as EntityRegistry
 
 
 func _set_actor_facing(actor: Actor, direction: Vector2i) -> void:

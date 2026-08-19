@@ -18,7 +18,7 @@ corner_radius_bottom_left = 6
 [node name="Game" type="Node2D" groups=["game"]]
 script = ExtResource("1_game")
 
-[node name="WorldRoot" type="Node2D" parent="."]
+[node name="LocationSceneRoot" type="Node2D" parent="."]
 
 [node name="PlayerController" type="Node2D" parent="."]
 script = ExtResource("2_player_controller")

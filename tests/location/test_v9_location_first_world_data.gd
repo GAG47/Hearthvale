@@ -33,7 +33,7 @@ func _init() -> void:
 func _run_tests() -> void:
 	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
 	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
-	var entities := root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
+	var entities := root.get_node_or_null("EntityRegistry") as EntityRegistry
 	_expect(root.get_node_or_null("DefinitionRegistry") == null, "DefinitionRegistry Autoload must be deleted.")
 	_expect(location_registry != null and location_registry.definitions_valid, "Project World Resource must validate.")
 	_expect(state_registry != null and entities != null, "World runtime registries must exist.")
@@ -73,7 +73,7 @@ func _test_project_locations(
 		if state_registry.get_location_state(instance_id) == null:
 			state_registry.register_location_state(LocationState.new(instance_id))
 		location_registry.register(
-			Location.new(spec.definition, state_registry.get_location_state(instance_id), root.get_node("EntityRegistry") as EntityRegistryRuntime),
+			Location.new(spec.definition, state_registry.get_location_state(instance_id), root.get_node("EntityRegistry") as EntityRegistry),
 			spec.key
 		)
 	_expect(state_registry.get_location_states().size() == 3, "Project world test setup must register three LocationStates.")
@@ -120,7 +120,7 @@ func _test_project_locations(
 func _test_sparse_location_state(
 	location_registry: LocationRegistry,
 	state_registry: StateRegistry,
-	entity_registry: EntityRegistryRuntime
+	entity_registry: EntityRegistry
 ) -> void:
 	var tavern_id := location_registry.get_project_location_id(&"tavern")
 	var state := state_registry.get_location_state(tavern_id)
@@ -177,7 +177,7 @@ func _test_sparse_location_state(
 	state.added_edges.clear()
 
 
-func _test_decoration_cell_override(entity_registry: EntityRegistryRuntime) -> void:
+func _test_decoration_cell_override(entity_registry: EntityRegistry) -> void:
 	var decoration := DecorationTileDefinition.new()
 	decoration.key = &"test_decoration"
 	decoration.source_id = 0
@@ -195,7 +195,7 @@ func _test_decoration_cell_override(entity_registry: EntityRegistryRuntime) -> v
 	_expect(location.get_decoration_tile(Vector2i.ZERO) == decoration, "Removing a Decoration override must reveal Definition data again.")
 
 
-func _test_scene_builder_current_ground(entity_registry: EntityRegistryRuntime) -> void:
+func _test_scene_builder_current_ground(entity_registry: EntityRegistry) -> void:
 	var definition := LocationDefinition.new()
 	definition.display_name = "Sparse Ground Test"
 	definition.grid_size = Vector2i(2, 1)
@@ -211,14 +211,14 @@ func _test_scene_builder_current_ground(entity_registry: EntityRegistryRuntime) 
 	var scene := prepared["scene"] as LocationScene
 	var ground_layer := scene.get_node("GroundLayer") as TileMapLayer
 	_expect(ground_layer.get_used_cells() == [override_cell], "SceneBuilder must render a Ground override Cell absent from Definition Ground.")
-	_expect(ground_layer.tile_set == LocationSceneBuilder.WORLD_TILE_SET, "Ground Layer must use the fixed World TileSet.")
+	_expect(ground_layer.tile_set == LocationSceneBuilder.LOCATION_TILE_SET, "Ground Layer must use the fixed Location TileSet.")
 	scene.free()
 
 
 func _test_scene_lifecycle(
 	location_registry: LocationRegistry,
 	state_registry: StateRegistry,
-	entity_registry: EntityRegistryRuntime
+	entity_registry: EntityRegistry
 ) -> void:
 	var tavern_id := location_registry.get_project_location_id(&"tavern")
 	var yard_id := location_registry.get_project_location_id(&"tavern_yard")

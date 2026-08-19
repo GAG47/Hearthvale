@@ -14,7 +14,7 @@ func get_supported_actions(_furniture: Furniture, _actor: Actor) -> Array[String
 	return [ACTION_SLEEP]
 
 
-func check_action(action: WorldAction) -> ActionRuleDecision:
+func check_action(action: EntityAction) -> ActionRuleDecision:
 	var furniture := action.target as Furniture
 	if furniture == null:
 		return ActionRuleDecision.reject("行为目标不是有效家具。")
@@ -28,7 +28,7 @@ func check_action(action: WorldAction) -> ActionRuleDecision:
 	return ActionRuleDecision.permit()
 
 
-func apply_action(action: WorldAction) -> ActionResult:
+func apply_action(action: EntityAction) -> ActionResult:
 	var game_clock := _get_game_clock()
 	if game_clock == null:
 		return ActionResult.failed(

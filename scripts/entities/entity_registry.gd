@@ -1,4 +1,3 @@
-class_name EntityRegistryRuntime
 extends Node
 
 var _entities: Dictionary[StringName, Entity] = {}

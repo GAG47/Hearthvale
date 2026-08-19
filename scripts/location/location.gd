@@ -3,21 +3,16 @@ extends RefCounted
 
 var definition: LocationDefinition
 var state: LocationState
-var entity_registry: EntityRegistryRuntime
+var entity_registry: EntityRegistry
 
 var instance_id: StringName:
 	get:
 		return state.instance_id if state != null else &""
 
-var location_id: StringName:
-	get:
-		return instance_id
-
-
 func _init(
 	p_definition: LocationDefinition,
 	p_state: LocationState,
-	p_entity_registry: EntityRegistryRuntime
+	p_entity_registry: EntityRegistry
 ) -> void:
 	definition = p_definition
 	state = p_state
@@ -145,16 +140,16 @@ func get_use_slots(entity: Entity, action_id: StringName) -> Array[UseSlot]:
 	return entity.get_use_slots(action_id) if entity != null else []
 
 
-func get_use_slot_world_cell(entity: Entity, slot: UseSlot) -> Vector2i:
-	return entity.get_use_slot_world_cell(slot) if entity != null else Vector2i.ZERO
+func get_use_slot_location_cell(entity: Entity, slot: UseSlot) -> Vector2i:
+	return entity.get_use_slot_location_cell(slot) if entity != null else Vector2i.ZERO
 
 
 func get_slot_entrances(slot: UseSlot) -> Array[SlotEntrance]:
 	return slot.get_slot_entrances() if slot != null else []
 
 
-func get_slot_entrance_world_cell(entity: Entity, entrance: SlotEntrance) -> Vector2i:
-	return entity.get_slot_entrance_world_cell(entrance) if entity != null else Vector2i.ZERO
+func get_slot_entrance_location_cell(entity: Entity, entrance: SlotEntrance) -> Vector2i:
+	return entity.get_slot_entrance_location_cell(entrance) if entity != null else Vector2i.ZERO
 
 
 func get_valid_use_slots(entity: Entity, action_id: StringName) -> Array[UseSlot]:
@@ -176,13 +171,13 @@ func get_valid_slot_entrances(entity: Entity, slot: UseSlot) -> Array[SlotEntran
 func is_use_slot_valid(entity: Entity, slot: UseSlot) -> bool:
 	if entity == null or slot == null or entity.current_location_id != instance_id:
 		return false
-	return _is_cell_standable(get_use_slot_world_cell(entity, slot), entity)
+	return _is_cell_standable(get_use_slot_location_cell(entity, slot), entity)
 
 
 func is_slot_entrance_valid(entity: Entity, entrance: SlotEntrance) -> bool:
 	if entity == null or entrance == null or entity.current_location_id != instance_id:
 		return false
-	return _is_cell_standable(get_slot_entrance_world_cell(entity, entrance))
+	return _is_cell_standable(get_slot_entrance_location_cell(entity, entrance))
 
 
 func is_cell_walkable(cell: Vector2i) -> bool:

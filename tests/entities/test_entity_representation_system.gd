@@ -206,7 +206,7 @@ func _test_source_boundaries() -> void:
 func _test_missing_factory_prepare_safety() -> void:
 	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
 	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
-	var entity_registry := root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
+	var entity_registry := root.get_node_or_null("EntityRegistry") as EntityRegistry
 	_expect(location_registry != null, "LocationRegistry Autoload must exist.")
 	_expect(state_registry != null, "StateRegistry Autoload must exist.")
 	_expect(entity_registry != null, "EntityRegistry Autoload must exist.")

@@ -15,8 +15,8 @@ func _init() -> void:
 func _run_tests() -> void:
 	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
 	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
-	var entity_registry := root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
-	var movement := root.get_node_or_null("LogicalMovement") as LogicalMovementRuntime
+	var entity_registry := root.get_node_or_null("EntityRegistry") as EntityRegistry
+	var movement := root.get_node_or_null("LogicalMovement") as LogicalMovement
 	var game_clock := root.get_node_or_null("GameClock") as GameClock
 	_expect(location_registry != null, "LocationRegistry Autoload must exist.")
 	_expect(state_registry != null, "StateRegistry Autoload must exist.")
@@ -56,6 +56,7 @@ func _run_tests() -> void:
 	_expect(location_registry.has_location(tavern_id), "LocationRegistry.has_location must find a registered Location.")
 	_expect(location_registry.get_location(tavern_id) == tavern, "LocationRegistry.get_location must return the registered Location.")
 	_expect(tavern != null and tavern.definition != null and tavern.state != null and tavern.entity_registry == entity_registry, "Location must compose Definition, State, and EntityRegistry.")
+	_expect(not _has_property(tavern, &"location_id"), "Location must expose only instance_id identity.")
 	_expect(not _has_property(tavern, &"movement_runtime"), "Location must not hold LogicalMovement.")
 	_expect(not tavern.has_method("is_actor_cell_available"), "Location must not expose mixed static-plus-Actor occupancy queries.")
 
@@ -77,8 +78,8 @@ func _test_committed_position_and_arrival_composition(
 	game: Node,
 	location_registry: LocationRegistry,
 	state_registry: StateRegistry,
-	entity_registry: EntityRegistryRuntime,
-	movement: LogicalMovementRuntime
+	entity_registry: EntityRegistry,
+	movement: LogicalMovement
 ) -> void:
 	movement.set_physics_process(false)
 	var tavern_id := location_registry.get_project_location_id(&"tavern")
@@ -152,8 +153,10 @@ func _test_names_and_paths() -> void:
 		"res://scripts/world_definition",
 		"res://scripts/world_state",
 		"res://scripts/world_time",
+		"res://scripts/actions/%s" % ("world_" + "action.gd"),
 		"res://scripts/location/grid_space.gd",
 		"res://scripts/location/grid_scene.gd",
+		"res://data/%s" % ("world_" + "tileset.tres"),
 	]:
 		_expect(not DirAccess.dir_exists_absolute(old_path) and not FileAccess.file_exists(old_path), "Old path must be removed: %s" % old_path)
 	for current_path in [
@@ -161,12 +164,14 @@ func _test_names_and_paths() -> void:
 		"res://scripts/location/location_registry.gd",
 		"res://scripts/location/location_grid_space.gd",
 		"res://scripts/location/location_scene.gd",
+		"res://scripts/actions/entity_action.gd",
 		"res://scripts/state/state_registry.gd",
 		"res://scripts/time/game_clock.gd",
 		"res://scripts/time/game_time_state.gd",
 		"res://scripts/time/game_calendar.gd",
 		"res://scripts/initialization/project_world.gd",
 		"res://scripts/initialization/project_location_instance_spec.gd",
+		"res://data/location_tileset.tres",
 	]:
 		_expect(FileAccess.file_exists(current_path), "Current V11.3 path must exist: %s" % current_path)
 	var location_source := _read_text("res://scripts/location/location.gd")
@@ -181,6 +186,12 @@ func _test_names_and_paths() -> void:
 	_expect(not state_source.contains("_active_locations") and not state_source.contains("register_location("), "StateRegistry source must not contain Scene registration.")
 	var builder_source := _read_text("res://scripts/location/location_scene_builder.gd")
 	_expect(builder_source.contains("LocationGridSpace.cell_to_center_position"), "LocationSceneBuilder must own Entry Cell-to-Pixel conversion.")
+	var entity_registry_source := _read_text("res://scripts/entities/entity_registry.gd")
+	var logical_movement_source := _read_text("res://scripts/movement/logical_movement.gd")
+	_expect(not entity_registry_source.contains("class_name"), "EntityRegistry Autoload must not declare a duplicate global class name.")
+	_expect(not logical_movement_source.contains("class_name"), "LogicalMovement Autoload must not declare a duplicate global class name.")
+	var actor_representation_source := _read_text("res://scripts/entities/actors/actor_representation.gd")
+	_expect(not actor_representation_source.contains("world_" + "position"), "ActorRepresentation must use native global_position directly.")
 
 
 func _has_property(object: Object, property_name: StringName) -> bool:

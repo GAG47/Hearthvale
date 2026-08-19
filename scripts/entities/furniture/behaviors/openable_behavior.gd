@@ -18,7 +18,7 @@ func get_supported_actions(furniture: Furniture, _actor: Actor) -> Array[StringN
 	return [ACTION_CLOSE if openable_state.is_open else ACTION_OPEN]
 
 
-func check_action(action: WorldAction) -> ActionRuleDecision:
+func check_action(action: EntityAction) -> ActionRuleDecision:
 	var furniture := action.target as Furniture
 	if furniture == null:
 		return ActionRuleDecision.reject("行为目标不是有效家具。")
@@ -38,7 +38,7 @@ func check_action(action: WorldAction) -> ActionRuleDecision:
 			return ActionRuleDecision.reject("%s 不提供“%s”行为。" % [display_name, action.action_id])
 
 
-func apply_action(action: WorldAction) -> ActionResult:
+func apply_action(action: EntityAction) -> ActionResult:
 	var furniture := action.target as Furniture
 	if furniture == null:
 		return ActionResult.failed(action.action_id, &"", "行为目标不是有效家具。")

@@ -12,8 +12,8 @@ func get_supported_actions(furniture: Furniture, actor: Actor) -> Array[StringNa
 
 
 @abstract
-func check_action(action: WorldAction) -> ActionRuleDecision
+func check_action(action: EntityAction) -> ActionRuleDecision
 
 
 @abstract
-func apply_action(action: WorldAction) -> ActionResult
+func apply_action(action: EntityAction) -> ActionResult

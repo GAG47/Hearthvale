@@ -50,6 +50,12 @@ V11.3 收尾中，`get_location()` 已收敛为纯查询：只返回 Registry �
 
 历史目录 `scripts/world_definition/`、`scripts/world_state/` 与 `scripts/world_time/` 已删除。Location 专属代码集中在 `scripts/location/`；StateRegistry 位于 `scripts/state/`；GameClock、GameTimeState 与 GameCalendar 位于 `scripts/time/`。ProjectWorld 与 ProjectLocationInstanceSpec 移至 `scripts/initialization/`，类名和数据语义保持不变。
 
+## 最终命名收尾
+
+EntityRegistry 与 LogicalMovement 继续作为现有 Autoload 使用；无独立语义的 `EntityRegistryRuntime`、`LogicalMovementRuntime` 全局类名已经删除。Actor 对目标 Entity 发起的行为统一称为 EntityAction，文件与类型不保留旧别名。
+
+UseSlot 与 SlotEntrance 的坐标转换统一使用 Location Cell 语义。LocationScene 的矩形查询称为 `get_local_rect()`，三个表现层共用 `data/location_tileset.tres`，当前 LocationScene 挂载节点称为 LocationSceneRoot。ActorRepresentation 不再包装原生 `global_position`，Location 也不再为 `instance_id` 提供重复的 `location_id`；LocationScene 的 `location_id` 仍表示该 Scene 对应的 Location。
+
 ## LocationExitArea 状态
 
 LocationExitArea 本轮保留，只同步 LocationScene、LocationRegistry 与 LocationGridSpace 引用。它是否仍适合正式 Grid Movement，不属于本轮命名清理结论；后续必须结合 Cell-based Location Transition 单独复查，不能把当前保留视为最终设计决定。

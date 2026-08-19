@@ -15,10 +15,6 @@ var facing: ActorState.Facing:
 	get:
 		return actor.facing if actor != null else ActorState.Facing.DOWN
 
-var world_position: Vector2:
-	get:
-		return global_position
-
 var current_cell: Vector2i:
 	get:
 		return actor.current_cell if actor != null else Vector2i.ZERO
@@ -149,10 +145,10 @@ func _get_actor_display_position(fallback_cell: Vector2i) -> Vector2:
 	return LocationGridSpace.cell_to_center_position(fallback_cell)
 
 
-func _get_logical_movement() -> LogicalMovementRuntime:
+func _get_logical_movement() -> LogicalMovement:
 	var tree := Engine.get_main_loop() as SceneTree
 	return (
-		tree.root.get_node_or_null("LogicalMovement") as LogicalMovementRuntime
+		tree.root.get_node_or_null("LogicalMovement") as LogicalMovement
 		if tree != null
 		else null
 	)

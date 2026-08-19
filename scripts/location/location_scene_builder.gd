@@ -1,7 +1,7 @@
 class_name LocationSceneBuilder
 extends RefCounted
 
-const WORLD_TILE_SET: TileSet = preload("res://data/world_tileset.tres")
+const LOCATION_TILE_SET: TileSet = preload("res://data/location_tileset.tres")
 
 func prepare_scene(
 	location: Location,
@@ -54,7 +54,7 @@ func _build_ground_layer(scene: LocationScene, location: Location) -> bool:
 	layer.z_index = -10
 	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	layer.collision_enabled = false
-	layer.tile_set = WORLD_TILE_SET
+	layer.tile_set = LOCATION_TILE_SET
 	scene.add_child(layer)
 	var current_layer := location.get_current_ground_layer()
 	for cell in current_layer:
@@ -70,7 +70,7 @@ func _build_decoration_layer(scene: LocationScene, location: Location) -> bool:
 	layer.name = "DecorationLayer"
 	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	layer.collision_enabled = false
-	layer.tile_set = WORLD_TILE_SET
+	layer.tile_set = LOCATION_TILE_SET
 	scene.add_child(layer)
 	var current_layer := location.get_current_decoration_layer()
 	for cell in current_layer:
@@ -88,7 +88,7 @@ func _build_structure_layer(scene: LocationScene, location: Location) -> bool:
 	var layer := TileMapLayer.new()
 	layer.name = "StructureLayer"
 	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	layer.tile_set = WORLD_TILE_SET
+	layer.tile_set = LOCATION_TILE_SET
 	scene.add_child(layer)
 	var current_layer := location.get_current_structure_layer()
 	for cell in current_layer:

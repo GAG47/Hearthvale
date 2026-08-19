@@ -45,7 +45,7 @@ func get_primary_action(actor: Actor) -> StringName:
 	return actions[0] if not actions.is_empty() else &""
 
 
-func check_action(action: WorldAction) -> ActionRuleDecision:
+func check_action(action: EntityAction) -> ActionRuleDecision:
 	var behavior := _get_behavior_for_action(action.action_id)
 	if behavior == null:
 		return ActionRuleDecision.reject(
@@ -54,7 +54,7 @@ func check_action(action: WorldAction) -> ActionRuleDecision:
 	return behavior.check_action(action)
 
 
-func apply_action(action: WorldAction) -> ActionResult:
+func apply_action(action: EntityAction) -> ActionResult:
 	var behavior := _get_behavior_for_action(action.action_id)
 	if behavior == null:
 		return ActionResult.failed(

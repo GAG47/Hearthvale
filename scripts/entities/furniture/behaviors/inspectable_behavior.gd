@@ -18,7 +18,7 @@ func get_supported_actions(_furniture: Furniture, _actor: Actor) -> Array[String
 	return [ACTION_INSPECT]
 
 
-func check_action(action: WorldAction) -> ActionRuleDecision:
+func check_action(action: EntityAction) -> ActionRuleDecision:
 	var furniture := action.target as Furniture
 	if furniture == null:
 		return ActionRuleDecision.reject("行为目标不是有效家具。")
@@ -30,5 +30,5 @@ func check_action(action: WorldAction) -> ActionRuleDecision:
 	return ActionRuleDecision.permit()
 
 
-func apply_action(action: WorldAction) -> ActionResult:
+func apply_action(action: EntityAction) -> ActionResult:
 	return ActionResult.succeeded(action.action_id, action.target.instance_id, text)

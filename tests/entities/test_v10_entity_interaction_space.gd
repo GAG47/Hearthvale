@@ -87,9 +87,9 @@ func _test_irregular_footprint_slots() -> void:
 		Vector2i(3, 3),
 		&"a0000000-0000-4000-8000-000000000115"
 	)
-	var expected_world_cells := [Vector2i(3, 3), Vector2i(4, 3), Vector2i(3, 4)]
+	var expected_location_cells := [Vector2i(3, 3), Vector2i(4, 3), Vector2i(3, 4)]
 	_expect(furniture.get_footprint_local_cells() == footprint, "Furniture must expose Definition-local footprint cells unchanged.")
-	_expect(furniture.get_occupied_grid_cells() == expected_world_cells, "An L-shaped footprint must occupy exactly its local cells in world space.")
+	_expect(furniture.get_occupied_grid_cells() == expected_location_cells, "An L-shaped footprint must occupy exactly its local cells in Location space.")
 	var slots := furniture.get_use_slots(&"inspect")
 	var expected_slots := {
 		Vector2i(0, -1): UseSlot.facing_mask(ActorState.Facing.DOWN),
@@ -266,21 +266,21 @@ func _test_slot_entrances_and_movement() -> void:
 
 	var entrances := slot.get_slot_entrances()
 	_expect(entrances.size() == 2, "A UseSlot must preserve every explicit SlotEntrance.")
-	_expect(furniture.get_use_slot_world_cell(slot) == Vector2i(4, 4), "UseSlot world Cell must add Entity footprint origin and Slot local Cell.")
-	_expect(furniture.get_slot_entrance_world_cell(entrances[0]) == Vector2i(3, 4), "First explicit SlotEntrance must convert from Entity-local coordinates.")
-	_expect(furniture.get_slot_entrance_world_cell(entrances[1]) == Vector2i(5, 4), "Second explicit SlotEntrance must convert from Entity-local coordinates.")
+	_expect(furniture.get_use_slot_location_cell(slot) == Vector2i(4, 4), "UseSlot Location Cell must add Entity footprint origin and Slot local Cell.")
+	_expect(furniture.get_slot_entrance_location_cell(entrances[0]) == Vector2i(3, 4), "First explicit SlotEntrance must convert from Entity-local coordinates.")
+	_expect(furniture.get_slot_entrance_location_cell(entrances[1]) == Vector2i(5, 4), "Second explicit SlotEntrance must convert from Entity-local coordinates.")
 
 	var original_slot_cell := slot.local_cell
 	var original_entrance_cells := [entrances[0].local_cell, entrances[1].local_cell]
 	furniture.state.local_cell += Vector2i(2, 1)
 	_expect(slot.local_cell == original_slot_cell, "Moving EntityState must not modify UseSlot Definition coordinates.")
 	_expect([entrances[0].local_cell, entrances[1].local_cell] == original_entrance_cells, "Moving EntityState must not modify SlotEntrance Definition coordinates.")
-	_expect(furniture.get_use_slot_world_cell(slot) == Vector2i(6, 5), "UseSlot world Cell must follow EntityState movement.")
-	_expect(furniture.get_slot_entrance_world_cell(entrances[1]) == Vector2i(7, 5), "SlotEntrance world Cell must follow EntityState movement.")
+	_expect(furniture.get_use_slot_location_cell(slot) == Vector2i(6, 5), "UseSlot Location Cell must follow EntityState movement.")
+	_expect(furniture.get_slot_entrance_location_cell(entrances[1]) == Vector2i(7, 5), "SlotEntrance Location Cell must follow EntityState movement.")
 
 
 func _test_runtime_slot_validation() -> void:
-	var registry := EntityRegistryRuntime.new()
+	var registry := preload("res://scripts/entities/entity_registry.gd").new()
 	var location := _create_location(registry)
 	var target := _create_furniture(Vector2i.ONE, true, Vector2i(2, 2), TARGET_ID)
 	var slot := UseSlot.new()
@@ -293,15 +293,15 @@ func _test_runtime_slot_validation() -> void:
 	_expect(location.is_use_slot_valid(target, slot), "A UseSlot inside its blocking target footprint must ignore that target's own occupancy.")
 	_expect(location.is_slot_entrance_valid(target, entrance), "An unobstructed SlotEntrance must be currently valid.")
 
-	var entrance_world_cell := location.get_slot_entrance_world_cell(target, entrance)
+	var entrance_location_cell := location.get_slot_entrance_location_cell(target, entrance)
 	var wall := StructureTileDefinition.new()
 	wall.blocks_movement = true
-	location.definition.structure_layer[entrance_world_cell] = wall
+	location.definition.structure_layer[entrance_location_cell] = wall
 	_expect(not location.is_slot_entrance_valid(target, entrance), "A structure-blocked SlotEntrance must be currently invalid.")
 	_expect(slot.slot_entrances.has(entrance), "Blocking must not delete SlotEntrance Definition data.")
-	location.definition.structure_layer.erase(entrance_world_cell)
+	location.definition.structure_layer.erase(entrance_location_cell)
 
-	var blocker := _create_furniture(Vector2i.ONE, true, entrance_world_cell, BLOCKER_ID)
+	var blocker := _create_furniture(Vector2i.ONE, true, entrance_location_cell, BLOCKER_ID)
 	_expect(registry.register_entity(blocker), "Entrance blocker must register in EntityRegistry.")
 	_expect(not location.is_slot_entrance_valid(target, entrance), "Another blocking Entity must invalidate SlotEntrance runtime availability.")
 	_expect(location.get_slot_entrances(slot) == [entrance], "Runtime filtering must not rewrite explicit SlotEntrance data.")
@@ -311,7 +311,7 @@ func _test_runtime_slot_validation() -> void:
 func _test_allowed_facing() -> void:
 	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
 	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
-	var entity_registry := root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
+	var entity_registry := root.get_node_or_null("EntityRegistry") as EntityRegistry
 	_expect(location_registry != null, "Allowed facing test needs LocationRegistry.")
 	if location_registry == null or state_registry == null or entity_registry == null:
 		return
@@ -350,7 +350,7 @@ func _test_allowed_facing() -> void:
 			ActorState.Facing.UP
 		)
 	)
-	var action := WorldAction.new(&"inspect", actor, target)
+	var action := EntityAction.new(&"inspect", actor, target)
 	var wrong_facing := ActionSpatialRule.evaluate(action)
 	_expect(not wrong_facing.allowed, "Action spatial validation must reject a matching Slot with wrong facing.")
 	(actor.state as ActorState).facing = ActorState.Facing.RIGHT
@@ -373,7 +373,7 @@ func _test_missing_location_rejects() -> void:
 	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
 	if location_registry != null:
 		location_registry.name = "UnavailableLocationRegistry"
-	var decision := ActionSpatialRule.evaluate(WorldAction.new(&"inspect", actor, target))
+	var decision := ActionSpatialRule.evaluate(EntityAction.new(&"inspect", actor, target))
 	if location_registry != null:
 		location_registry.name = "LocationRegistry"
 	_expect(not decision.allowed, "ActionSpatialRule must reject when Location cannot be obtained.")
@@ -383,7 +383,7 @@ func _test_missing_location_rejects() -> void:
 func _test_existing_interaction_and_scene_rebuild() -> void:
 	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
 	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
-	var registry := root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
+	var registry := root.get_node_or_null("EntityRegistry") as EntityRegistry
 	if location_registry == null or state_registry == null or registry == null:
 		_expect(false, "V10 integration requires project world Autoloads.")
 		return
@@ -405,7 +405,7 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 	_expect(chest.definition.use_slots.is_empty(), "Ordinary project Furniture must remain valid without explicit V10 data.")
 	var controller := game.get_node("PlayerController") as PlayerController
 	_expect(controller.call("_select_interaction").get("entity") == chest, "Default UseSlots must preserve ordinary front interaction selection.")
-	_expect(ActionSpatialRule.evaluate(WorldAction.new(&"open", player, chest)).allowed, "Default UseSlots must preserve ordinary front Action validation.")
+	_expect(ActionSpatialRule.evaluate(EntityAction.new(&"open", player, chest)).allowed, "Default UseSlots must preserve ordinary front Action validation.")
 
 	var location := location_registry.get_location(tavern_id)
 	var foot_cell := _find_unclaimed_walkable_cell(location, player)
@@ -419,7 +419,7 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 	player.state.local_cell = foot_cell
 	(player.state as ActorState).facing = ActorState.Facing.LEFT
 	_expect(controller.call("_select_interaction").get("entity") == foot_entity, "A non-blocking Entity must remain selectable from its foot UseSlot.")
-	_expect(WorldAction.new(&"inspect", player, foot_entity).execute().success, "A non-blocking Entity must remain interactable from its occupied Cell.")
+	_expect(EntityAction.new(&"inspect", player, foot_entity).execute().success, "A non-blocking Entity must remain interactable from its occupied Cell.")
 
 	var priority_definition := SIGN_DEFINITION.duplicate(true) as FurnitureDefinition
 	priority_definition.blocks_movement = false
@@ -474,7 +474,7 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 
 	var before_slots := chest.get_use_slots(&"open")
 	var before_slot_cells := _slot_cells(before_slots)
-	var before_entrance_cells := _entrance_world_cells(location, chest, before_slots)
+	var before_entrance_cells := _entrance_location_cells(location, chest, before_slots)
 	game.call("request_location_change", &"back_door")
 	await _wait_for_transition(game)
 	game.call("request_location_change", &"tavern_door")
@@ -482,7 +482,7 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 	var rebuilt_location := location_registry.get_location(tavern_id)
 	var after_slots := chest.get_use_slots(&"open")
 	_expect(before_slot_cells == _slot_cells(after_slots), "UseSlot results must survive Location Scene destruction and rebuilding.")
-	_expect(before_entrance_cells == _entrance_world_cells(rebuilt_location, chest, after_slots), "SlotEntrance results must survive Location Scene destruction and rebuilding.")
+	_expect(before_entrance_cells == _entrance_location_cells(rebuilt_location, chest, after_slots), "SlotEntrance results must survive Location Scene destruction and rebuilding.")
 	_expect(chest.definition.use_slots.is_empty(), "Scene rebuilding must not materialize defaults into FurnitureDefinition.")
 	game.queue_free()
 	await process_frame
@@ -522,7 +522,7 @@ func _rectangular_footprint(size: Vector2i) -> Array[Vector2i]:
 	return cells
 
 
-func _create_location(registry: EntityRegistryRuntime) -> Location:
+func _create_location(registry: EntityRegistry) -> Location:
 	var definition := LocationDefinition.new()
 	definition.display_name = "V10 Test Location"
 	definition.grid_size = Vector2i(6, 6)
@@ -569,7 +569,7 @@ func _slot_cells(slots: Array[UseSlot]) -> Dictionary[Vector2i, bool]:
 	return cells
 
 
-func _entrance_world_cells(
+func _entrance_location_cells(
 	location: Location,
 	entity: Entity,
 	slots: Array[UseSlot]
@@ -577,7 +577,7 @@ func _entrance_world_cells(
 	var cells: Dictionary[Vector2i, bool] = {}
 	for slot in slots:
 		for entrance in location.get_slot_entrances(slot):
-			cells[location.get_slot_entrance_world_cell(entity, entrance)] = true
+			cells[location.get_slot_entrance_location_cell(entity, entrance)] = true
 	return cells
 
 

@@ -49,28 +49,28 @@ func get_footprint_local_cells() -> Array[Vector2i]:
 	return [Vector2i.ZERO]
 
 
-func get_use_slot_world_cell(slot: UseSlot) -> Vector2i:
+func get_use_slot_location_cell(slot: UseSlot) -> Vector2i:
 	return get_footprint_origin_cell() + slot.local_cell if slot != null else Vector2i.ZERO
 
 
-func get_slot_entrance_world_cell(entrance: SlotEntrance) -> Vector2i:
+func get_slot_entrance_location_cell(entrance: SlotEntrance) -> Vector2i:
 	return get_footprint_origin_cell() + entrance.local_cell if entrance != null else Vector2i.ZERO
 
 
-func has_use_slot_at(action_id: StringName, world_cell: Vector2i) -> bool:
+func has_use_slot_at(action_id: StringName, location_cell: Vector2i) -> bool:
 	for slot in get_use_slots(action_id):
-		if get_use_slot_world_cell(slot) == world_cell:
+		if get_use_slot_location_cell(slot) == location_cell:
 			return true
 	return false
 
 
 func has_facing_use_slot_at(
 	action_id: StringName,
-	world_cell: Vector2i,
+	location_cell: Vector2i,
 	facing: ActorState.Facing
 ) -> bool:
 	for slot in get_use_slots(action_id):
-		if get_use_slot_world_cell(slot) == world_cell and slot.is_facing_allowed(facing):
+		if get_use_slot_location_cell(slot) == location_cell and slot.is_facing_allowed(facing):
 			return true
 	return false
 
@@ -88,14 +88,14 @@ func get_primary_action(actor: Actor) -> StringName:
 	return actions[0] if not actions.is_empty() else &""
 
 
-func check_action(action: WorldAction) -> ActionRuleDecision:
+func check_action(action: EntityAction) -> ActionRuleDecision:
 	return ActionRuleDecision.reject(
 		"目标实体不支持“%s”行为。" % action.action_id,
 		&"target_action_unsupported"
 	)
 
 
-func apply_action(action: WorldAction) -> ActionResult:
+func apply_action(action: EntityAction) -> ActionResult:
 	return ActionResult.failed(
 		action.action_id,
 		instance_id,

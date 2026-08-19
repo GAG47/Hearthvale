@@ -32,7 +32,7 @@ var controlled_actor_instance_id := &""
 var representation_registry := EntityRepresentationRegistry.create_default()
 var location_scene_builder := LocationSceneBuilder.new()
 
-@onready var world_root: Node2D = $WorldRoot
+@onready var location_scene_root: Node2D = $LocationSceneRoot
 @onready var player_controller: PlayerController = $PlayerController
 @onready var location_label: Label = $HUD/TopBar/LocationLabel
 @onready var date_label: Label = $HUD/TimePanel/TimeLayout/DateLabel
@@ -44,7 +44,7 @@ var location_scene_builder := LocationSceneBuilder.new()
 var game_clock: GameClock
 var location_registry: LocationRegistry
 var state_registry: StateRegistry
-var entity_registry: EntityRegistryRuntime
+var entity_registry: EntityRegistry
 
 
 func _ready() -> void:
@@ -66,7 +66,7 @@ func _ready() -> void:
 	if state_registry == null:
 		push_error("StateRegistry Autoload is required before loading Game.")
 		return
-	entity_registry = get_node_or_null("/root/EntityRegistry") as EntityRegistryRuntime
+	entity_registry = get_node_or_null("/root/EntityRegistry") as EntityRegistry
 	if entity_registry == null:
 		push_error("EntityRegistry Autoload is required before loading Game.")
 		return
@@ -177,7 +177,7 @@ func _perform_location_change(
 	from_location_id: StringName,
 	edge: LocationEdgeDefinition
 ) -> void:
-	var movement := get_node_or_null("/root/LogicalMovement") as LogicalMovementRuntime
+	var movement := get_node_or_null("/root/LogicalMovement") as LogicalMovement
 	while (
 		movement != null
 		and player_controller.controlled_actor != null
@@ -234,7 +234,7 @@ func _prepare_location_change(
 		return {}
 	var spawn_cell := moving_actor.current_cell
 	if entry != null:
-		var movement := get_node_or_null("/root/LogicalMovement") as LogicalMovementRuntime
+		var movement := get_node_or_null("/root/LogicalMovement") as LogicalMovement
 		var found_arrival := false
 		for candidate_cell in entry.arrival_cells:
 			if not location.is_cell_statically_walkable(candidate_cell, moving_actor):
@@ -306,15 +306,15 @@ func _commit_location_change(prepared_change: Dictionary) -> void:
 	(moving_actor.state as ActorState).facing = spawn_facing
 	(next_player_representation as ActorRepresentation).refresh_visual()
 
-	world_root.add_child(next_location)
+	location_scene_root.add_child(next_location)
 	player_controller.activate_prepared_control(moving_actor, next_player_representation)
 	current_location = next_location
-	player_controller.set_camera_bounds(current_location.get_world_rect())
+	player_controller.set_camera_bounds(current_location.get_local_rect())
 	location_label.text = definition.display_name
 	action_result_label.text = ""
 
 	if is_instance_valid(previous_location):
-		world_root.remove_child(previous_location)
+		location_scene_root.remove_child(previous_location)
 		previous_location.queue_free()
 
 

@@ -81,9 +81,9 @@ func _run_tests() -> void:
 		ActorState.new(GENERIC_ENTITY_ID, LOCATION_ID, Vector2i(2, 1), ActorState.Facing.RIGHT)
 	)
 	_expect(registry.register_entity(generic_entity), "EntityRegistry must accept another valid Entity subtype.")
-	var generic_result := WorldAction.new(&"test_action", actor, generic_entity).execute()
-	_expect(generic_result.success and generic_result.target_id == GENERIC_ENTITY_ID, "WorldAction must execute the generic Entity Action protocol.")
-	var unsupported_result := WorldAction.new(&"talk", actor, actor).execute()
+	var generic_result := EntityAction.new(&"test_action", actor, generic_entity).execute()
+	_expect(generic_result.success and generic_result.target_id == GENERIC_ENTITY_ID, "EntityAction must execute the generic Entity Action protocol.")
+	var unsupported_result := EntityAction.new(&"talk", actor, actor).execute()
 	_expect(not unsupported_result.success and unsupported_result.failure_code == &"target_action_unsupported", "Entity's default Action protocol must reject unsupported actions.")
 
 	var named_definition := _create_furniture_definition("测试柜")
@@ -94,7 +94,7 @@ func _run_tests() -> void:
 		named_definition,
 		FurnitureState.new(OTHER_ENTITY_ID, LOCATION_ID, Vector2i(2, 1))
 	)
-	var open_result := WorldAction.new(&"open", actor, named_furniture).execute()
+	var open_result := EntityAction.new(&"open", actor, named_furniture).execute()
 	_expect(open_result.success and open_result.message == "测试柜打开了。", "OpenableBehavior feedback must derive from FurnitureDefinition.display_name.")
 	_expect(named_furniture.get_openable_state() != null and named_furniture.get_openable_state().is_open, "OpenableBehavior must write the instance's OpenableState.")
 

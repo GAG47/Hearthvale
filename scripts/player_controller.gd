@@ -131,7 +131,7 @@ func request_interaction() -> ActionResult:
 		action_completed.emit(no_action_result)
 		return no_action_result
 
-	var action := WorldAction.new(action_id, controlled_actor, target)
+	var action := EntityAction.new(action_id, controlled_actor, target)
 	var result := action.execute()
 	action_completed.emit(result)
 	return result
@@ -152,7 +152,7 @@ func _select_interaction() -> Dictionary:
 			continue
 		for action_id in candidate.get_supported_actions(controlled_actor):
 			for slot in location.get_use_slots(candidate, action_id):
-				if location.get_use_slot_world_cell(candidate, slot) != controlled_actor.current_cell:
+				if location.get_use_slot_location_cell(candidate, slot) != controlled_actor.current_cell:
 					continue
 				if not slot.is_facing_allowed(controlled_actor.facing):
 					continue
@@ -235,8 +235,8 @@ func _sync_camera_position(reset_smoothing := false) -> void:
 		camera.reset_smoothing()
 
 
-func _get_logical_movement() -> LogicalMovementRuntime:
-	return get_node_or_null("/root/LogicalMovement") as LogicalMovementRuntime
+func _get_logical_movement() -> LogicalMovement:
+	return get_node_or_null("/root/LogicalMovement") as LogicalMovement
 
 
 func _exit_tree() -> void:

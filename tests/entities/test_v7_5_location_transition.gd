@@ -15,7 +15,7 @@ func _init() -> void:
 func _run_tests() -> void:
 	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
 	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
-	var registry := root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
+	var registry := root.get_node_or_null("EntityRegistry") as EntityRegistry
 	_expect(location_registry != null, "LocationRegistry Autoload must exist.")
 	_expect(state_registry != null, "StateRegistry Autoload must exist.")
 	_expect(registry != null, "EntityRegistry Autoload must exist.")

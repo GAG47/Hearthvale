@@ -1,4 +1,4 @@
-class_name WorldAction
+class_name EntityAction
 extends RefCounted
 
 var action_id: StringName

@@ -10,8 +10,8 @@ var _checks := 0
 var _failures := 0
 var _location_registry: LocationRegistry
 var _state_registry: StateRegistry
-var _registry: EntityRegistryRuntime
-var _movement: LogicalMovementRuntime
+var _registry: EntityRegistry
+var _movement: LogicalMovement
 
 
 func _init() -> void:
@@ -21,8 +21,8 @@ func _init() -> void:
 func _run_tests() -> void:
 	_location_registry = root.get_node_or_null("LocationRegistry") as LocationRegistry
 	_state_registry = root.get_node_or_null("StateRegistry") as StateRegistry
-	_registry = root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
-	_movement = root.get_node_or_null("LogicalMovement") as LogicalMovementRuntime
+	_registry = root.get_node_or_null("EntityRegistry") as EntityRegistry
+	_movement = root.get_node_or_null("LogicalMovement") as LogicalMovement
 	_expect(_location_registry != null, "V11.2 tests require LocationRegistry.")
 	_expect(_state_registry != null, "V11.2 tests require StateRegistry.")
 	_expect(_registry != null, "V11.2 tests require EntityRegistry.")
@@ -350,7 +350,7 @@ func _test_player_controller_uses_logical_movement() -> void:
 		)
 
 		var action_id := chest.get_primary_action(player)
-		var spatial_action := WorldAction.new(action_id, player, chest)
+		var spatial_action := EntityAction.new(action_id, player, chest)
 		_expect(
 			ActionSpatialRule.evaluate(spatial_action).allowed,
 			"A contracted Actor at a valid UseSlot must remain eligible for Spatial Action."

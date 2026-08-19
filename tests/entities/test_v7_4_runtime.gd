@@ -26,7 +26,7 @@ func _init() -> void:
 
 
 func _run_tests() -> void:
-	var registry := root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
+	var registry := root.get_node_or_null("EntityRegistry") as EntityRegistry
 	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
 	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
 	_expect(registry != null, "The EntityRegistry Autoload must exist.")
@@ -335,7 +335,7 @@ func _run_tests() -> void:
 
 
 func _expect_furniture(
-	registry: EntityRegistryRuntime,
+	registry: EntityRegistry,
 	state_registry: StateRegistry,
 	instance_id: StringName,
 	expected_definition: FurnitureDefinition
@@ -355,7 +355,7 @@ func _expect_furniture(
 
 
 func _has_entity_with_definition(
-	registry: EntityRegistryRuntime,
+	registry: EntityRegistry,
 	definition: Resource
 ) -> bool:
 	for entity in registry.get_entities():
@@ -372,7 +372,7 @@ func _test_interactions(
 ) -> void:
 	_place_actor(representation, Vector2i(12, 7), ActorState.Facing.RIGHT)
 	var sign_result := controller.request_interaction()
-	_expect(sign_result.success and sign_result.action_id == &"inspect", "Sign inspect must use WorldAction.")
+	_expect(sign_result.success and sign_result.action_id == &"inspect", "Sign inspect must use EntityAction.")
 	_expect(sign_result.message == "今日麦酒三铜币。", "Sign inspect result must remain unchanged.")
 	_expect(_last_action_result == sign_result, "PlayerController must emit Sign ActionResult.")
 	_expect(game.get_node("HUD/ActionResultLabel").text == sign_result.message, "HUD must receive ActionResult.")
@@ -413,7 +413,7 @@ func _place_actor(
 	cell: Vector2i,
 	facing: ActorState.Facing
 ) -> void:
-	var movement := root.get_node_or_null("LogicalMovement") as LogicalMovementRuntime
+	var movement := root.get_node_or_null("LogicalMovement") as LogicalMovement
 	if movement != null:
 		movement.cancel_move(representation.actor)
 	representation.actor.state.local_cell = cell
@@ -487,7 +487,7 @@ func _expect_input_facing_visual(
 	Input.action_press(input_action)
 	await physics_frame
 	Input.action_release(input_action)
-	var movement := root.get_node_or_null("LogicalMovement") as LogicalMovementRuntime
+	var movement := root.get_node_or_null("LogicalMovement") as LogicalMovement
 	for _frame in range(40):
 		await physics_frame
 		if movement == null or not movement.is_participant(representation.actor):

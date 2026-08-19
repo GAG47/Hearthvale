@@ -33,5 +33,5 @@ func configure(p_location: Location) -> void:
 	grid_size = p_location.definition.grid_size if p_location != null else Vector2i.ONE
 
 
-func get_world_rect() -> Rect2:
+func get_local_rect() -> Rect2:
 	return Rect2(Vector2.ZERO, LocationGridSpace.grid_size_to_local_size(grid_size))
