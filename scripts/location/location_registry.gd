@@ -88,23 +88,7 @@ func get_location_definition(location_id: StringName) -> LocationDefinition:
 
 
 func get_location(location_id: StringName) -> Location:
-	if _locations.has(location_id):
-		return _locations[location_id] as Location
-	var location_definition: LocationDefinition = _definitions_by_location.get(location_id) as LocationDefinition
-	if location_definition == null:
-		return null
-	var state_registry := get_node_or_null("/root/StateRegistry")
-	var entity_registry := get_node_or_null("/root/EntityRegistry") as EntityRegistryRuntime
-	if state_registry == null or entity_registry == null:
-		return null
-	var location_state: LocationState = state_registry.get_location_state(location_id) as LocationState
-	if location_state == null:
-		return null
-	var location := Location.new(location_definition, location_state, entity_registry)
-	var project_key: StringName = _project_keys_by_location.get(location_id, &"") as StringName
-	if not register(location, project_key):
-		return null
-	return location
+	return _locations.get(location_id) as Location
 
 
 func get_outgoing_edges(location_id: StringName) -> Array[LocationEdgeDefinition]:

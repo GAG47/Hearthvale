@@ -200,15 +200,6 @@ func is_cell_statically_walkable(cell: Vector2i, ignored_entity: Entity = null) 
 	return true
 
 
-func select_arrival_cell(entry: LocationEntry, moving_actor: Actor = null) -> Dictionary:
-	if entry == null:
-		return {}
-	for cell in entry.arrival_cells:
-		if is_cell_statically_walkable(cell, moving_actor):
-			return {"cell": cell}
-	return {}
-
-
 func _is_cell_standable(cell: Vector2i, ignored_entity: Entity = null) -> bool:
 	return is_cell_statically_walkable(cell, ignored_entity)
 

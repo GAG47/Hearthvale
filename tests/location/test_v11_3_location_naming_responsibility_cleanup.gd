@@ -31,6 +31,14 @@ func _run_tests() -> void:
 		return
 
 	_expect(state_registry.get_location_states().is_empty(), "StateRegistry must not auto-create Project LocationState objects.")
+	var tavern_id_before_game := location_registry.get_project_location_id(&"tavern")
+	var locations_before_game := location_registry.get_all().size()
+	var states_before_game := state_registry.get_location_states().size()
+	_expect(location_registry.get_location(tavern_id_before_game) == null, "LocationRegistry.get_location must not create an unregistered Project Location.")
+	var unknown_location_id := &"e5000000-0000-4000-8000-000000000001"
+	_expect(location_registry.get_location(unknown_location_id) == null, "LocationRegistry.get_location must return null for an unknown Location.")
+	_expect(location_registry.get_all().size() == locations_before_game, "A pure Location query must not register a Location.")
+	_expect(state_registry.get_location_states().size() == states_before_game, "A pure Location query must not create LocationState.")
 	_expect(not _has_property(state_registry, &"_active_locations"), "StateRegistry must not store LocationScene Nodes.")
 	_expect(not state_registry.has_method("register_location"), "StateRegistry must not register LocationScene Nodes.")
 
@@ -160,6 +168,7 @@ func _test_names_and_paths() -> void:
 		_expect(FileAccess.file_exists(current_path), "Current V11.3 path must exist: %s" % current_path)
 	var location_source := _read_text("res://scripts/location/location.gd")
 	_expect(not location_source.contains("LogicalMovement") and not location_source.contains("movement_runtime"), "Location source must not reference LogicalMovement.")
+	_expect(not location_source.contains("select_" + "arrival_cell"), "Location arrival-cell selector must be fully removed.")
 	_expect(location_source.contains("entity.get_occupied_grid_cells()"), "Location Cell queries must use committed Entity footprint Cells.")
 	var state_source := _read_text("res://scripts/state/state_registry.gd")
 	_expect(not state_source.contains("_active_locations") and not state_source.contains("register_location("), "StateRegistry source must not contain Scene registration.")

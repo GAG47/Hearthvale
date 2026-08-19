@@ -109,14 +109,9 @@ func _test_formal_grid_step_and_occupancy() -> void:
 		not _movement.is_actor_cell_occupied(location_id, request.head_cell),
 		"A requesting head must remain an intention rather than hard occupancy."
 	)
-	var entry := LocationEntry.new(
-		&"requesting_head_entry",
-		[request.head_cell, Vector2i(3, 1)],
-		ActorState.Facing.RIGHT
-	)
 	_expect(
-		location.select_arrival_cell(entry).get("cell") == request.head_cell,
-		"Location Entry must not reject a Cell only because it is a requesting head."
+		location.is_cell_statically_walkable(request.head_cell),
+		"Location static validity must remain independent from requesting Actor occupancy."
 	)
 
 	_movement.call("_activate_requesting", request)
@@ -135,8 +130,8 @@ func _test_formal_grid_step_and_occupancy() -> void:
 		"An extended request must expose elapsed, duration, and normalized progress."
 	)
 	_expect(
-		location.select_arrival_cell(entry).get("cell") == request.head_cell,
-		"Location static arrival validation must not include transient Actor occupancy."
+		location.is_cell_statically_walkable(request.head_cell),
+		"Location static validity must remain true while an Actor is extended."
 	)
 	_expect(
 		_movement.is_actor_cell_occupied(location_id, request.head_cell),
@@ -895,14 +890,10 @@ func _create_location(
 		var blocker := StructureTileDefinition.new()
 		blocker.blocks_movement = true
 		definition.structure_layer[cell] = blocker
-	var definitions: Dictionary = _location_registry.get("_definitions_by_location")
-	definitions[location_id] = definition
-	_expect(
-		_state_registry.register_location_state(LocationState.new(location_id)),
-		"V11.2 test LocationState must register."
-	)
-	var location := _location_registry.get_location(location_id)
-	_expect(location != null, "V11.2 test Location must resolve.")
+	var state := LocationState.new(location_id)
+	_expect(_state_registry.register_location_state(state), "V11.2 test LocationState must register.")
+	var location := Location.new(definition, state, _registry)
+	_expect(_location_registry.register(location), "V11.2 test Location must register explicitly.")
 	return location
 
 
