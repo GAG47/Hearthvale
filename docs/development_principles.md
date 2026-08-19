@@ -60,6 +60,8 @@ PlayerController 只提供最新 direction intent，不直接设置 velocity、�
 
 Hard occupancy 必须与请求意图区分：contracted 占 `{tail}`，requesting 仍只占 `{tail}`，extended 才占 `{tail, head}`。requesting head 不能成为 Location Entry 或其他外部系统的空气墙。
 
+Location 只组合 LocationDefinition、LocationState 与 EntityRegistry。Location 的 Entity Cell 查询只回答已经提交的 `EntityState.local_cell` / footprint；它不持有 LogicalMovement，也不读取 tail、head、phase 或 transient occupancy。静态可通行性由 Location 判断，Actor hard occupancy 由 LogicalMovement 判断，需要两者的调用方明确组合，不能建立混合的万能 Location 查询。
+
 需要 UseSlot 的 Spatial Action 要求 Actor 稳定位于 Slot Cell。contracted 与 requesting 可以继续按 committed tail Cell 验证；extended 必须由 ActionSpatialRule 正式拒绝，不能只在 PlayerController 做特例拦截，也不能读取动画位置判断 Interaction。
 
 Causal-PIBT 核心必须用 original/current priority、parent/children、候选集合 `C_i`、搜索集合 `S_i`、priority inheritance、backtracking 与 request-cycle 检查表达。不能以递归 resolver、VISITING status、assignment snapshot/restore，或 retry/deadlock/corridor 特例替代正式状态模型。高级 deadlock、未来时间 reservation、edge reservation、congestion 与 traffic optimization 扩展不属于 V11.2，不能为了追求“绝对不会卡死”而擅自加入。
@@ -87,3 +89,9 @@ AI 可以创造内容、提出建议和辅助决策，但不能直接确定世�
 ## 12. 保持开发日志的历史真实性
 
 旧版本 development log 是对应版本实现状态的历史记录。后续架构变化不能作为重写旧日志的理由；只有发现旧日志本身存在事实错误时才允许修正，并且应明确这是后续修正，而不是静默改写历史。当前架构应记录在 `architecture.md`，当前版本的变化应记录在对应的 development log。
+
+## 13. Definition、State、Registry 与裸类型命名
+
+`XDefinition` 只表示 X 在一个世界生命周期内稳定不变的基础定义；`XState` 只表示具体 X 当前可变化、可持久化的事实；`XRegistry` 只表示一组运行时对象的注册、索引与查询；裸 `X` 表示当前世界中实际存在的逻辑对象。不要为了名称对称创建没有真实职责和消费者的类型。
+
+`World` 只表示一个完整游戏世界本身，不表示“全局系统”“很多对象都会使用的服务”或“世界级单例”。只有真实存在整个 World 自身的固定定义、可变状态或逻辑对象时，才可以建立 WorldDefinition、WorldState 或 World；否则应使用具体职责名称，例如 LocationRegistry、StateRegistry、GameClock。

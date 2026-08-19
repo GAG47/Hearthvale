@@ -15,8 +15,8 @@ func prepare(
 	target_location,
 	target_cell: Vector2i
 ) -> Node:
-	if not entity is Actor or not target_location is GridScene:
-		push_error("ActorRepresentationFactory requires an Actor and target GridScene.")
+	if not entity is Actor or not target_location is LocationScene:
+		push_error("ActorRepresentationFactory requires an Actor and target LocationScene.")
 		return null
 
 	var scene_instance := REPRESENTATION_SCENE.instantiate()
@@ -28,7 +28,7 @@ func prepare(
 		return null
 
 	var actor := entity as Actor
-	var location := target_location as GridScene
+	var location := target_location as LocationScene
 	if not representation.prepare_actor(actor, location, target_cell):
 		representation.free()
 		return null

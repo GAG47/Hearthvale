@@ -17,11 +17,11 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-WorldDefinition="*res://scripts/world_definition/world_definition.gd"
-WorldState="*res://scripts/world_state/world_state.gd"
+LocationRegistry="*res://scripts/location/location_registry.gd"
+StateRegistry="*res://scripts/state/state_registry.gd"
 EntityRegistry="*res://scripts/entities/entity_registry.gd"
 LogicalMovement="*res://scripts/movement/logical_movement.gd"
-WorldTime="*res://scripts/world_time/world_time.gd"
+GameClock="*res://scripts/time/game_clock.gd"
 
 [display]
 

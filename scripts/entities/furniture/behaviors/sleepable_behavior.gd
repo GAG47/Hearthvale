@@ -23,30 +23,30 @@ func check_action(action: WorldAction) -> ActionRuleDecision:
 			"%s 不提供“%s”行为。"
 			% [furniture.definition.display_name, action.action_id]
 		)
-	if _get_world_time() == null:
-		return ActionRuleDecision.reject("世界时间系统当前不可用。", &"world_time_unavailable")
+	if _get_game_clock() == null:
+		return ActionRuleDecision.reject("游戏时间系统当前不可用。", &"game_clock_unavailable")
 	return ActionRuleDecision.permit()
 
 
 func apply_action(action: WorldAction) -> ActionResult:
-	var world_time := _get_world_time()
-	if world_time == null:
+	var game_clock := _get_game_clock()
+	if game_clock == null:
 		return ActionResult.failed(
 			action.action_id,
 			action.target.instance_id,
-			"世界时间系统当前不可用。",
-			&"world_time_unavailable"
+			"游戏时间系统当前不可用。",
+			&"game_clock_unavailable"
 		)
-	if not world_time.advance_to_next_day_at(SLEEP_WAKE_HOUR, SLEEP_WAKE_MINUTE):
+	if not game_clock.advance_to_next_day_at(SLEEP_WAKE_HOUR, SLEEP_WAKE_MINUTE):
 		return ActionResult.failed(
 			action.action_id,
 			action.target.instance_id,
-			"睡眠未能推进世界时间。",
-			&"world_time_advance_failed"
+			"睡眠未能推进游戏时间。",
+			&"game_clock_advance_failed"
 		)
 	return ActionResult.succeeded(action.action_id, action.target.instance_id, "你睡到了第二天 08:00。")
 
 
-func _get_world_time() -> WorldTimeRuntime:
+func _get_game_clock() -> GameClock:
 	var tree := Engine.get_main_loop() as SceneTree
-	return tree.root.get_node_or_null("WorldTime") as WorldTimeRuntime if tree != null else null
+	return tree.root.get_node_or_null("GameClock") as GameClock if tree != null else null

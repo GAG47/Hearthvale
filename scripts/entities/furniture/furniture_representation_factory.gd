@@ -15,8 +15,8 @@ func prepare(
 	target_location,
 	target_cell: Vector2i
 ) -> Node:
-	if not entity is Furniture or not target_location is GridScene:
-		push_error("FurnitureRepresentationFactory requires Furniture and target GridScene.")
+	if not entity is Furniture or not target_location is LocationScene:
+		push_error("FurnitureRepresentationFactory requires Furniture and target LocationScene.")
 		return null
 
 	var scene_instance := REPRESENTATION_SCENE.instantiate()
@@ -28,7 +28,7 @@ func prepare(
 		return null
 
 	var furniture := entity as Furniture
-	var location := target_location as GridScene
+	var location := target_location as LocationScene
 	if not representation.prepare_furniture(
 		furniture,
 		location,

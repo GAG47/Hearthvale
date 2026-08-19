@@ -4,8 +4,8 @@ extends Area2D
 var cell_rect := Rect2i(0, 0, 1, 1)
 var edge_key := &""
 
-var location: GridScene
-var world_definition: WorldDefinitionRuntime
+var location: LocationScene
+var location_registry: LocationRegistry
 
 
 func configure(exit: LocationExit) -> void:
@@ -17,16 +17,16 @@ func _ready() -> void:
 	_update_collision()
 	location = _find_location()
 	if location == null:
-		push_error("LocationExitArea edge_key '%s' must belong to a GridScene." % edge_key)
+		push_error("LocationExitArea edge_key '%s' must belong to a LocationScene." % edge_key)
 		return
-	world_definition = get_node_or_null("/root/WorldDefinition") as WorldDefinitionRuntime
-	if world_definition == null:
+	location_registry = get_node_or_null("/root/LocationRegistry") as LocationRegistry
+	if location_registry == null:
 		push_error(
-			"LocationExitArea '%s/%s' requires the WorldDefinition Autoload."
+			"LocationExitArea '%s/%s' requires the LocationRegistry Autoload."
 			% [location.location_id, edge_key]
 		)
 		return
-	if world_definition.get_edge(location.location_id, edge_key) == null:
+	if location_registry.get_edge(location.location_id, edge_key) == null:
 		return
 	body_entered.connect(_on_body_entered)
 
@@ -39,11 +39,11 @@ func _on_body_entered(body: Node2D) -> void:
 		game.request_location_change(edge_key)
 
 
-func _find_location() -> GridScene:
+func _find_location() -> LocationScene:
 	var current := get_parent()
 	while current != null:
-		if current is GridScene:
-			return current as GridScene
+		if current is LocationScene:
+			return current as LocationScene
 		current = current.get_parent()
 	return null
 
@@ -53,8 +53,8 @@ func _update_collision() -> void:
 	collision.name = "CollisionShape2D"
 	add_child(collision)
 	var pixel_rect := Rect2(
-		GridSpace.cell_to_local_position(cell_rect.position),
-		GridSpace.grid_size_to_local_size(cell_rect.size)
+		LocationGridSpace.cell_to_local_position(cell_rect.position),
+		LocationGridSpace.grid_size_to_local_size(cell_rect.size)
 	)
 	var rectangle := RectangleShape2D.new()
 	rectangle.size = pixel_rect.size

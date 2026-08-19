@@ -1,6 +1,8 @@
 extends SceneTree
 
 const REGISTRY_SCRIPT := preload("res://scripts/entities/entity_registry.gd")
+const LOCATION_REGISTRY_SCRIPT := preload("res://scripts/location/location_registry.gd")
+const STATE_REGISTRY_SCRIPT := preload("res://scripts/state/state_registry.gd")
 const TEST_ACTION_ENTITY := preload("res://tests/entities/helpers/test_action_entity.gd")
 
 const ACTOR_ID := &"11111111-1111-4111-8111-111111111111"
@@ -22,12 +24,23 @@ func _run_tests() -> void:
 	var registry := REGISTRY_SCRIPT.new()
 	registry.name = "EntityRegistry"
 	root.add_child(registry)
-	var world_definition := WorldDefinitionRuntime.new()
-	world_definition.name = "WorldDefinition"
-	root.add_child(world_definition)
-	var world_state := WorldStateRuntime.new()
-	world_state.name = "WorldState"
-	root.add_child(world_state)
+	var location_registry: Node = LOCATION_REGISTRY_SCRIPT.new()
+	location_registry.name = "LocationRegistry"
+	root.add_child(location_registry)
+	var state_registry: Node = STATE_REGISTRY_SCRIPT.new()
+	state_registry.name = "StateRegistry"
+	root.add_child(state_registry)
+	var location_definition := LocationDefinition.new()
+	location_definition.display_name = "Entity Registry Test Location"
+	location_definition.grid_size = Vector2i(6, 6)
+	var ground := GroundTileDefinition.new()
+	ground.walkable = true
+	for y in range(location_definition.grid_size.y):
+		for x in range(location_definition.grid_size.x):
+			location_definition.ground_layer[Vector2i(x, y)] = ground
+	var location_state := LocationState.new(LOCATION_ID)
+	state_registry.call("register_location_state", location_state)
+	location_registry.call("register", Location.new(location_definition, location_state, registry))
 	_expect(registry.get_entities().is_empty(), "A new EntityRegistry must not create Entities.")
 	_expect(not registry.register_entity(null), "A null Entity must be rejected.")
 
@@ -91,8 +104,8 @@ func _run_tests() -> void:
 	_expect(registry.get_entities_in_location(LOCATION_ID).size() == 3, "Location queries must include every registered Entity subtype.")
 	_expect(registry.get_entities_in_location(&"unknown").is_empty(), "An unknown Location query must return no Entities.")
 	registry.free()
-	world_state.free()
-	world_definition.free()
+	state_registry.free()
+	location_registry.free()
 	_finish()
 
 
@@ -112,7 +125,7 @@ func _create_furniture_definition(display_name: String) -> FurnitureDefinition:
 
 
 func _disable_project_autoloads() -> void:
-	for autoload_name in ["WorldDefinition", "WorldState", "EntityRegistry", "WorldTime"]:
+	for autoload_name in ["LocationRegistry", "StateRegistry", "EntityRegistry", "GameClock"]:
 		ProjectSettings.set_setting("autoload/%s" % autoload_name, null)
 
 

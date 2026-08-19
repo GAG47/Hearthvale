@@ -1,4 +1,4 @@
-class_name WorldTimeState
+class_name GameTimeState
 extends RefCounted
 
 # The single authoritative calendar fact for the current world runtime.

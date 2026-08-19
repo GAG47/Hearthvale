@@ -1,10 +1,10 @@
 [gd_resource type="Resource" script_class="ProjectWorld" format=3]
 
-[ext_resource type="Script" path="res://scripts/world_definition/project_location_instance_spec.gd" id="1_h171n"]
+[ext_resource type="Script" path="res://scripts/initialization/project_location_instance_spec.gd" id="1_h171n"]
 [ext_resource type="Resource" path="res://data/locations/tavern.tres" id="2_xejna"]
 [ext_resource type="Resource" path="res://data/locations/town_street.tres" id="3_cut3l"]
 [ext_resource type="Resource" path="res://data/locations/tavern_yard.tres" id="4_k67m0"]
-[ext_resource type="Script" path="res://scripts/world_definition/project_world.gd" id="9_xgt46"]
+[ext_resource type="Script" path="res://scripts/initialization/project_world.gd" id="9_xgt46"]
 
 [sub_resource type="Resource" id="Resource_77fp4"]
 script = ExtResource("1_h171n")

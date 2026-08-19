@@ -11,12 +11,12 @@ const DIRECTIONS: Array[Vector2i] = [
 var _requests: Dictionary[StringName, ActorMovementRequest] = {}
 var _direction_intents: Dictionary[StringName, Vector2i] = {}
 var _movement_clock := 0
-var _world_definition: WorldDefinitionRuntime
+var _location_registry: LocationRegistry
 var _entity_registry: EntityRegistryRuntime
 
 
 func _ready() -> void:
-	_world_definition = get_node_or_null("/root/WorldDefinition") as WorldDefinitionRuntime
+	_location_registry = get_node_or_null("/root/LocationRegistry") as LocationRegistry
 	_entity_registry = get_node_or_null("/root/EntityRegistry") as EntityRegistryRuntime
 
 
@@ -179,7 +179,7 @@ func is_actor_cell_occupied(
 
 func advance(delta: float) -> void:
 	_resolve_dependencies()
-	if _world_definition == null or _entity_registry == null:
+	if _location_registry == null or _entity_registry == null:
 		return
 	_remove_invalid_requests()
 	_advance_extended(maxf(delta, 0.0))
@@ -425,7 +425,7 @@ func _start_extended(request: ActorMovementRequest) -> void:
 	request.phase = ActorMovementRequest.Phase.EXTENDED
 	request.step_elapsed = 0.0
 	request.step_duration = (
-		float(GridSpace.CELL_SIZE)
+		float(LocationGridSpace.CELL_SIZE)
 		/ maxf(request.actor.definition.move_speed, 0.001)
 	)
 	_set_actor_facing(request.actor, request.head_cell - request.tail_cell)
@@ -549,7 +549,7 @@ func _filter_searched_cells(
 
 
 func _build_navigation_grid(
-	location: LocationRuntime,
+	location: Location,
 	actor: Actor
 ) -> AStarGrid2D:
 	if location == null or location.definition == null:
@@ -573,7 +573,7 @@ func _build_navigation_grid(
 	return grid
 
 
-func _get_path_cost(path: Array[Vector2i], location: LocationRuntime) -> float:
+func _get_path_cost(path: Array[Vector2i], location: Location) -> float:
 	var cost := 0.0
 	for index in range(1, path.size()):
 		var ground := location.get_ground_tile(path[index])
@@ -666,13 +666,13 @@ func _is_cardinal_direction(direction: Vector2i) -> bool:
 	return DIRECTIONS.has(direction)
 
 
-func _get_location(location_id: StringName) -> LocationRuntime:
-	return _world_definition.get_location(location_id) if _world_definition != null else null
+func _get_location(location_id: StringName) -> Location:
+	return _location_registry.get_location(location_id) if _location_registry != null else null
 
 
 func _resolve_dependencies() -> void:
-	if _world_definition == null:
-		_world_definition = get_node_or_null("/root/WorldDefinition") as WorldDefinitionRuntime
+	if _location_registry == null:
+		_location_registry = get_node_or_null("/root/LocationRegistry") as LocationRegistry
 	if _entity_registry == null:
 		_entity_registry = get_node_or_null("/root/EntityRegistry") as EntityRegistryRuntime
 

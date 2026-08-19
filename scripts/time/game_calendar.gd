@@ -1,4 +1,4 @@
-class_name WorldCalendar
+class_name GameCalendar
 extends RefCounted
 
 enum Weekday {

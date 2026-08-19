@@ -4,7 +4,7 @@ extends RefCounted
 const WORLD_TILE_SET: TileSet = preload("res://data/world_tileset.tres")
 
 func prepare_scene(
-	location: LocationRuntime,
+	location: Location,
 	representation_registry: EntityRepresentationRegistry,
 	moving_entity: Entity = null,
 	moving_cell: Vector2i = Vector2i.ZERO
@@ -12,7 +12,7 @@ func prepare_scene(
 	if location == null or not location.is_valid() or representation_registry == null:
 		push_error("LocationSceneBuilder requires a valid Location and Representation Registry.")
 		return {}
-	var scene := GridScene.new()
+	var scene := LocationScene.new()
 	scene.name = "Location_%s" % String(location.instance_id).substr(0, 8)
 	scene.configure(location)
 	if not _build_ground_layer(scene, location):
@@ -48,7 +48,7 @@ func prepare_scene(
 	return {"scene": scene, "representations": representations}
 
 
-func _build_ground_layer(scene: GridScene, location: LocationRuntime) -> bool:
+func _build_ground_layer(scene: LocationScene, location: Location) -> bool:
 	var layer := TileMapLayer.new()
 	layer.name = "GroundLayer"
 	layer.z_index = -10
@@ -65,7 +65,7 @@ func _build_ground_layer(scene: GridScene, location: LocationRuntime) -> bool:
 	return true
 
 
-func _build_decoration_layer(scene: GridScene, location: LocationRuntime) -> bool:
+func _build_decoration_layer(scene: LocationScene, location: Location) -> bool:
 	var layer := TileMapLayer.new()
 	layer.name = "DecorationLayer"
 	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -84,7 +84,7 @@ func _build_decoration_layer(scene: GridScene, location: LocationRuntime) -> boo
 	return true
 
 
-func _build_structure_layer(scene: GridScene, location: LocationRuntime) -> bool:
+func _build_structure_layer(scene: LocationScene, location: Location) -> bool:
 	var layer := TileMapLayer.new()
 	layer.name = "StructureLayer"
 	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -102,7 +102,7 @@ func _build_structure_layer(scene: GridScene, location: LocationRuntime) -> bool
 	return true
 
 
-func _build_entries_and_exits(scene: GridScene, location: LocationRuntime) -> void:
+func _build_entries_and_exits(scene: LocationScene, location: Location) -> void:
 	var entry_root := Node2D.new()
 	entry_root.name = "EntryPoints"
 	scene.add_child(entry_root)
@@ -114,7 +114,7 @@ func _build_entries_and_exits(scene: GridScene, location: LocationRuntime) -> vo
 				if arrival_index == 0
 				else "%s_%d" % [entry.entry_id, arrival_index]
 			)
-			marker.position = GridSpace.cell_to_center_position(entry.arrival_cells[arrival_index])
+			marker.position = LocationGridSpace.cell_to_center_position(entry.arrival_cells[arrival_index])
 			entry_root.add_child(marker)
 	for location_exit in location.get_current_exits():
 		var exit_area := LocationExitArea.new()

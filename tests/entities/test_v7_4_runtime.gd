@@ -27,11 +27,11 @@ func _init() -> void:
 
 func _run_tests() -> void:
 	var registry := root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
-	var world_state := root.get_node_or_null("WorldState") as WorldStateRuntime
-	var world_definition := root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
+	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
+	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
 	_expect(registry != null, "The EntityRegistry Autoload must exist.")
-	_expect(world_state != null, "The WorldState Autoload must exist.")
-	if registry == null or world_state == null or world_definition == null:
+	_expect(state_registry != null, "The StateRegistry Autoload must exist.")
+	if registry == null or state_registry == null or location_registry == null:
 		_finish()
 		return
 
@@ -76,8 +76,8 @@ func _run_tests() -> void:
 		"Game controlled_actor_instance_id must be the independent Player instance UUID."
 	)
 	_expect(
-		world_state.get_entity_state(player.instance_id) == player.state,
-		"WorldState and Player Actor must hold the same ActorState object."
+		state_registry.get_entity_state(player.instance_id) == player.state,
+		"StateRegistry and Player Actor must hold the same ActorState object."
 	)
 	_expect(player.state is ActorState, "Player must hold ActorState through Entity.state.")
 	_expect(
@@ -92,8 +92,8 @@ func _run_tests() -> void:
 		and player.definition.visual_right.resource_path == "res://assets/actors/player_right.svg",
 		"The Player ActorDefinition must directly reference all four directional textures."
 	)
-	var tavern_id := world_definition.get_project_location_id(&"tavern")
-	var yard_id := world_definition.get_project_location_id(&"tavern_yard")
+	var tavern_id := location_registry.get_project_location_id(&"tavern")
+	var yard_id := location_registry.get_project_location_id(&"tavern_yard")
 	_expect(player.current_location_id == tavern_id, "Player must start in Tavern.")
 	_expect(
 		player.current_cell == Vector2i(12, 8),
@@ -105,11 +105,11 @@ func _run_tests() -> void:
 		"Martha must remain definition-only in the current runtime."
 	)
 	_expect(registry.get_entities().size() == 4, "Player and three Furniture Entities must exist.")
-	_expect(world_state.get_entity_states().size() == 4, "WorldState must hold four EntityStates.")
+	_expect(state_registry.get_entity_states().size() == 4, "StateRegistry must hold four EntityStates.")
 
-	var chest := _expect_furniture(registry, world_state, CHEST_ENTITY_ID, CHEST_DEFINITION)
-	var sign := _expect_furniture(registry, world_state, SIGN_ENTITY_ID, SIGN_DEFINITION)
-	var bed := _expect_furniture(registry, world_state, BED_ENTITY_ID, BED_DEFINITION)
+	var chest := _expect_furniture(registry, state_registry, CHEST_ENTITY_ID, CHEST_DEFINITION)
+	var sign := _expect_furniture(registry, state_registry, SIGN_ENTITY_ID, SIGN_DEFINITION)
+	var bed := _expect_furniture(registry, state_registry, BED_ENTITY_ID, BED_DEFINITION)
 	if chest == null or sign == null or bed == null:
 		game.queue_free()
 		await process_frame
@@ -177,7 +177,7 @@ func _run_tests() -> void:
 		"Player must initially display visuals.down."
 	)
 
-	var tavern := game.get("current_location") as GridScene
+	var tavern := game.get("current_location") as LocationScene
 	var initial_furniture_representations := _get_furniture_representations(tavern)
 	_expect(initial_furniture_representations.size() == 3, "Tavern must spawn three FurnitureRepresentations.")
 	for furniture_representation in initial_furniture_representations:
@@ -216,12 +216,12 @@ func _run_tests() -> void:
 		"right"
 	)
 	_expect(
-		representation.position == initial_position + Vector2(GridSpace.CELL_SIZE, 0.0),
+		representation.position == initial_position + Vector2(LocationGridSpace.CELL_SIZE, 0.0),
 		"PlayerController must complete one exact Grid Cell from movement input."
 	)
 	_expect(representation.facing == ActorState.Facing.RIGHT, "Movement must update ActorState.facing.")
 	_expect(
-		representation.position == GridSpace.cell_to_center_position(player.current_cell),
+		representation.position == LocationGridSpace.cell_to_center_position(player.current_cell),
 		"Representation must display the committed Actor Cell center."
 	)
 
@@ -285,12 +285,12 @@ func _run_tests() -> void:
 	if camera != null:
 		_expect(camera.limit_right == 768 and camera.limit_bottom == 576, "Camera bounds must update in Tavern Yard.")
 
-	var yard := game.get("current_location") as GridScene
+	var yard := game.get("current_location") as LocationScene
 	_expect(_get_actor_representations(yard).size() == 1, "Tavern Yard must contain only Player ActorRepresentation.")
 	_expect(_get_furniture_representations(yard).is_empty(), "Tavern FurnitureRepresentations must unload outside Tavern.")
 	_expect(not is_instance_valid(old_chest_representation), "Old Chest FurnitureRepresentation must be released.")
 	_expect(registry.get_entity(CHEST_ENTITY_ID) == chest, "Chest Entity must survive Location unload.")
-	_expect(world_state.get_entity_state(CHEST_ENTITY_ID) == chest_state, "Chest State must survive Location unload without copying.")
+	_expect(state_registry.get_entity_state(CHEST_ENTITY_ID) == chest_state, "Chest State must survive Location unload without copying.")
 	_expect(
 		chest_openable_state != null and chest_openable_state.is_open,
 		"Chest OpenableState must survive Location unload."
@@ -304,13 +304,13 @@ func _run_tests() -> void:
 		"down"
 	)
 	_expect(
-		yard_representation.position == yard_position + Vector2(0.0, GridSpace.CELL_SIZE),
+		yard_representation.position == yard_position + Vector2(0.0, LocationGridSpace.CELL_SIZE),
 		"Grid movement must continue after Representation rebind."
 	)
 
 	game.call("request_location_change", &"tavern_door")
 	await _wait_for_transition(game)
-	var returned_tavern := game.get("current_location") as GridScene
+	var returned_tavern := game.get("current_location") as LocationScene
 	var returned_chest_representation := _find_furniture_representation(returned_tavern, CHEST_ENTITY_ID)
 	_expect(player.current_location_id == tavern_id, "Player ActorState must return to Tavern.")
 	_expect(is_instance_valid(returned_chest_representation), "Tavern reload must recreate Chest Representation.")
@@ -327,7 +327,7 @@ func _run_tests() -> void:
 		"Recreated Chest Representation must restore the open visual from FurnitureState."
 	)
 	_expect(registry.get_entities().size() == 4, "Location reload must not create duplicate Entities.")
-	_expect(world_state.get_entity_states().size() == 4, "Location reload must not create duplicate States.")
+	_expect(state_registry.get_entity_states().size() == 4, "Location reload must not create duplicate States.")
 
 	game.queue_free()
 	await process_frame
@@ -336,7 +336,7 @@ func _run_tests() -> void:
 
 func _expect_furniture(
 	registry: EntityRegistryRuntime,
-	world_state: WorldStateRuntime,
+	state_registry: StateRegistry,
 	instance_id: StringName,
 	expected_definition: FurnitureDefinition
 ) -> Furniture:
@@ -348,8 +348,8 @@ func _expect_furniture(
 	_expect(furniture.state is FurnitureState, "Furniture must hold FurnitureState.")
 	_expect(furniture.definition == expected_definition, "Furniture must directly hold its Project Definition Resource.")
 	_expect(
-		world_state.get_entity_state(instance_id) == furniture.state,
-		"WorldState and Furniture must hold the same EntityState object."
+		state_registry.get_entity_state(instance_id) == furniture.state,
+		"StateRegistry and Furniture must hold the same EntityState object."
 	)
 	return furniture
 
@@ -417,11 +417,11 @@ func _place_actor(
 	if movement != null:
 		movement.cancel_move(representation.actor)
 	representation.actor.state.local_cell = cell
-	representation.position = GridSpace.cell_to_center_position(cell)
+	representation.position = LocationGridSpace.cell_to_center_position(cell)
 	(representation.actor.state as ActorState).facing = facing
 
 
-func _get_actor_representations(location: GridScene) -> Array[ActorRepresentation]:
+func _get_actor_representations(location: LocationScene) -> Array[ActorRepresentation]:
 	var representations: Array[ActorRepresentation] = []
 	if not is_instance_valid(location):
 		return representations
@@ -434,7 +434,7 @@ func _get_actor_representations(location: GridScene) -> Array[ActorRepresentatio
 	return representations
 
 
-func _get_furniture_representations(location: GridScene) -> Array[FurnitureRepresentation]:
+func _get_furniture_representations(location: LocationScene) -> Array[FurnitureRepresentation]:
 	var representations: Array[FurnitureRepresentation] = []
 	if not is_instance_valid(location):
 		return representations
@@ -448,7 +448,7 @@ func _get_furniture_representations(location: GridScene) -> Array[FurnitureRepre
 
 
 func _find_furniture_representation(
-	location: GridScene,
+	location: LocationScene,
 	instance_id: StringName
 ) -> FurnitureRepresentation:
 	for representation in _get_furniture_representations(location):
@@ -502,7 +502,7 @@ func _expect_input_facing_visual(
 	_expect(
 		representation.actor.current_cell == start_cell + expected_offset
 		and representation.position
-		== GridSpace.cell_to_center_position(start_cell + expected_offset),
+		== LocationGridSpace.cell_to_center_position(start_cell + expected_offset),
 		"Input '%s' must finish one exact cardinal Grid step." % input_action
 	)
 

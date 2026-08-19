@@ -1,4 +1,4 @@
-class_name GridSpace
+class_name LocationGridSpace
 extends RefCounted
 
 const CELL_SIZE := 32

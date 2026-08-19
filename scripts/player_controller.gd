@@ -186,12 +186,12 @@ func _is_better_interaction_candidate(
 	return false
 
 
-func _get_location(location_id: StringName) -> LocationRuntime:
+func _get_location(location_id: StringName) -> Location:
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree == null:
 		return null
-	var world_definition := tree.root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
-	return world_definition.get_location(location_id) if world_definition != null else null
+	var location_registry := tree.root.get_node_or_null("LocationRegistry") as LocationRegistry
+	return location_registry.get_location(location_id) if location_registry != null else null
 
 
 func _get_input_direction() -> Vector2i:

@@ -31,21 +31,21 @@ func _init() -> void:
 
 
 func _run_tests() -> void:
-	var world_definition := root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
-	var world_state := root.get_node_or_null("WorldState") as WorldStateRuntime
+	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
+	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
 	var entities := root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
 	_expect(root.get_node_or_null("DefinitionRegistry") == null, "DefinitionRegistry Autoload must be deleted.")
-	_expect(world_definition != null and world_definition.definitions_valid, "Project World Resource must validate.")
-	_expect(world_state != null and entities != null, "World runtime registries must exist.")
-	if world_definition == null or world_state == null or entities == null:
+	_expect(location_registry != null and location_registry.definitions_valid, "Project World Resource must validate.")
+	_expect(state_registry != null and entities != null, "World runtime registries must exist.")
+	if location_registry == null or state_registry == null or entities == null:
 		_finish()
 		return
 
 	_test_project_resources()
-	_test_project_locations(world_definition, world_state)
-	_test_sparse_location_state(world_definition, world_state, entities)
+	_test_project_locations(location_registry, state_registry)
+	_test_sparse_location_state(location_registry, state_registry, entities)
 	_test_scene_builder_current_ground(entities)
-	await _test_scene_lifecycle(world_definition, world_state, entities)
+	await _test_scene_lifecycle(location_registry, state_registry, entities)
 	_test_source_boundaries()
 	_finish()
 
@@ -65,25 +65,33 @@ func _test_project_resources() -> void:
 
 
 func _test_project_locations(
-	world_definition: WorldDefinitionRuntime,
-	world_state: WorldStateRuntime
+	location_registry: LocationRegistry,
+	state_registry: StateRegistry
 ) -> void:
-	_expect(world_state.get_location_states().size() == 3, "Project world must create three LocationStates.")
+	for spec in PROJECT_WORLD.location_instances:
+		var instance_id := location_registry.get_project_location_id(spec.key)
+		if state_registry.get_location_state(instance_id) == null:
+			state_registry.register_location_state(LocationState.new(instance_id))
+		location_registry.register(
+			Location.new(spec.definition, state_registry.get_location_state(instance_id), root.get_node("EntityRegistry") as EntityRegistryRuntime),
+			spec.key
+		)
+	_expect(state_registry.get_location_states().size() == 3, "Project world test setup must register three LocationStates.")
 	var expected_counts := {
 		&"tavern": [384, 0, 108, 3, 2],
 		&"tavern_yard": [432, 0, 114, 1, 1],
 		&"town_street": [792, 0, 284, 1, 1],
 	}
 	for spec in PROJECT_WORLD.location_instances:
-		var instance_id := world_definition.get_project_location_id(spec.key)
-		var state := world_state.get_location_state(instance_id)
-		var location := world_definition.get_location(instance_id)
+		var instance_id := location_registry.get_project_location_id(spec.key)
+		var state := state_registry.get_location_state(instance_id)
+		var location := location_registry.get_location(instance_id)
 		var counts: Array = expected_counts[spec.key]
 		_expect(UuidValidator.is_valid_v4(instance_id), "%s Location instance must retain UUID identity." % spec.key)
 		_expect(state != null and state.instance_id == instance_id, "%s LocationState must retain only instance identity." % spec.key)
 		_expect(not _has_property(state, &"definition_id"), "LocationState must not store a Definition UUID.")
 		_expect(location != null and location.definition == spec.definition, "%s Runtime must directly use its Project LocationDefinition Resource." % spec.key)
-		_expect(world_definition.get_location_definition(instance_id) == spec.definition, "%s instance spec must directly associate its LocationDefinition Resource." % spec.key)
+		_expect(location_registry.get_location_definition(instance_id) == spec.definition, "%s instance spec must directly associate its LocationDefinition Resource." % spec.key)
 		_expect(spec.definition.resource_path == "res://data/locations/%s.tres" % spec.key, "%s spec must reference its standalone LocationDefinition Resource." % spec.key)
 		_expect(spec.definition.ground_layer.size() == counts[0], "%s Ground Layer count must be preserved." % spec.key)
 		_expect(spec.definition.decoration_layer.size() == counts[1], "%s Decoration Layer count must be preserved." % spec.key)
@@ -97,8 +105,8 @@ func _test_project_locations(
 		for tile in spec.definition.structure_layer.values():
 			_expect(tile is StructureTileDefinition and not tile.resource_path.is_empty(), "Structure Cells must directly reference standalone StructureTileDefinition Resources.")
 
-	var tavern_id := world_definition.get_project_location_id(&"tavern")
-	var tavern := world_definition.get_location(tavern_id)
+	var tavern_id := location_registry.get_project_location_id(&"tavern")
+	var tavern := location_registry.get_location(tavern_id)
 	_expect(
 		tavern.get_structure_tile(Vector2i(11, 0)) == TOP_DOORWAY_LEFT
 		and tavern.get_structure_tile(Vector2i(12, 0)) == TOP_DOORWAY_RIGHT,
@@ -110,13 +118,13 @@ func _test_project_locations(
 
 
 func _test_sparse_location_state(
-	world_definition: WorldDefinitionRuntime,
-	world_state: WorldStateRuntime,
+	location_registry: LocationRegistry,
+	state_registry: StateRegistry,
 	entity_registry: EntityRegistryRuntime
 ) -> void:
-	var tavern_id := world_definition.get_project_location_id(&"tavern")
-	var state := world_state.get_location_state(tavern_id)
-	var location := world_definition.get_location(tavern_id)
+	var tavern_id := location_registry.get_project_location_id(&"tavern")
+	var state := state_registry.get_location_state(tavern_id)
+	var location := location_registry.get_location(tavern_id)
 	_expect(
 		state.ground_overrides.is_empty()
 		and state.decoration_overrides.is_empty()
@@ -161,7 +169,7 @@ func _test_sparse_location_state(
 	var added_edge := LocationEdgeDefinition.new(
 		&"c0000000-0000-4000-8000-000000000107",
 		&"state_added_edge",
-		world_definition.get_project_location_id(&"tavern_yard"),
+		location_registry.get_project_location_id(&"tavern_yard"),
 		&"tavern_entrance"
 	)
 	state.added_edges.append(added_edge)
@@ -179,7 +187,7 @@ func _test_decoration_cell_override(entity_registry: EntityRegistryRuntime) -> v
 	definition.grid_size = Vector2i.ONE
 	definition.decoration_layer[Vector2i.ZERO] = decoration
 	var state := LocationState.new(DECORATION_TEST_INSTANCE_ID)
-	var location := LocationRuntime.new(definition, state, entity_registry)
+	var location := Location.new(definition, state, entity_registry)
 	_expect(location.get_decoration_tile(Vector2i.ZERO) == decoration, "Decoration Layer must expose its direct Cell Resource.")
 	state.decoration_overrides[Vector2i.ZERO] = null
 	_expect(location.get_decoration_tile(Vector2i.ZERO) == null, "A null Decoration Cell override must remove the current Tile.")
@@ -194,13 +202,13 @@ func _test_scene_builder_current_ground(entity_registry: EntityRegistryRuntime) 
 	var state := LocationState.new(SPARSE_TEST_INSTANCE_ID)
 	var override_cell := Vector2i(1, 0)
 	state.ground_overrides[override_cell] = GRASS
-	var location := LocationRuntime.new(definition, state, entity_registry)
+	var location := Location.new(definition, state, entity_registry)
 	_expect(location.get_current_ground_layer().get(override_cell) == GRASS, "Current Ground must directly expose a sparse override Resource.")
 	var prepared := LocationSceneBuilder.new().prepare_scene(location, EntityRepresentationRegistry.create_default())
-	_expect(not prepared.is_empty(), "SceneBuilder must accept Current Ground supplied by LocationRuntime.")
+	_expect(not prepared.is_empty(), "SceneBuilder must accept Current Ground supplied by Location.")
 	if prepared.is_empty():
 		return
-	var scene := prepared["scene"] as GridScene
+	var scene := prepared["scene"] as LocationScene
 	var ground_layer := scene.get_node("GroundLayer") as TileMapLayer
 	_expect(ground_layer.get_used_cells() == [override_cell], "SceneBuilder must render a Ground override Cell absent from Definition Ground.")
 	_expect(ground_layer.tile_set == LocationSceneBuilder.WORLD_TILE_SET, "Ground Layer must use the fixed World TileSet.")
@@ -208,21 +216,21 @@ func _test_scene_builder_current_ground(entity_registry: EntityRegistryRuntime) 
 
 
 func _test_scene_lifecycle(
-	world_definition: WorldDefinitionRuntime,
-	world_state: WorldStateRuntime,
+	location_registry: LocationRegistry,
+	state_registry: StateRegistry,
 	entity_registry: EntityRegistryRuntime
 ) -> void:
-	var tavern_id := world_definition.get_project_location_id(&"tavern")
-	var yard_id := world_definition.get_project_location_id(&"tavern_yard")
-	var tavern_definition := world_definition.get_location_definition(tavern_id)
-	var tavern_state := world_state.get_location_state(tavern_id)
+	var tavern_id := location_registry.get_project_location_id(&"tavern")
+	var yard_id := location_registry.get_project_location_id(&"tavern_yard")
+	var tavern_definition := location_registry.get_location_definition(tavern_id)
+	var tavern_state := state_registry.get_location_state(tavern_id)
 	var game := MAIN_SCENE.instantiate()
 	root.add_child(game)
 	await process_frame
 	await physics_frame
 	var player := entity_registry.get_entity(PLAYER_INSTANCE_ID) as Actor
 	var chest := entity_registry.get_entity(CHEST_INSTANCE_ID) as Furniture
-	var first_scene := game.get("current_location") as GridScene
+	var first_scene := game.get("current_location") as LocationScene
 	_expect(player != null and player.definition == PLAYER_DEFINITION, "Actor must directly hold its Project ActorDefinition Resource.")
 	_expect(chest != null and chest.definition == CHEST_DEFINITION, "Furniture must directly hold its Project FurnitureDefinition Resource.")
 	_expect(not _has_property(player.state, &"definition_id"), "EntityState must not store a Definition UUID.")
@@ -235,7 +243,7 @@ func _test_scene_lifecycle(
 	var start_marker := first_scene.get_node("EntryPoints/start") as Marker2D
 	_expect(
 		start_marker != null
-		and start_marker.position == GridSpace.cell_to_center_position(Vector2i(12, 8)),
+		and start_marker.position == LocationGridSpace.cell_to_center_position(Vector2i(12, 8)),
 		"Entry markers must be positioned at the arrival Cell center by LocationSceneBuilder."
 	)
 	_expect(first_scene.get_node_or_null("Exit_front_door") is LocationExitArea, "LocationExits must generate Scene exit trigger areas.")
@@ -268,14 +276,14 @@ func _test_scene_lifecycle(
 	await _wait_for_transition(game)
 	_expect(player.current_location_id == yard_id, "Existing Location transition must work with Resource-built Locations.")
 	_expect(not is_instance_valid(first_scene) and not is_instance_valid(first_player_representation), "Leaving must unload only Scene representations.")
-	_expect(world_definition.get_location_definition(tavern_id) == tavern_definition, "LocationDefinition Resource must survive Scene unload.")
-	_expect(world_state.get_location_state(tavern_id) == tavern_state, "LocationState must survive Scene unload.")
+	_expect(location_registry.get_location_definition(tavern_id) == tavern_definition, "LocationDefinition Resource must survive Scene unload.")
+	_expect(state_registry.get_location_state(tavern_id) == tavern_state, "LocationState must survive Scene unload.")
 	_expect(player.state == player_state and chest.state == chest_state, "Entities and EntityStates must survive Scene unload.")
 
-	var yard_scene := game.get("current_location") as GridScene
+	var yard_scene := game.get("current_location") as LocationScene
 	game.call("request_location_change", &"tavern_door")
 	await _wait_for_transition(game)
-	var rebuilt_scene := game.get("current_location") as GridScene
+	var rebuilt_scene := game.get("current_location") as LocationScene
 	_expect(rebuilt_scene != first_scene and rebuilt_scene.location_id == tavern_id, "Re-entry must build a fresh Scene from current Location data.")
 	_expect(not is_instance_valid(yard_scene), "Re-entry Commit must unload the previous representation.")
 	_expect(rebuilt_scene.location.state == tavern_state, "Rebuilt Scene must reuse the persistent sparse LocationState.")
@@ -287,7 +295,7 @@ func _test_scene_lifecycle(
 func _test_source_boundaries() -> void:
 	var game_source := _read_text("res://scripts/game.gd")
 	var location_source := _read_text("res://scripts/location/location.gd")
-	var world_definition_source := _read_text("res://scripts/world_definition/world_definition.gd")
+	var location_registry_source := _read_text("res://scripts/location/location_registry.gd")
 	var entity_state_source := _read_text("res://scripts/entities/entity_state.gd")
 	var project_world_source := _read_text("res://data/world/project_world.tres")
 	for old_path in [
@@ -295,21 +303,21 @@ func _test_source_boundaries() -> void:
 		"res://scripts/definitions/definition_registry.gd",
 		"res://scripts/actors/actor_definition_loader.gd",
 		"res://scripts/furniture/furniture_definition_loader.gd",
-		"res://scripts/world_definition/project_world_data_loader.gd",
+		"res://scripts/location_registry/project_world_data_loader.gd",
 		"res://data/world/project_world.json",
 		"res://data/actors/player.json",
 		"res://data/furniture/wooden_chest.json",
 	]:
 		_expect(not FileAccess.file_exists(old_path), "Resource migration must delete '%s'." % old_path)
 	_expect(not game_source.contains("DefinitionRegistry") and not game_source.contains("DefinitionLoader"), "Game must directly consume Project Definition Resources.")
-	_expect(not location_source.contains("DefinitionRegistry") and not location_source.contains("definition_id"), "LocationRuntime must directly consume TileDefinition Resources.")
-	_expect(not world_definition_source.contains("DefinitionRegistry") and not world_definition_source.contains("definition_id"), "WorldDefinitionRuntime must directly consume ProjectWorld Resources.")
+	_expect(not location_source.contains("DefinitionRegistry") and not location_source.contains("definition_id"), "Location must directly consume TileDefinition Resources.")
+	_expect(not location_registry_source.contains("DefinitionRegistry") and not location_registry_source.contains("definition_id"), "LocationRegistry must directly consume ProjectWorld Resources.")
 	_expect(not entity_state_source.contains("definition_id"), "EntityState must not persist Definition identity.")
 	_expect(project_world_source.contains("data/locations/tavern.tres"), "ProjectWorld Resource must directly reference LocationDefinition Resources.")
-	_expect(not game_source.contains("uid://") and not world_definition_source.contains("ResourceUID"), "Business code must not manually store or resolve Resource UID strings.")
+	_expect(not game_source.contains("uid://") and not location_registry_source.contains("ResourceUID"), "Business code must not manually store or resolve Resource UID strings.")
 
 
-func _find_representation(location: GridScene, instance_id: StringName) -> Node:
+func _find_representation(location: LocationScene, instance_id: StringName) -> Node:
 	var representation_root := location.get_node_or_null("EntityRepresentationRoot")
 	if representation_root == null:
 		return null

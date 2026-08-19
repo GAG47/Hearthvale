@@ -2,7 +2,7 @@ class_name FurnitureRepresentation
 extends Node2D
 
 var furniture: Furniture
-var current_location: GridScene
+var current_location: LocationScene
 
 var instance_id: StringName:
 	get:
@@ -15,11 +15,11 @@ func get_entity() -> Entity:
 
 func prepare_furniture(
 	p_furniture: Furniture,
-	location: GridScene,
+	location: LocationScene,
 	target_cell: Vector2i
 ) -> bool:
 	if p_furniture == null or location == null:
-		push_error("FurnitureRepresentation preparation requires Furniture and target GridScene.")
+		push_error("FurnitureRepresentation preparation requires Furniture and target LocationScene.")
 		return false
 	if p_furniture.definition == null or p_furniture.state == null:
 		push_error("FurnitureRepresentation requires FurnitureDefinition and FurnitureState.")
@@ -69,7 +69,7 @@ func _configure_blocking_collision(
 			child.free()
 
 	var footprint_bounds := furniture.definition.get_footprint_bounds()
-	var footprint_center := Vector2(footprint_bounds.size * GridSpace.CELL_SIZE) * 0.5
+	var footprint_center := Vector2(footprint_bounds.size * LocationGridSpace.CELL_SIZE) * 0.5
 	var collision_index := 0
 	for local_cell in furniture.get_footprint_local_cells():
 		var collision := CollisionShape2D.new()
@@ -77,11 +77,11 @@ func _configure_blocking_collision(
 			"CollisionShape2D" if collision_index == 0 else "CollisionShape2D_%d" % collision_index
 		)
 		var rectangle := RectangleShape2D.new()
-		rectangle.size = Vector2.ONE * GridSpace.CELL_SIZE
+		rectangle.size = Vector2.ONE * LocationGridSpace.CELL_SIZE
 		collision.shape = rectangle
 		var cell_center := (
-			Vector2(local_cell - footprint_bounds.position) * GridSpace.CELL_SIZE
-			+ Vector2.ONE * GridSpace.CELL_SIZE * 0.5
+			Vector2(local_cell - footprint_bounds.position) * LocationGridSpace.CELL_SIZE
+			+ Vector2.ONE * LocationGridSpace.CELL_SIZE * 0.5
 		)
 		collision.position = cell_center - footprint_center
 		collision.disabled = not furniture.definition.blocks_movement
@@ -117,6 +117,6 @@ func _get_footprint_center_position(origin_cell: Vector2i) -> Vector2:
 	var bounds := furniture.definition.get_footprint_bounds()
 	var first_cell := origin_cell + bounds.position
 	return (
-		GridSpace.cell_to_local_position(first_cell)
-		+ Vector2(bounds.size * GridSpace.CELL_SIZE) * 0.5
+		LocationGridSpace.cell_to_local_position(first_cell)
+		+ Vector2(bounds.size * LocationGridSpace.CELL_SIZE) * 0.5
 	)

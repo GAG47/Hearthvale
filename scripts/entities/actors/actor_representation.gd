@@ -4,7 +4,7 @@ extends CharacterBody2D
 const VISUAL_DIRECTIONS: Array[String] = ["up", "down", "left", "right"]
 
 var actor: Actor
-var current_location: GridScene
+var current_location: LocationScene
 var _visual_textures: Dictionary[String, Texture2D] = {}
 
 var instance_id: StringName:
@@ -41,11 +41,11 @@ func _physics_process(_delta: float) -> void:
 
 func prepare_actor(
 	p_actor: Actor,
-	location: GridScene,
+	location: LocationScene,
 	target_cell: Vector2i
 ) -> bool:
 	if p_actor == null or location == null:
-		push_error("ActorRepresentation preparation requires an Actor and target GridScene.")
+		push_error("ActorRepresentation preparation requires an Actor and target LocationScene.")
 		return false
 	if p_actor.definition == null or p_actor.state == null:
 		push_error("ActorRepresentation requires an ActorDefinition and ActorState.")
@@ -142,11 +142,11 @@ func _get_actor_display_position(fallback_cell: Vector2i) -> Vector2:
 	var movement := _get_logical_movement()
 	var request := movement.get_request(actor) if movement != null else null
 	if request != null and request.phase == ActorMovementRequest.Phase.EXTENDED:
-		return GridSpace.cell_to_center_position(request.tail_cell).lerp(
-			GridSpace.cell_to_center_position(request.head_cell),
+		return LocationGridSpace.cell_to_center_position(request.tail_cell).lerp(
+			LocationGridSpace.cell_to_center_position(request.head_cell),
 			request.get_step_progress()
 		)
-	return GridSpace.cell_to_center_position(fallback_cell)
+	return LocationGridSpace.cell_to_center_position(fallback_cell)
 
 
 func _get_logical_movement() -> LogicalMovementRuntime:

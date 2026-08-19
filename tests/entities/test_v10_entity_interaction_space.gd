@@ -33,7 +33,7 @@ func _run_tests() -> void:
 	_test_runtime_slot_validation()
 	_test_facing_mask_semantics()
 	_test_allowed_facing()
-	_test_missing_location_runtime_rejects()
+	_test_missing_location_rejects()
 	await _test_existing_interaction_and_scene_rebuild()
 	_finish()
 
@@ -166,7 +166,7 @@ func _test_irregular_furniture_collision() -> void:
 		Vector2i(3, 3),
 		&"a0000000-0000-4000-8000-000000000119"
 	)
-	var location := GridScene.new()
+	var location := LocationScene.new()
 	location.location_id = TEST_LOCATION_ID
 	var representation := FurnitureRepresentationFactory.new().prepare(
 		furniture,
@@ -191,7 +191,7 @@ func _test_irregular_furniture_collision() -> void:
 	for collision in collisions:
 		_expect(collision.shape is RectangleShape2D, "Each Furniture footprint Cell must use RectangleShape2D.")
 		var rectangle := collision.shape as RectangleShape2D
-		_expect(rectangle.size == Vector2.ONE * GridSpace.CELL_SIZE, "Each Furniture collision Cell must use a full grid-sized rectangle.")
+		_expect(rectangle.size == Vector2.ONE * LocationGridSpace.CELL_SIZE, "Each Furniture collision Cell must use a full grid-sized rectangle.")
 		_expect(expected_positions.has(collision.position), "Furniture collision must align with a footprint Cell center.")
 		expected_positions.erase(collision.position)
 	_expect(expected_positions.is_empty(), "L-shaped collision must not include the missing bottom-right Cell.")
@@ -219,7 +219,7 @@ func _test_irregular_furniture_collision() -> void:
 		for collision in rectangular_collisions:
 			_expect(collision.shape is RectangleShape2D, "Rectangular Furniture collision must use RectangleShape2D.")
 			var rectangle := collision.shape as RectangleShape2D
-			_expect(rectangle.size == Vector2.ONE * GridSpace.CELL_SIZE, "Rectangular Furniture collision Cells must remain full-sized.")
+			_expect(rectangle.size == Vector2.ONE * LocationGridSpace.CELL_SIZE, "Rectangular Furniture collision Cells must remain full-sized.")
 		rectangular_representation.free()
 	location.free()
 
@@ -309,12 +309,24 @@ func _test_runtime_slot_validation() -> void:
 
 
 func _test_allowed_facing() -> void:
-	var world_definition := root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
-	_expect(world_definition != null, "Allowed facing test needs WorldDefinition.")
-	if world_definition == null:
+	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
+	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
+	var entity_registry := root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
+	_expect(location_registry != null, "Allowed facing test needs LocationRegistry.")
+	if location_registry == null or state_registry == null or entity_registry == null:
 		return
-	var location_id := world_definition.get_project_location_id(&"tavern")
-	var location := world_definition.get_location(location_id)
+	var location_id := location_registry.get_project_location_id(&"tavern")
+	var location_state := state_registry.get_location_state(location_id)
+	if location_state == null:
+		location_state = LocationState.new(location_id)
+		state_registry.register_location_state(location_state)
+	if location_registry.get_location(location_id) == null:
+		location_registry.register(Location.new(
+			location_registry.get_location_definition(location_id),
+			location_state,
+			entity_registry
+		), &"tavern")
+	var location := location_registry.get_location(location_id)
 	var target_origin := _find_open_pair_origin(location)
 	var target := _create_furniture(Vector2i.ONE, true, target_origin, TARGET_ID)
 	var inspectable := InspectableBehavior.new("Facing test")
@@ -347,7 +359,7 @@ func _test_allowed_facing() -> void:
 	_expect(ActionSpatialRule.evaluate(action).allowed, "Action spatial validation must accept every allowed facing.")
 
 
-func _test_missing_location_runtime_rejects() -> void:
+func _test_missing_location_rejects() -> void:
 	var actor := Actor.new(
 		PLAYER_DEFINITION,
 		ActorState.new(
@@ -358,21 +370,21 @@ func _test_missing_location_runtime_rejects() -> void:
 		)
 	)
 	var target := _create_furniture(Vector2i.ONE, true, Vector2i(3, 2), &"a0000000-0000-4000-8000-000000000117")
-	var world_definition := root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
-	if world_definition != null:
-		world_definition.name = "UnavailableWorldDefinition"
+	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
+	if location_registry != null:
+		location_registry.name = "UnavailableLocationRegistry"
 	var decision := ActionSpatialRule.evaluate(WorldAction.new(&"inspect", actor, target))
-	if world_definition != null:
-		world_definition.name = "WorldDefinition"
-	_expect(not decision.allowed, "ActionSpatialRule must reject when LocationRuntime cannot be obtained.")
-	_expect(decision.failure_code == &"location_runtime_unavailable", "Missing LocationRuntime must report an explicit unavailable failure.")
+	if location_registry != null:
+		location_registry.name = "LocationRegistry"
+	_expect(not decision.allowed, "ActionSpatialRule must reject when Location cannot be obtained.")
+	_expect(decision.failure_code == &"location_unavailable", "Missing Location must report an explicit unavailable failure.")
 
 
 func _test_existing_interaction_and_scene_rebuild() -> void:
-	var world_definition := root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
-	var world_state := root.get_node_or_null("WorldState") as WorldStateRuntime
+	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
+	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
 	var registry := root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
-	if world_definition == null or world_state == null or registry == null:
+	if location_registry == null or state_registry == null or registry == null:
 		_expect(false, "V10 integration requires project world Autoloads.")
 		return
 	var game := MAIN_SCENE.instantiate()
@@ -387,7 +399,7 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 		await process_frame
 		return
 
-	var tavern_id := world_definition.get_project_location_id(&"tavern")
+	var tavern_id := location_registry.get_project_location_id(&"tavern")
 	player.state.local_cell = Vector2i(13, 6)
 	(player.state as ActorState).facing = ActorState.Facing.RIGHT
 	_expect(chest.definition.use_slots.is_empty(), "Ordinary project Furniture must remain valid without explicit V10 data.")
@@ -395,14 +407,14 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 	_expect(controller.call("_select_interaction").get("entity") == chest, "Default UseSlots must preserve ordinary front interaction selection.")
 	_expect(ActionSpatialRule.evaluate(WorldAction.new(&"open", player, chest)).allowed, "Default UseSlots must preserve ordinary front Action validation.")
 
-	var location := world_definition.get_location(tavern_id)
+	var location := location_registry.get_location(tavern_id)
 	var foot_cell := _find_unclaimed_walkable_cell(location, player)
 	var foot_definition := SIGN_DEFINITION.duplicate(true) as FurnitureDefinition
 	foot_definition.blocks_movement = false
 	foot_definition.use_slots.clear()
 	var foot_state := FurnitureState.new(NON_BLOCKING_ID, tavern_id, foot_cell)
 	var foot_entity := Furniture.new(foot_definition, foot_state)
-	_expect(world_state.register_entity_state(foot_state), "Non-blocking test EntityState must register.")
+	_expect(state_registry.register_entity_state(foot_state), "Non-blocking test EntityState must register.")
 	_expect(registry.register_entity(foot_entity), "Non-blocking test Entity must register.")
 	player.state.local_cell = foot_cell
 	(player.state as ActorState).facing = ActorState.Facing.LEFT
@@ -428,7 +440,7 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 	priority_definition.use_slots = [unrestricted_slot, facing_slot]
 	var priority_state := FurnitureState.new(FACING_PRIORITY_ID, tavern_id, foot_cell)
 	var priority_entity := Furniture.new(priority_definition, priority_state)
-	_expect(world_state.register_entity_state(priority_state), "Facing priority test EntityState must register.")
+	_expect(state_registry.register_entity_state(priority_state), "Facing priority test EntityState must register.")
 	_expect(registry.register_entity(priority_entity), "Facing priority test Entity must register.")
 	(player.state as ActorState).facing = ActorState.Facing.RIGHT
 	var priority_selection: Dictionary = controller.call("_select_interaction")
@@ -453,7 +465,7 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 		foot_cell
 	)
 	var stable_entity := Furniture.new(stable_definition, stable_state)
-	_expect(world_state.register_entity_state(stable_state), "Stable restricted Slot test EntityState must register.")
+	_expect(state_registry.register_entity_state(stable_state), "Stable restricted Slot test EntityState must register.")
 	_expect(registry.register_entity(stable_entity), "Stable restricted Slot test Entity must register.")
 	(player.state as ActorState).facing = ActorState.Facing.RIGHT
 	priority_selection = controller.call("_select_interaction")
@@ -467,7 +479,7 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 	await _wait_for_transition(game)
 	game.call("request_location_change", &"tavern_door")
 	await _wait_for_transition(game)
-	var rebuilt_location := world_definition.get_location(tavern_id)
+	var rebuilt_location := location_registry.get_location(tavern_id)
 	var after_slots := chest.get_use_slots(&"open")
 	_expect(before_slot_cells == _slot_cells(after_slots), "UseSlot results must survive Location Scene destruction and rebuilding.")
 	_expect(before_entrance_cells == _entrance_world_cells(rebuilt_location, chest, after_slots), "SlotEntrance results must survive Location Scene destruction and rebuilding.")
@@ -510,17 +522,17 @@ func _rectangular_footprint(size: Vector2i) -> Array[Vector2i]:
 	return cells
 
 
-func _create_location(registry: EntityRegistryRuntime) -> LocationRuntime:
+func _create_location(registry: EntityRegistryRuntime) -> Location:
 	var definition := LocationDefinition.new()
 	definition.display_name = "V10 Test Location"
 	definition.grid_size = Vector2i(6, 6)
 	for y in range(definition.grid_size.y):
 		for x in range(definition.grid_size.x):
 			definition.ground_layer[Vector2i(x, y)] = GRASS
-	return LocationRuntime.new(definition, LocationState.new(TEST_LOCATION_ID), registry)
+	return Location.new(definition, LocationState.new(TEST_LOCATION_ID), registry)
 
 
-func _find_open_pair_origin(location: LocationRuntime) -> Vector2i:
+func _find_open_pair_origin(location: Location) -> Vector2i:
 	for y in range(1, location.definition.grid_size.y - 1):
 		for x in range(2, location.definition.grid_size.x - 1):
 			var origin := Vector2i(x, y)
@@ -529,7 +541,7 @@ func _find_open_pair_origin(location: LocationRuntime) -> Vector2i:
 	return Vector2i(2, 2)
 
 
-func _find_unclaimed_walkable_cell(location: LocationRuntime, actor: Actor) -> Vector2i:
+func _find_unclaimed_walkable_cell(location: Location, actor: Actor) -> Vector2i:
 	for y in range(1, location.definition.grid_size.y - 1):
 		for x in range(1, location.definition.grid_size.x - 1):
 			var cell := Vector2i(x, y)
@@ -558,7 +570,7 @@ func _slot_cells(slots: Array[UseSlot]) -> Dictionary[Vector2i, bool]:
 
 
 func _entrance_world_cells(
-	location: LocationRuntime,
+	location: Location,
 	entity: Entity,
 	slots: Array[UseSlot]
 ) -> Dictionary[Vector2i, bool]:

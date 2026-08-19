@@ -1,58 +1,9 @@
-class_name WorldStateRuntime
 extends Node
 
 # Authoritative world facts that survive Location Scene lifecycles.
 var _entity_states: Dictionary[StringName, EntityState] = {}
 var _location_states: Dictionary[StringName, LocationState] = {}
-var _world_time_state: WorldTimeState
-
-# Runtime Location registration. These Scene nodes are representations, not world facts.
-var _active_locations: Dictionary = {}
-
-
-func _ready() -> void:
-	var world_definition := get_node_or_null("/root/WorldDefinition") as WorldDefinitionRuntime
-	if world_definition == null:
-		return
-	for spec in world_definition.get_project_location_instance_specs():
-		register_location_state(LocationState.new(spec.instance_id))
-
-
-func register_location(location: GridScene) -> bool:
-	if not can_register_location(location):
-		return false
-	_activate_location(location)
-	return true
-
-
-func can_register_location(location: GridScene) -> bool:
-	if not is_instance_valid(location) or location.location_id.is_empty():
-		push_error("Every Location requires a non-empty stable location_id.")
-		return false
-
-	var location_id := location.location_id
-	var active_location := _get_active_node(_active_locations, location_id)
-	if active_location != null and active_location != location:
-		push_error("Duplicate active location_id '%s'." % location_id)
-		return false
-	return true
-
-
-func activate_prepared_location(location: GridScene) -> void:
-	_activate_location(location)
-
-
-func unregister_location(location: GridScene) -> void:
-	if not is_instance_valid(location):
-		return
-	var active_location := _get_active_node(_active_locations, location.location_id)
-	if active_location == location:
-		_active_locations.erase(location.location_id)
-
-
-func _activate_location(location: GridScene) -> void:
-	var location_id := location.location_id
-	_active_locations[location_id] = weakref(location)
+var _game_time_state: GameTimeState
 
 
 func register_entity_state(state: EntityState) -> bool:
@@ -118,28 +69,19 @@ func get_entity_states() -> Array[EntityState]:
 	return states
 
 
-func get_world_time_state() -> WorldTimeState:
-	return _world_time_state
+func get_game_time_state() -> GameTimeState:
+	return _game_time_state
 
 
-func register_world_time_state(state: WorldTimeState) -> bool:
+func register_game_time_state(state: GameTimeState) -> bool:
 	if state == null:
-		push_error("World time state registration requires a valid WorldTimeState.")
+		push_error("Game time state registration requires a valid GameTimeState.")
 		return false
-	if _world_time_state != null:
-		if _world_time_state == state:
+	if _game_time_state != null:
+		if _game_time_state == state:
 			return true
-		push_error("WorldState already has a different registered WorldTimeState.")
+		push_error("StateRegistry already has a different registered GameTimeState.")
 		return false
 
-	_world_time_state = state
+	_game_time_state = state
 	return true
-
-
-func _get_active_node(registry: Dictionary, stable_id: StringName) -> Node:
-	if not registry.has(stable_id):
-		return null
-	var reference := registry[stable_id] as WeakRef
-	if reference == null:
-		return null
-	return reference.get_ref() as Node

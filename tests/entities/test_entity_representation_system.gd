@@ -30,7 +30,7 @@ class MatchingFactory:
 		target_cell: Vector2i
 	) -> Node:
 		var representation := Node2D.new()
-		representation.position = GridSpace.cell_to_center_position(target_cell)
+		representation.position = LocationGridSpace.cell_to_center_position(target_cell)
 		return representation
 
 
@@ -64,7 +64,7 @@ func _run_tests() -> void:
 			Vector2i(5, 6)
 		)
 	)
-	var target_location := GridScene.new()
+	var target_location := LocationScene.new()
 	target_location.location_id = &"55555555-5555-4555-8555-555555555555"
 
 	_test_concrete_factories(actor, furniture, target_location)
@@ -79,7 +79,7 @@ func _run_tests() -> void:
 func _test_concrete_factories(
 	actor: Actor,
 	furniture: Furniture,
-	target_location: GridScene
+	target_location: LocationScene
 ) -> void:
 	var actor_factory := ActorRepresentationFactory.new()
 	var furniture_factory := FurnitureRepresentationFactory.new()
@@ -96,7 +96,7 @@ func _test_concrete_factories(
 		_expect(representation.get_entity() == actor, "Actor Representation must expose its Entity.")
 		_expect(representation.current_location == target_location, "Actor preparation must bind target Location.")
 		_expect(
-			representation.position == GridSpace.cell_to_center_position(actor_target_cell),
+			representation.position == LocationGridSpace.cell_to_center_position(actor_target_cell),
 			"Actor preparation must display the target Cell center."
 		)
 		_expect(
@@ -127,7 +127,7 @@ func _test_concrete_factories(
 			"Furniture preparation must bind target Location."
 		)
 		_expect(
-			representation.position == GridSpace.cell_to_center_position(furniture_target_cell),
+			representation.position == LocationGridSpace.cell_to_center_position(furniture_target_cell),
 			"Single-Cell Furniture preparation must display the target Cell center."
 		)
 		_expect(
@@ -204,13 +204,13 @@ func _test_source_boundaries() -> void:
 
 
 func _test_missing_factory_prepare_safety() -> void:
-	var world_definition := root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
-	var world_state := root.get_node_or_null("WorldState") as WorldStateRuntime
+	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
+	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
 	var entity_registry := root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
-	_expect(world_definition != null, "WorldDefinition Autoload must exist.")
-	_expect(world_state != null, "WorldState Autoload must exist.")
+	_expect(location_registry != null, "LocationRegistry Autoload must exist.")
+	_expect(state_registry != null, "StateRegistry Autoload must exist.")
 	_expect(entity_registry != null, "EntityRegistry Autoload must exist.")
-	if world_definition == null or world_state == null or entity_registry == null:
+	if location_registry == null or state_registry == null or entity_registry == null:
 		return
 
 	var game := MAIN_SCENE.instantiate()
@@ -225,15 +225,17 @@ func _test_missing_factory_prepare_safety() -> void:
 		await process_frame
 		return
 
-	var old_location: GridScene = game.get("current_location")
+	var old_location: LocationScene = game.get("current_location")
 	var old_representation := controller.controlled_representation
 	var old_state_location := player.current_location_id
 	var old_state_cell := player.current_cell
 	var old_state_facing := player.facing
-	var old_active_locations: Dictionary = world_state.get("_active_locations")
-	var old_active_reference := old_active_locations[old_location.location_id] as WeakRef
-	var tavern_id := world_definition.get_project_location_id(&"tavern")
-	var edge := world_definition.get_edge(tavern_id, &"back_door")
+	_expect(
+		not _has_property(state_registry, &"_active_locations"),
+		"StateRegistry must not maintain a Location Scene registry."
+	)
+	var tavern_id := location_registry.get_project_location_id(&"tavern")
+	var edge := location_registry.get_edge(tavern_id, &"back_door")
 	game.set("representation_registry", EntityRepresentationRegistry.new())
 	var change_result: Variant = game.call(
 		"_replace_location",
@@ -255,16 +257,6 @@ func _test_missing_factory_prepare_safety() -> void:
 		and player.facing == old_state_facing,
 		"Prepare failure must preserve authoritative ActorState."
 	)
-	var current_active_locations: Dictionary = world_state.get("_active_locations")
-	var current_active_reference := (
-		current_active_locations[old_location.location_id] as WeakRef
-	)
-	_expect(
-		old_active_reference != null
-		and current_active_reference != null
-		and current_active_reference.get_ref() == old_active_reference.get_ref(),
-		"Prepare failure must preserve WorldState active Location."
-	)
 	_expect(
 		is_instance_valid(old_location)
 		and old_location.is_inside_tree()
@@ -275,6 +267,13 @@ func _test_missing_factory_prepare_safety() -> void:
 
 	game.queue_free()
 	await process_frame
+
+
+func _has_property(object: Object, property_name: StringName) -> bool:
+	for property in object.get_property_list():
+		if property["name"] == property_name:
+			return true
+	return false
 
 
 func _read_text(path: String) -> String:

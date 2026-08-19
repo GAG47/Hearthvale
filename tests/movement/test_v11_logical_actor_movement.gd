@@ -8,8 +8,8 @@ const CHEST_INSTANCE_ID := &"5543caf7-2a10-4a40-84de-3a39ffdf670e"
 
 var _checks := 0
 var _failures := 0
-var _world_definition: WorldDefinitionRuntime
-var _world_state: WorldStateRuntime
+var _location_registry: LocationRegistry
+var _state_registry: StateRegistry
 var _registry: EntityRegistryRuntime
 var _movement: LogicalMovementRuntime
 
@@ -19,15 +19,15 @@ func _init() -> void:
 
 
 func _run_tests() -> void:
-	_world_definition = root.get_node_or_null("WorldDefinition") as WorldDefinitionRuntime
-	_world_state = root.get_node_or_null("WorldState") as WorldStateRuntime
+	_location_registry = root.get_node_or_null("LocationRegistry") as LocationRegistry
+	_state_registry = root.get_node_or_null("StateRegistry") as StateRegistry
 	_registry = root.get_node_or_null("EntityRegistry") as EntityRegistryRuntime
 	_movement = root.get_node_or_null("LogicalMovement") as LogicalMovementRuntime
-	_expect(_world_definition != null, "V11.2 tests require WorldDefinition.")
-	_expect(_world_state != null, "V11.2 tests require WorldState.")
+	_expect(_location_registry != null, "V11.2 tests require LocationRegistry.")
+	_expect(_state_registry != null, "V11.2 tests require StateRegistry.")
 	_expect(_registry != null, "V11.2 tests require EntityRegistry.")
 	_expect(_movement != null, "V11.2 tests require LogicalMovement.")
-	if _world_definition == null or _world_state == null or _registry == null or _movement == null:
+	if _location_registry == null or _state_registry == null or _registry == null or _movement == null:
 		_finish()
 		return
 	_movement.set_physics_process(false)
@@ -135,8 +135,12 @@ func _test_formal_grid_step_and_occupancy() -> void:
 		"An extended request must expose elapsed, duration, and normalized progress."
 	)
 	_expect(
-		location.select_arrival_cell(entry).get("cell") == Vector2i(3, 1),
-		"Location Entry must avoid a truly occupied extended head."
+		location.select_arrival_cell(entry).get("cell") == request.head_cell,
+		"Location static arrival validation must not include transient Actor occupancy."
+	)
+	_expect(
+		_movement.is_actor_cell_occupied(location_id, request.head_cell),
+		"LogicalMovement must report the extended head as hard Actor occupancy."
 	)
 
 	for progress_delta in [0.125, 0.125, 0.245]:
@@ -270,7 +274,7 @@ func _test_player_controller_uses_logical_movement() -> void:
 		"PlayerController must bind an ordinary Actor and shared ActorRepresentation."
 	)
 	_expect(
-		representation.position == GridSpace.cell_to_center_position(player.current_cell),
+		representation.position == LocationGridSpace.cell_to_center_position(player.current_cell),
 		"A contracted ActorRepresentation must begin at the committed Cell center."
 	)
 	var controller_source := FileAccess.get_file_as_string("res://scripts/player_controller.gd")
@@ -300,11 +304,11 @@ func _test_player_controller_uses_logical_movement() -> void:
 		and request.head_cell == start_cell + Vector2i.RIGHT,
 		"The controlled Actor must enter the shared Grid extended phase."
 	)
-	var half_step := GridSpace.CELL_SIZE / player.definition.move_speed * 0.5
+	var half_step := LocationGridSpace.CELL_SIZE / player.definition.move_speed * 0.5
 	_movement.advance(half_step)
 	await physics_frame
-	var expected_half_position := GridSpace.cell_to_center_position(start_cell).lerp(
-		GridSpace.cell_to_center_position(start_cell + Vector2i.RIGHT),
+	var expected_half_position := LocationGridSpace.cell_to_center_position(start_cell).lerp(
+		LocationGridSpace.cell_to_center_position(start_cell + Vector2i.RIGHT),
 		0.5
 	)
 	_expect(
@@ -318,7 +322,7 @@ func _test_player_controller_uses_logical_movement() -> void:
 	await physics_frame
 	_expect(
 		player.current_cell == start_cell + Vector2i.RIGHT
-		and representation.position == GridSpace.cell_to_center_position(player.current_cell),
+		and representation.position == LocationGridSpace.cell_to_center_position(player.current_cell),
 		"Player movement must finish exactly one Cell after input release."
 	)
 	_expect(
@@ -333,7 +337,7 @@ func _test_player_controller_uses_logical_movement() -> void:
 		var interaction_cell := Vector2i(13, 6)
 		player.state.local_cell = interaction_cell
 		(player.state as ActorState).facing = ActorState.Facing.UP
-		representation.position = GridSpace.cell_to_center_position(interaction_cell)
+		representation.position = LocationGridSpace.cell_to_center_position(interaction_cell)
 		Input.action_press(&"ui_right")
 		await physics_frame
 		Input.action_release(&"ui_right")
@@ -734,8 +738,8 @@ func _test_scene_unload_and_rebuild() -> void:
 	_movement.advance(0.0)
 	_movement.advance(0.25)
 	await physics_frame
-	var quarter_position := GridSpace.cell_to_center_position(Vector2i(1, 1)).lerp(
-		GridSpace.cell_to_center_position(Vector2i(2, 1)),
+	var quarter_position := LocationGridSpace.cell_to_center_position(Vector2i(1, 1)).lerp(
+		LocationGridSpace.cell_to_center_position(Vector2i(2, 1)),
 		0.25
 	)
 	_expect(
@@ -780,7 +784,7 @@ func _test_scene_unload_and_rebuild() -> void:
 	var final_representation := _find_actor_representation(final_scene, actor.instance_id)
 	_expect(
 		final_representation != null
-		and final_representation.position == GridSpace.cell_to_center_position(actor.current_cell),
+		and final_representation.position == LocationGridSpace.cell_to_center_position(actor.current_cell),
 		"Rebuilt contracted Representation must restore the committed Cell center."
 	)
 	final_scene.queue_free()
@@ -806,7 +810,7 @@ func _test_removed_resolver_mechanisms() -> void:
 	)
 	var entity_state_source := FileAccess.get_file_as_string("res://scripts/entities/entity_state.gd")
 	var entity_source := FileAccess.get_file_as_string("res://scripts/entities/entity.gd")
-	var grid_source := FileAccess.get_file_as_string("res://scripts/location/grid_space.gd")
+	var grid_source := FileAccess.get_file_as_string("res://scripts/location/location_grid_space.gd")
 	var furniture_representation_source := FileAccess.get_file_as_string(
 		"res://scripts/furniture/furniture_representation.gd"
 	)
@@ -846,7 +850,7 @@ func _test_removed_resolver_mechanisms() -> void:
 		"LocationEntry must expose logical arrival Cells only, without pixel Presentation conversion."
 	)
 	_expect(
-		scene_builder_source.contains("GridSpace.cell_to_center_position(entry.arrival_cells[arrival_index])"),
+		scene_builder_source.contains("LocationGridSpace.cell_to_center_position(entry.arrival_cells[arrival_index])"),
 		"LocationSceneBuilder must own Entry Cell-to-Pixel marker conversion."
 	)
 	_expect(
@@ -880,7 +884,7 @@ func _create_location(
 	location_id: StringName,
 	grid_size: Vector2i,
 	blocked_cells: Array[Vector2i] = []
-) -> LocationRuntime:
+) -> Location:
 	var definition := LocationDefinition.new()
 	definition.display_name = "V11.2 Test Location"
 	definition.grid_size = grid_size
@@ -891,14 +895,14 @@ func _create_location(
 		var blocker := StructureTileDefinition.new()
 		blocker.blocks_movement = true
 		definition.structure_layer[cell] = blocker
-	var definitions: Dictionary = _world_definition.get("_definitions_by_location")
+	var definitions: Dictionary = _location_registry.get("_definitions_by_location")
 	definitions[location_id] = definition
 	_expect(
-		_world_state.register_location_state(LocationState.new(location_id)),
+		_state_registry.register_location_state(LocationState.new(location_id)),
 		"V11.2 test LocationState must register."
 	)
-	var location := _world_definition.get_location(location_id)
-	_expect(location != null, "V11.2 test LocationRuntime must resolve.")
+	var location := _location_registry.get_location(location_id)
+	_expect(location != null, "V11.2 test Location must resolve.")
 	return location
 
 
@@ -917,27 +921,27 @@ func _create_actor(
 		ActorState.Facing.DOWN
 	)
 	var actor := Actor.new(definition, state)
-	_expect(_world_state.register_entity_state(state), "V11.2 test ActorState must register.")
+	_expect(_state_registry.register_entity_state(state), "V11.2 test ActorState must register.")
 	_expect(_registry.register_entity(actor), "V11.2 test Actor must register.")
 	return actor
 
 
-func _build_location_scene(location: LocationRuntime) -> GridScene:
+func _build_location_scene(location: Location) -> LocationScene:
 	var prepared := LocationSceneBuilder.new().prepare_scene(
 		location,
 		EntityRepresentationRegistry.create_default()
 	)
 	if prepared.is_empty():
 		return null
-	var scene := prepared["scene"] as GridScene
-	if not scene.prepare_activation(_world_state, location):
+	var scene := prepared["scene"] as LocationScene
+	if not scene.prepare_activation(location):
 		scene.free()
 		return null
 	return scene
 
 
 func _find_actor_representation(
-	location_scene: GridScene,
+	location_scene: LocationScene,
 	instance_id: StringName
 ) -> ActorRepresentation:
 	var representation_root := location_scene.get_node_or_null("EntityRepresentationRoot")

@@ -1,4 +1,3 @@
-class_name WorldTimeRuntime
 extends Node
 
 signal time_changed(previous_total_minutes: int, current_total_minutes: int)
@@ -8,27 +7,27 @@ signal day_changed(previous_day_index: int, current_day_index: int, days_crossed
 
 const REAL_SECONDS_PER_GAME_MINUTE := 1.0
 
-var _state: WorldTimeState
+var _state: GameTimeState
 var _real_seconds_accumulator := 0.0
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
 
-	var world_state := get_node_or_null("/root/WorldState") as WorldStateRuntime
-	if world_state == null:
-		push_error("WorldState Autoload is required before WorldTime.")
+	var state_registry := get_node_or_null("/root/StateRegistry") as StateRegistry
+	if state_registry == null:
+		push_error("StateRegistry Autoload is required before GameClock.")
 		set_process(false)
 		return
 
-	_state = world_state.get_world_time_state()
+	_state = state_registry.get_game_time_state()
 	if _state == null:
-		var initial_state := WorldTimeState.new(WorldCalendar.INITIAL_TOTAL_MINUTES)
-		if world_state.register_world_time_state(initial_state):
+		var initial_state := GameTimeState.new(GameCalendar.INITIAL_TOTAL_MINUTES)
+		if state_registry.register_game_time_state(initial_state):
 			_state = initial_state
 
 	if _state == null:
-		push_error("WorldTime could not bind the authoritative WorldTimeState.")
+		push_error("GameClock could not bind the authoritative GameTimeState.")
 		set_process(false)
 
 
@@ -47,10 +46,10 @@ func _process(delta: float) -> void:
 
 func advance_minutes(minutes: int) -> bool:
 	if _state == null:
-		push_error("Cannot advance world time without WorldTimeState.")
+		push_error("Cannot advance game time without GameTimeState.")
 		return false
 	if minutes < 0:
-		push_error("World time cannot move backwards by %d minutes." % minutes)
+		push_error("Game time cannot move backwards by %d minutes." % minutes)
 		return false
 	if minutes == 0:
 		return true
@@ -63,7 +62,7 @@ func advance_minutes(minutes: int) -> bool:
 
 
 func advance_to(year: int, month: int, day: int, hour: int, minute: int) -> bool:
-	var target_total_minutes := WorldCalendar.to_total_minutes(year, month, day, hour, minute)
+	var target_total_minutes := GameCalendar.to_total_minutes(year, month, day, hour, minute)
 	if target_total_minutes < 0:
 		push_error(
 			"Invalid Hearthvale date/time: year %d, month %d, day %d, %02d:%02d."
@@ -75,11 +74,11 @@ func advance_to(year: int, month: int, day: int, hour: int, minute: int) -> bool
 
 func advance_to_total_minutes(target_total_minutes: int) -> bool:
 	if _state == null:
-		push_error("Cannot advance world time without WorldTimeState.")
+		push_error("Cannot advance game time without GameTimeState.")
 		return false
 	if target_total_minutes < _state.total_minutes:
 		push_error(
-			"World time cannot move backwards from %d to %d total minutes."
+			"Game time cannot move backwards from %d to %d total minutes."
 			% [_state.total_minutes, target_total_minutes]
 		)
 		return false
@@ -88,19 +87,19 @@ func advance_to_total_minutes(target_total_minutes: int) -> bool:
 
 func advance_to_next_day_at(hour: int, minute: int) -> bool:
 	if _state == null:
-		push_error("Cannot advance world time without WorldTimeState.")
+		push_error("Cannot advance game time without GameTimeState.")
 		return false
-	if hour < 0 or hour >= WorldCalendar.HOURS_PER_DAY:
+	if hour < 0 or hour >= GameCalendar.HOURS_PER_DAY:
 		push_error("Next-day target hour must be between 0 and 23.")
 		return false
-	if minute < 0 or minute >= WorldCalendar.MINUTES_PER_HOUR:
+	if minute < 0 or minute >= GameCalendar.MINUTES_PER_HOUR:
 		push_error("Next-day target minute must be between 0 and 59.")
 		return false
 
-	var next_day_index := WorldCalendar.get_day_index(_state.total_minutes) + 1
+	var next_day_index := GameCalendar.get_day_index(_state.total_minutes) + 1
 	var target_total_minutes := (
-		next_day_index * WorldCalendar.MINUTES_PER_DAY
-		+ hour * WorldCalendar.MINUTES_PER_HOUR
+		next_day_index * GameCalendar.MINUTES_PER_DAY
+		+ hour * GameCalendar.MINUTES_PER_HOUR
 		+ minute
 	)
 	return advance_to_total_minutes(target_total_minutes)
@@ -111,47 +110,47 @@ func get_total_minutes() -> int:
 
 
 func get_year() -> int:
-	return WorldCalendar.get_year(get_total_minutes())
+	return GameCalendar.get_year(get_total_minutes())
 
 
 func get_month() -> int:
-	return WorldCalendar.get_month(get_total_minutes())
+	return GameCalendar.get_month(get_total_minutes())
 
 
 func get_day() -> int:
-	return WorldCalendar.get_day(get_total_minutes())
+	return GameCalendar.get_day(get_total_minutes())
 
 
 func get_hour() -> int:
-	return WorldCalendar.get_hour(get_total_minutes())
+	return GameCalendar.get_hour(get_total_minutes())
 
 
 func get_minute() -> int:
-	return WorldCalendar.get_minute(get_total_minutes())
+	return GameCalendar.get_minute(get_total_minutes())
 
 
-func get_weekday() -> WorldCalendar.Weekday:
-	return WorldCalendar.get_weekday(get_total_minutes())
+func get_weekday() -> GameCalendar.Weekday:
+	return GameCalendar.get_weekday(get_total_minutes())
 
 
 func get_weekday_name() -> String:
-	return WorldCalendar.get_weekday_name(get_total_minutes())
+	return GameCalendar.get_weekday_name(get_total_minutes())
 
 
-func get_season() -> WorldCalendar.Season:
-	return WorldCalendar.get_season(get_total_minutes())
+func get_season() -> GameCalendar.Season:
+	return GameCalendar.get_season(get_total_minutes())
 
 
 func get_season_name() -> String:
-	return WorldCalendar.get_season_name(get_total_minutes())
+	return GameCalendar.get_season_name(get_total_minutes())
 
 
 func _emit_time_crossings(previous_total_minutes: int, current_total_minutes: int) -> void:
 	var minutes_crossed := current_total_minutes - previous_total_minutes
 	minute_changed.emit(previous_total_minutes, current_total_minutes, minutes_crossed)
 
-	var previous_hour_index := previous_total_minutes / WorldCalendar.MINUTES_PER_HOUR
-	var current_hour_index := current_total_minutes / WorldCalendar.MINUTES_PER_HOUR
+	var previous_hour_index := previous_total_minutes / GameCalendar.MINUTES_PER_HOUR
+	var current_hour_index := current_total_minutes / GameCalendar.MINUTES_PER_HOUR
 	if current_hour_index > previous_hour_index:
 		hour_changed.emit(
 			previous_hour_index,
@@ -159,8 +158,8 @@ func _emit_time_crossings(previous_total_minutes: int, current_total_minutes: in
 			current_hour_index - previous_hour_index
 		)
 
-	var previous_day_index := WorldCalendar.get_day_index(previous_total_minutes)
-	var current_day_index := WorldCalendar.get_day_index(current_total_minutes)
+	var previous_day_index := GameCalendar.get_day_index(previous_total_minutes)
+	var current_day_index := GameCalendar.get_day_index(current_total_minutes)
 	if current_day_index > previous_day_index:
 		day_changed.emit(
 			previous_day_index,

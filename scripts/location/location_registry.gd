@@ -1,4 +1,3 @@
-class_name WorldDefinitionRuntime
 extends Node
 
 const PROJECT_WORLD: ProjectWorld = preload("res://data/world/project_world.tres")
@@ -8,11 +7,13 @@ var definitions_valid := false
 var _definitions_by_location: Dictionary[StringName, LocationDefinition] = {}
 var _location_ids_by_project_key: Dictionary[StringName, StringName] = {}
 var _project_location_instance_specs: Array[ProjectLocationInstanceSpec] = []
+var _locations: Dictionary[StringName, Location] = {}
+var _project_keys_by_location: Dictionary[StringName, StringName] = {}
 
 
 func _ready() -> void:
 	if PROJECT_WORLD == null:
-		push_error("WorldDefinition requires the ProjectWorld Resource.")
+		push_error("LocationRegistry requires the ProjectWorld Resource.")
 		return
 	for spec in PROJECT_WORLD.location_instances:
 		_project_location_instance_specs.append(spec)
@@ -20,18 +21,57 @@ func _ready() -> void:
 			continue
 		_definitions_by_location[spec.instance_id] = spec.definition
 		_location_ids_by_project_key[spec.key] = spec.instance_id
-	definitions_valid = validate_world_data()
+		_project_keys_by_location[spec.instance_id] = spec.key
+	definitions_valid = validate_project_data()
 	if not definitions_valid:
-		push_error("WorldDefinition initialization failed; Location queries are unavailable.")
+		push_error("LocationRegistry initialization failed; project Location lookup is unavailable.")
+
+
+func register(location: Location, project_key: StringName = &"") -> bool:
+	if location == null or not location.is_valid():
+		push_error("LocationRegistry can only register a valid Location.")
+		return false
+	if _locations.has(location.instance_id):
+		if _locations[location.instance_id] == location:
+			if not project_key.is_empty():
+				_location_ids_by_project_key[project_key] = location.instance_id
+				_project_keys_by_location[location.instance_id] = project_key
+			return true
+		push_error("Location '%s' already has a different registered Location." % location.instance_id)
+		return false
+	_locations[location.instance_id] = location
+	if not project_key.is_empty():
+		_location_ids_by_project_key[project_key] = location.instance_id
+		_project_keys_by_location[location.instance_id] = project_key
+	elif _project_keys_by_location.has(location.instance_id):
+		_location_ids_by_project_key[_project_keys_by_location[location.instance_id]] = location.instance_id
+	return true
+
+
+func has(location_id: StringName) -> bool:
+	return _locations.has(location_id)
+
+
+func _get(property: StringName) -> Variant:
+	return _locations.get(property)
+
+
+func get_all() -> Array[Location]:
+	var locations: Array[Location] = []
+	var ids := _locations.keys()
+	ids.sort()
+	for location_id in ids:
+		locations.append(_locations[location_id])
+	return locations
 
 
 func has_location(location_id: StringName) -> bool:
-	return definitions_valid and _definitions_by_location.has(location_id)
+	return has(location_id) or _definitions_by_location.has(location_id)
 
 
 func get_project_location_id(key: StringName) -> StringName:
 	if not _location_ids_by_project_key.has(key):
-		push_error("WorldDefinition has no project Location key '%s'." % key)
+		push_error("LocationRegistry has no project Location key '%s'." % key)
 		return &""
 	return _location_ids_by_project_key[key]
 
@@ -41,45 +81,42 @@ func get_project_location_instance_specs() -> Array[ProjectLocationInstanceSpec]
 
 
 func get_location_definition(location_id: StringName) -> LocationDefinition:
-	if not has_location(location_id):
-		push_error("WorldDefinition has no Location instance_id '%s'." % location_id)
+	if not _definitions_by_location.has(location_id):
+		push_error("LocationRegistry has no Location instance_id '%s'." % location_id)
 		return null
 	return _definitions_by_location[location_id]
 
 
-func get_location(location_id: StringName) -> LocationRuntime:
-	var location_definition := get_location_definition(location_id)
+func get_location(location_id: StringName) -> Location:
+	if _locations.has(location_id):
+		return _locations[location_id] as Location
+	var location_definition: LocationDefinition = _definitions_by_location.get(location_id) as LocationDefinition
 	if location_definition == null:
 		return null
-	var world_state := get_node_or_null("/root/WorldState") as WorldStateRuntime
+	var state_registry := get_node_or_null("/root/StateRegistry")
 	var entity_registry := get_node_or_null("/root/EntityRegistry") as EntityRegistryRuntime
-	var movement_runtime := get_node_or_null("/root/LogicalMovement") as LogicalMovementRuntime
-	if world_state == null or entity_registry == null:
-		push_error("Location Runtime requires WorldState and EntityRegistry.")
+	if state_registry == null or entity_registry == null:
 		return null
-	var state := world_state.get_location_state(location_id)
-	if state == null:
-		push_error("Location instance_id '%s' has no LocationState." % location_id)
+	var location_state: LocationState = state_registry.get_location_state(location_id) as LocationState
+	if location_state == null:
 		return null
-	var location := LocationRuntime.new(
-		location_definition,
-		state,
-		entity_registry,
-		movement_runtime
-	)
-	return location if location.is_valid() else null
+	var location := Location.new(location_definition, location_state, entity_registry)
+	var project_key: StringName = _project_keys_by_location.get(location_id, &"") as StringName
+	if not register(location, project_key):
+		return null
+	return location
 
 
 func get_outgoing_edges(location_id: StringName) -> Array[LocationEdgeDefinition]:
-	var location := get_location(location_id)
+	var location: Location = get_location(location_id)
 	return location.get_current_edges() if location != null else []
 
 
 func get_edge(location_id: StringName, edge_key: StringName) -> LocationEdgeDefinition:
-	var location := get_location(location_id)
+	var location: Location = get_location(location_id)
 	if location == null:
 		return null
-	var edge := location.get_edge(edge_key)
+	var edge: LocationEdgeDefinition = location.get_edge(edge_key)
 	if edge == null:
 		push_error(
 			"Location '%s' has no enabled outgoing edge with edge_key '%s'."
@@ -89,7 +126,7 @@ func get_edge(location_id: StringName, edge_key: StringName) -> LocationEdgeDefi
 
 
 func get_target_entry(
-	target_location: LocationRuntime,
+	target_location: Location,
 	from_location_id: StringName,
 	edge: LocationEdgeDefinition
 ) -> LocationEntry:
@@ -110,7 +147,7 @@ func get_target_entry(
 	return entry
 
 
-func validate_world_data() -> bool:
+func validate_project_data() -> bool:
 	var valid := true
 	var known_locations: Dictionary[StringName, bool] = {}
 	var known_keys: Dictionary[StringName, bool] = {}
