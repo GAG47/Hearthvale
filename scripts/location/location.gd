@@ -124,6 +124,13 @@ func get_current_exits() -> Array[LocationExit]:
 	return definition.exits.duplicate()
 
 
+func get_exit_at(cell: Vector2i) -> LocationExit:
+	for location_exit in get_current_exits():
+		if location_exit.cell_rect.has_point(cell):
+			return location_exit
+	return null
+
+
 func get_entities() -> Array[Entity]:
 	return entity_registry.get_entities_in_location(instance_id)
 

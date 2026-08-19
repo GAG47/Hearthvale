@@ -26,7 +26,7 @@ func _run_tests() -> void:
 	_test_default_blocking_slots()
 	_test_default_two_by_two_slots()
 	_test_irregular_footprint_slots()
-	_test_irregular_furniture_collision()
+	_test_furniture_representation_has_no_movement_collision()
 	_test_non_blocking_footprint_slots()
 	_test_explicit_action_slots()
 	_test_slot_entrances_and_movement()
@@ -158,7 +158,7 @@ func _test_facing_mask_semantics() -> void:
 	_expect(not all_slot.is_facing_allowed(ActorState.Facing.NONE), "ALL_FACINGS must reject the non-facing sentinel.")
 
 
-func _test_irregular_furniture_collision() -> void:
+func _test_furniture_representation_has_no_movement_collision() -> void:
 	var footprint: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1)]
 	var furniture := _create_furniture_with_footprint(
 		footprint,
@@ -177,51 +177,23 @@ func _test_irregular_furniture_collision() -> void:
 	if representation == null:
 		location.free()
 		return
-	var blocking_body := representation.get_node("BlockingBody") as StaticBody2D
-	var collisions: Array[CollisionShape2D] = []
-	for child in blocking_body.get_children():
-		if child is CollisionShape2D:
-			collisions.append(child as CollisionShape2D)
-	_expect(collisions.size() == 3, "Physics collision must contain one shape per L-shaped footprint Cell.")
-	var expected_positions := {
-		Vector2(-16.0, -16.0): true,
-		Vector2(16.0, -16.0): true,
-		Vector2(-16.0, 16.0): true,
-	}
-	for collision in collisions:
-		_expect(collision.shape is RectangleShape2D, "Each Furniture footprint Cell must use RectangleShape2D.")
-		var rectangle := collision.shape as RectangleShape2D
-		_expect(rectangle.size == Vector2.ONE * LocationGridSpace.CELL_SIZE, "Each Furniture collision Cell must use a full grid-sized rectangle.")
-		_expect(expected_positions.has(collision.position), "Furniture collision must align with a footprint Cell center.")
-		expected_positions.erase(collision.position)
-	_expect(expected_positions.is_empty(), "L-shaped collision must not include the missing bottom-right Cell.")
-	representation.free()
-
-	var rectangular_furniture := _create_furniture(
-		Vector2i(2, 2),
-		true,
-		Vector2i(3, 3),
-		&"a0000000-0000-4000-8000-000000000120"
+	_expect(
+		representation.get_node_or_null("Blocking" + "Body") == null
+		and _find_descendant_physics_node(representation) == null,
+		"FurnitureRepresentation must not duplicate logical footprint blocking with Physics nodes."
 	)
-	var rectangular_representation := FurnitureRepresentationFactory.new().prepare(
-		rectangular_furniture,
-		location,
-		rectangular_furniture.current_cell
-	) as FurnitureRepresentation
-	_expect(rectangular_representation != null, "A rectangular Furniture Representation must prepare successfully.")
-	if rectangular_representation != null:
-		var rectangular_body := rectangular_representation.get_node("BlockingBody") as StaticBody2D
-		var rectangular_collisions: Array[CollisionShape2D] = []
-		for child in rectangular_body.get_children():
-			if child is CollisionShape2D:
-				rectangular_collisions.append(child as CollisionShape2D)
-		_expect(rectangular_collisions.size() == 4, "A 2x2 Furniture must retain one full collision per footprint Cell.")
-		for collision in rectangular_collisions:
-			_expect(collision.shape is RectangleShape2D, "Rectangular Furniture collision must use RectangleShape2D.")
-			var rectangle := collision.shape as RectangleShape2D
-			_expect(rectangle.size == Vector2.ONE * LocationGridSpace.CELL_SIZE, "Rectangular Furniture collision Cells must remain full-sized.")
-		rectangular_representation.free()
+	representation.free()
 	location.free()
+
+
+func _find_descendant_physics_node(node: Node) -> Node:
+	for child in node.get_children():
+		if child is PhysicsBody2D or child.get_class() == "Collision" + "Shape2D":
+			return child
+		var nested := _find_descendant_physics_node(child)
+		if nested != null:
+			return nested
+	return null
 
 
 func _test_explicit_action_slots() -> void:

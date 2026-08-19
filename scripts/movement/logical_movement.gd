@@ -1,5 +1,7 @@
 extends Node
 
+signal step_completed(actor: Actor)
+
 const DIRECTIONS: Array[Vector2i] = [
 	Vector2i.UP,
 	Vector2i.RIGHT,
@@ -228,7 +230,7 @@ func _can_accept_actor(actor: Actor) -> bool:
 		and actor.definition != null
 		and actor.state != null
 		and not actor.current_location_id.is_empty()
-		and actor.definition.move_speed > 0.0
+		and actor.definition.move_step_duration > 0.0
 		and _entity_registry != null
 		and _entity_registry.has_entity(actor.instance_id)
 		and _entity_registry.get_entity(actor.instance_id) == actor
@@ -250,6 +252,7 @@ func _remove_invalid_requests() -> void:
 
 func _advance_extended(delta: float) -> void:
 	var completed_ids: Array[StringName] = []
+	var completed_actors: Array[Actor] = []
 	for actor_id in _requests:
 		var request := _requests[actor_id]
 		if request.phase != ActorMovementRequest.Phase.EXTENDED:
@@ -261,6 +264,7 @@ func _advance_extended(delta: float) -> void:
 		if request.step_elapsed < request.step_duration:
 			continue
 		request.actor.state.local_cell = request.head_cell
+		completed_actors.append(request.actor)
 		request.tail_cell = request.head_cell
 		request.head_cell = request.tail_cell
 		request.phase = ActorMovementRequest.Phase.CONTRACTED
@@ -276,6 +280,8 @@ func _advance_extended(delta: float) -> void:
 			_reset_request(request)
 	for actor_id in completed_ids:
 		_remove_request(actor_id)
+	for actor in completed_actors:
+		step_completed.emit(actor)
 
 
 func _ensure_direction_requests() -> void:
@@ -423,10 +429,7 @@ func _backtrack_to_parent(request: ActorMovementRequest) -> void:
 func _start_extended(request: ActorMovementRequest) -> void:
 	request.phase = ActorMovementRequest.Phase.EXTENDED
 	request.step_elapsed = 0.0
-	request.step_duration = (
-		float(LocationGridSpace.CELL_SIZE)
-		/ maxf(request.actor.definition.move_speed, 0.001)
-	)
+	request.step_duration = request.actor.definition.move_step_duration
 	_set_actor_facing(request.actor, request.head_cell - request.tail_cell)
 
 

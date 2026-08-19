@@ -70,6 +70,11 @@ func _ready() -> void:
 	if entity_registry == null:
 		push_error("EntityRegistry Autoload is required before loading Game.")
 		return
+	var movement := get_node_or_null("/root/LogicalMovement") as LogicalMovement
+	if movement == null:
+		push_error("LogicalMovement Autoload is required before loading Game.")
+		return
+	movement.step_completed.connect(_on_logical_movement_step_completed)
 	if not _initialize_project_locations():
 		return
 	if not _initialize_furniture_entities():
@@ -322,6 +327,22 @@ func _on_player_action_completed(result: ActionResult) -> void:
 	action_result_label.text = result.message
 	action_result_label.modulate = Color("#f3dfad") if result.success else Color("#f1a38f")
 	action_result_timer.start()
+
+
+func _on_logical_movement_step_completed(actor: Actor) -> void:
+	if (
+		actor == null
+		or actor != player_controller.controlled_actor
+		or current_location == null
+		or actor.current_location_id != current_location.location_id
+	):
+		return
+	var location := location_registry.get_location(actor.current_location_id)
+	if location == null or current_location.location != location:
+		return
+	var location_exit := location.get_exit_at(actor.current_cell)
+	if location_exit != null:
+		request_location_change(location_exit.edge_key)
 
 
 func _on_action_result_timer_timeout() -> void:

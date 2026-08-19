@@ -162,14 +162,10 @@ func _run_tests() -> void:
 		representation.scene_file_path == ACTOR_REPRESENTATION_SCENE_PATH,
 		"Player must use the shared ActorRepresentation Scene."
 	)
-	_expect(representation.is_in_group(&"player"), "Controlled Representation must carry player group.")
 	_expect(
-		representation.get_node_or_null("CollisionShape2D") is CollisionShape2D,
-		"ActorRepresentation collision must be preserved."
-	)
-	_expect(
-		representation.collision_layer == 1 and representation.collision_mask == 1,
-		"ActorRepresentation collision layer and mask must be preserved."
+		representation.get_class() == "Node2D"
+		and representation.get_node_or_null("Collision" + "Shape2D") == null,
+		"ActorRepresentation must be a collision-free Node2D presentation."
 	)
 	_expect(representation.get_node_or_null("Camera2D") == null, "Camera must remain outside ActorRepresentation.")
 	_expect(

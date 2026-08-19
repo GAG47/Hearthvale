@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="ActorDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/actors/actor_definition.gd" id="1_lfdl5"]
+[ext_resource type="Script" path="res://scripts/entities/actors/actor_definition.gd" id="1_lfdl5"]
 [ext_resource type="Texture2D" path="res://assets/actors/player_down.svg" id="2_3vj8c"]
 [ext_resource type="Texture2D" path="res://assets/actors/player_left.svg" id="3_pkb5j"]
 [ext_resource type="Texture2D" path="res://assets/actors/player_right.svg" id="4_pomml"]
@@ -13,4 +13,4 @@ visual_up = ExtResource("5_wriym")
 visual_down = ExtResource("2_3vj8c")
 visual_left = ExtResource("3_pkb5j")
 visual_right = ExtResource("4_pomml")
-move_speed = 140.0
+move_step_duration = 0.23

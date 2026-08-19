@@ -50,7 +50,7 @@ Project Definition `.tres` 没有运行时更新入口。床损坏、家具开�
 
 Project Definitions 当前包括：
 
-- Player 与 Martha 使用的 ActorDefinition，其中 `move_speed` 决定 Logical Movement 单格 Step 的 duration；
+- Player 与 Martha 使用的 ActorDefinition，其中 `move_step_duration` 直接表示完成一个 logical Cell Step 所需的秒数；
 - Chest、Sign、Bed 的 FurnitureDefinition；
 - GroundTileDefinition、DecorationTileDefinition 与 StructureTileDefinition；
 - Tavern、Town Street 与 Tavern Yard 的 LocationDefinition。
@@ -116,7 +116,7 @@ Structure Layer 的权威形式是 `cell → StructureTileDefinition Resource`�
 
 LocationEntry 直接保存 `entry_id`、有序 `arrival_cells` 与 Facing。Topology 只指出目标 Entry ID；LocationEntry 拥有该 Entry 在目标 Location 内的候选格子位置和朝向。Location Transfer 的 Prepare 阶段按 Definition 顺序选择首个静态可进入、且没有 Actor hard occupancy 的 Cell，全部候选不可用时直接拒绝，Commit 不再依赖 Scene Physics 修正重叠。requesting head 只是意图，不会形成 Entry 空气墙。现有单 Cell Entry 迁移为只含一个元素的数组，因此原有落点顺序保持不变。
 
-LocationExit 直接保存对应的 `edge_key` 与本地 Cell Rect。SceneBuilder 根据它创建临时的 LocationExitArea 触发区域；Topology 继续独立负责该 Edge 连接到哪个 Location。
+LocationExit 直接保存对应的 `edge_key` 与本地 Cell Rect。Location 根据已提交的 Actor Cell 查询 Exit；Actor 完成 Step 后由 Game 判断受控 Actor 是否踩到 Exit，再复用现有 Location Change 流程。Topology 继续独立负责该 Edge 连接到哪个 Location。
 
 ### Entities
 
@@ -159,13 +159,12 @@ LocationScene
 ├─ GroundLayer
 ├─ DecorationLayer
 ├─ StructureLayer
-├─ EntryPoints / Exit triggers
 └─ EntityRepresentationRoot
 ```
 
-LocationSceneBuilder 只消费 Location 已合并出的当前 Ground、Decoration、Structure Cell Layer，以及直接的 Entries / Exits，并逐层创建静态空间和切换节点。它不按具体 Entity 类型创建 Actor 或 Furniture Node；Entity 表现仍由 V8 的 EntityRepresentationRegistry 与唯一匹配的 EntityRepresentationFactory 准备。三个 Tile Layer 使用固定 Location TileSet，具体 TileDefinition 只保存 Tile 选择字段。
+LocationSceneBuilder 只消费 Location 已合并出的当前 Ground、Decoration、Structure Cell Layer，并逐层创建静态空间节点。它不按具体 Entity 类型创建 Actor 或 Furniture Node；Entity 表现仍由 V8 的 EntityRepresentationRegistry 与唯一匹配的 EntityRepresentationFactory 准备。Entries / Exits 保持为逻辑 Location 数据，不生成 Scene Marker 或 Physics trigger。三个 Tile Layer 使用固定 Location TileSet，具体 TileDefinition 只保存 Tile 选择字段。
 
-现有 Tavern、Town Street 与 Tavern Yard 的静态入口位于 `data/world/project_world.tres`，并直接引用 `data/locations/` 中的三个 LocationDefinition Resource。三份固定地图 `.tscn` 已删除；LocationDefinition 没有 `scene_path`，Game 也不加载地点 PackedScene。SceneTree、TileMapLayer、Collision 与 Marker 都是可丢弃的下游表现。一个 Entry 有多个 arrival Cell 时，SceneBuilder 可以为调试和表现创建多个 Marker，但 Marker 不参与落点合法性判断。
+现有 Tavern、Town Street 与 Tavern Yard 的静态入口位于 `data/world/project_world.tres`，并直接引用 `data/locations/` 中的三个 LocationDefinition Resource。三份固定地图 `.tscn` 已删除；LocationDefinition 没有 `scene_path`，Game 也不加载地点 PackedScene。SceneTree 与 TileMapLayer 都是可丢弃的下游表现；一个 Entry 有多个 arrival Cell 时，Game 在 Prepare 阶段按顺序选择首个可用 Cell。
 
 离开 Location 会销毁 LocationScene 及其中的 Entity Representations，但不会删除 LocationDefinition、LocationState、Entity 或 EntityState。再次进入时，系统从当前 Location 完整重建 Scene，并让 Factory 把已有 Entity 绑定到新的 Representation。
 
@@ -203,7 +202,7 @@ Entity 是拥有独立 UUID `instance_id`、Definition Resource 引用和独立 
 
 Entity 大类表达根本结构或生命周期差异；Definition 表达具体内容是什么；Behavior / Component 表达能做什么；BehaviorState 保存可组合能力的实例变化。Bed、Chest、Sign 不建立逻辑子类，而由 FurnitureDefinition 与 Sleepable、Openable、Inspectable Behavior 组合表达。只有 Openable 当前需要独立 OpenableState。
 
-Representation 依赖 Entity，Entity 不依赖 Representation。ActorRepresentation 继续使用 CharacterBody2D，FurnitureRepresentation 继续使用 Node2D；统一的是 Factory 创建协议和逻辑绑定，而不是强迫所有表现继承同一个 Node 基类。EntityRepresentationFactory 接收目标 Cell，不接收逻辑 pixel position。ActorRepresentation 每个 physics frame 从 Actor 的 committed Cell、Movement tail/head/progress 与 facing 计算 Scene 表现；PlayerController 不能把 Representation 位置回写到 ActorState。EntityState.local_cell 是 Player、NPC 与 Furniture 共用的唯一正式位置权威，Representation 销毁或 Scene 卸载不会反写旧坐标。
+Representation 依赖 Entity，Entity 不依赖 Representation。ActorRepresentation 使用无移动碰撞的 Node2D，FurnitureRepresentation 只负责视觉表现；Actor、Furniture 与 Structure 的移动阻挡完全由 logical Cell、footprint、walkability 与 occupancy 规则决定。EntityRepresentationFactory 接收目标 Cell，不接收逻辑 pixel position。ActorRepresentation 每个 physics frame 从 Actor 的 committed Cell、Movement tail/head/progress 与 facing 计算 Scene 表现；PlayerController 不能把 Representation 位置回写到 ActorState。EntityState.local_cell 是 Player、NPC 与 Furniture 共用的唯一正式位置权威，Representation 销毁或 Scene 卸载不会反写旧坐标。
 
 EntityRepresentationRegistry 扫描全部 Factory 并要求恰好一个匹配。零匹配或多匹配都使 Location Prepare 失败。Game 不按 Actor / Furniture 类型分支，也不持有具体 Entity Representation Scene。
 
@@ -227,7 +226,7 @@ Location
 PlayerController + ActionSpatialRule
 ```
 
-Furniture 的 `EntityState.local_cell` 就是 footprint origin。Furniture 直接用 origin 加 Definition-local footprint Cell 计算占用 Location Cell，并用同一 origin 加 UseSlot / SlotEntrance 的 `local_cell` 完成 Location Cell 转换。FurnitureRepresentation 自己从 footprint bounds 计算视觉中心；这个 Scene `Vector2` 不会写回 State。Physics collision 也只从同一份 `footprint_cells` 派生：每个 occupied Location Cell 创建一个完整 `LocationGridSpace.CELL_SIZE × LocationGridSpace.CELL_SIZE` 的 RectangleShape2D，按 Cell 中心定位；不使用 bounding rectangle、不做 4px 内缩、不维护第二份 collision footprint 数据。non-blocking Furniture 保留对应 shape 但将其禁用。Location 不生成、删除或修改 Definition，只复用当前 Ground、Structure 与 Entity 查询验证可用性。UseSlot 位于目标 Entity footprint 内时会忽略目标自身的 blocking，但仍检查 Ground、Structure 和其他 blocking Entity；SlotEntrance 必须是普通 Actor 当前可站立的 Cell。Definition 是否存在与当前是否可用是两件事。
+Furniture 的 `EntityState.local_cell` 就是 footprint origin。Furniture 直接用 origin 加 Definition-local footprint Cell 计算占用 Location Cell，并用同一 origin 加 UseSlot / SlotEntrance 的 `local_cell` 完成 Location Cell 转换。FurnitureRepresentation 自己从 footprint bounds 计算视觉中心；这个 Scene `Vector2` 不会写回 State。移动阻挡只由 `get_occupied_location_cells()`、Furniture 的 `blocks_movement` 和 Location walkability 查询决定，不在 Representation 中维护 Physics collision。Location 不生成、删除或修改 Definition，只复用当前 Ground、Structure 与 Entity 查询验证可用性。UseSlot 位于目标 Entity footprint 内时会忽略目标自身的 blocking，但仍检查 Ground、Structure 和其他 blocking Entity；SlotEntrance 必须是普通 Actor 当前可站立的 Cell。Definition 是否存在与当前是否可用是两件事。
 
 ## Action 与 Interaction
 
@@ -271,9 +270,9 @@ NPC target intent 每次从当前 tail 取得可到达 target 的四向静态合
 
 基础 priority 由 Movement Request 开始时间决定，同一 movement clock 使用 Actor instance UUID 稳定决胜；current priority 只在当前协调关系中临时继承，original priority 不被覆盖。正式 activation 直接维护 parent/children、`C_i` 与 `S_i`：高优先 requesting Actor 指向另一个 participant 的 tail 时，阻挡者建立 parent 关系、继承 current priority，并从父级 `S_i` 继续搜索；child 没有候选时把 `S_i` 传播回 parent，parent 回到 contracted 并尝试剩余 `C_i`。request cycle 通过“child head 是否已经位于 parent `S_i`”识别并回退。相同 head 的 requesting contenders 按 current priority 只批准一个。实现不再使用 `STATUS_VISITING`、递归 `_resolve_movement()`、assignments/head owners 或 snapshot/restore 模拟继承与回溯。
 
-协调成功不会让整条依赖链同时进入 extended：只有 head 当前没有 hard occupancy 的依赖叶节点先开始移动，上游保持 requesting，直到下游真正完成并释放旧 tail 后才依次进入 extended。不同 Actor 速度不同时，整条链的 phase occupancy 仍不会重叠。Request 完成、取消或 Actor 离开原 Location 后会清理 participant 及其 parent/children 关系。
+协调成功不会让整条依赖链同时进入 extended：只有 head 当前没有 hard occupancy 的依赖叶节点先开始移动，上游保持 requesting，直到下游真正完成并释放旧 tail 后才依次进入 extended。不同 Actor 的 step duration 不同时，整条链的 phase occupancy 仍不会重叠。Request 完成、取消或 Actor 离开原 Location 后会清理 participant 及其 parent/children 关系。
 
-ActorState.local_cell 在 contracted(A)、requesting(A,B) 与整个 extended(A,B) 期间都保持 `A`；只有 `progress >= 1` 时才一次性 Commit 为 `B`。单格 `step_duration = LocationGridSpace.CELL_SIZE / ActorDefinition.move_speed`，不同 Actor 独立完成各自的 extended phase，不使用统一 movement timestep。LogicalMovement 不逐帧修改任何 State `Vector2`，也不从 Representation 或 pixel position 反推 Cell。
+ActorState.local_cell 在 contracted(A)、requesting(A,B) 与整个 extended(A,B) 期间都保持 `A`；只有 `progress >= 1` 时才一次性 Commit 为 `B`。单格 `step_duration` 直接取 `ActorDefinition.move_step_duration`，不同 Actor 独立完成各自的 extended phase，不使用统一 movement timestep。LogicalMovement 完全使用 Cell、elapsed 与 duration，不依赖 `LocationGridSpace.CELL_SIZE` 计算逻辑时间，不逐帧修改任何 State `Vector2`，也不从 Representation 或 pixel position 反推 Cell。
 
 ActorRepresentation 负责 Cell → Pixel。contracted Actor 显示在 `LocationGridSpace.cell_to_center_position(local_cell)`；extended(A,B) 显示在 `lerp(cell_center(A), cell_center(B), progress)`。因此画面保持平滑连续，但 Logical World 始终只有 committed Cell 和 Movement Step。Scene 在 extended 中途销毁不影响 elapsed/duration；中途重建时 Representation 使用同一 progress 恢复当前位置，而不是从零重新播放。
 

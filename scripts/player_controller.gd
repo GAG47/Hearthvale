@@ -73,8 +73,6 @@ func _release_controlled_representation(_sync_state: bool) -> void:
 	var movement := _get_logical_movement()
 	if movement != null and controlled_actor != null:
 		movement.set_direction_intent(controlled_actor, Vector2i.ZERO)
-	if is_instance_valid(controlled_representation):
-		controlled_representation.remove_from_group(&"player")
 	controlled_representation = null
 
 
@@ -85,7 +83,6 @@ func _assign_control(actor: Actor, representation: ActorRepresentation) -> void:
 		movement.set_direction_intent(actor, Vector2i.ZERO)
 	controlled_actor = actor
 	controlled_representation = representation
-	controlled_representation.add_to_group(&"player")
 	_sync_camera_position(true)
 
 

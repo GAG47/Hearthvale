@@ -1,5 +1,5 @@
 class_name ActorRepresentation
-extends CharacterBody2D
+extends Node2D
 
 const VISUAL_DIRECTIONS: Array[String] = ["up", "down", "left", "right"]
 
@@ -49,10 +49,6 @@ func prepare_actor(
 	var sprite := get_node_or_null("Sprite2D") as Sprite2D
 	if sprite == null:
 		push_error("ActorRepresentation requires a Sprite2D child.")
-		return false
-	var collision := get_node_or_null("CollisionShape2D") as CollisionShape2D
-	if collision == null or collision.shape == null:
-		push_error("ActorRepresentation requires CollisionShape2D with a Shape2D.")
 		return false
 	var loaded_visual_textures := _load_visual_textures(p_actor)
 	if loaded_visual_textures.size() != VISUAL_DIRECTIONS.size():

@@ -24,7 +24,6 @@ func prepare_scene(
 	if not _build_structure_layer(scene, location):
 		scene.free()
 		return {}
-	_build_entries_and_exits(scene, location)
 
 	var representation_root := Node2D.new()
 	representation_root.name = "EntityRepresentationRoot"
@@ -88,6 +87,7 @@ func _build_structure_layer(scene: LocationScene, location: Location) -> bool:
 	var layer := TileMapLayer.new()
 	layer.name = "StructureLayer"
 	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	layer.collision_enabled = false
 	layer.tile_set = LOCATION_TILE_SET
 	scene.add_child(layer)
 	var current_layer := location.get_current_structure_layer()
@@ -100,28 +100,6 @@ func _build_structure_layer(scene: LocationScene, location: Location) -> bool:
 			)
 			return false
 	return true
-
-
-func _build_entries_and_exits(scene: LocationScene, location: Location) -> void:
-	var entry_root := Node2D.new()
-	entry_root.name = "EntryPoints"
-	scene.add_child(entry_root)
-	for entry in location.get_current_entries():
-		for arrival_index in range(entry.arrival_cells.size()):
-			var marker := Marker2D.new()
-			marker.name = (
-				String(entry.entry_id)
-				if arrival_index == 0
-				else "%s_%d" % [entry.entry_id, arrival_index]
-			)
-			marker.position = LocationGridSpace.cell_to_center_position(entry.arrival_cells[arrival_index])
-			entry_root.add_child(marker)
-	for location_exit in location.get_current_exits():
-		var exit_area := LocationExitArea.new()
-		exit_area.name = "Exit_%s" % location_exit.edge_key
-		exit_area.configure(location_exit)
-		scene.add_child(exit_area)
-
 
 func _set_tile(
 	layer: TileMapLayer,

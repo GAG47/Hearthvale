@@ -40,7 +40,7 @@ func _init() -> void:
 		"Sign InspectableBehavior must preserve its typed text field."
 	)
 	_expect(
-		not FileAccess.file_exists("res://scripts/furniture/furniture_definition_loader.gd")
+		not FileAccess.file_exists("res://scripts/entities/furniture/furniture_definition_loader.gd")
 		and not FileAccess.file_exists("res://data/furniture/wooden_chest.json"),
 		"Furniture Project Definitions must have a single Resource source."
 	)

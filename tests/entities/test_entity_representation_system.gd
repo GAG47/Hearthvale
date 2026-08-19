@@ -194,8 +194,8 @@ func _test_source_boundaries() -> void:
 	)
 	for entity_source_path in [
 		"res://scripts/entities/entity.gd",
-		"res://scripts/actors/actor.gd",
-		"res://scripts/furniture/furniture.gd",
+		"res://scripts/entities/actors/actor.gd",
+		"res://scripts/entities/furniture/furniture.gd",
 	]:
 		_expect(
 			not _read_text(entity_source_path).contains("Representation"),

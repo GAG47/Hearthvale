@@ -239,14 +239,15 @@ func _test_scene_lifecycle(
 	_expect((first_scene.get_node("GroundLayer") as TileMapLayer).get_used_cells().size() == 384, "Tavern Ground representation must be built from 384 Resource cells.")
 	_expect((first_scene.get_node("StructureLayer") as TileMapLayer).get_used_cells().size() == 108, "Tavern Structure representation must be built from 108 Resource cells.")
 	_expect((first_scene.get_node("DecorationLayer") as TileMapLayer).get_used_cells().is_empty(), "Tavern Decoration Tile Layer must remain empty.")
-	_expect(first_scene.get_node("EntryPoints").get_child_count() == 3, "LocationEntries must generate Scene entry markers.")
-	var start_marker := first_scene.get_node("EntryPoints/start") as Marker2D
 	_expect(
-		start_marker != null
-		and start_marker.position == LocationGridSpace.cell_to_center_position(Vector2i(12, 8)),
-		"Entry markers must be positioned at the arrival Cell center by LocationSceneBuilder."
+		first_scene.get_node_or_null("Entry" + "Points") == null
+		and first_scene.get_node_or_null("Exit_front_door") == null,
+		"LocationEntry and LocationExit must remain logical data without Scene nodes."
 	)
-	_expect(first_scene.get_node_or_null("Exit_front_door") is LocationExitArea, "LocationExits must generate Scene exit trigger areas.")
+	_expect(
+		first_scene.location.get_exit_at(Vector2i(11, 0)).edge_key == &"front_door",
+		"Location must resolve an Exit from a committed logical Cell."
+	)
 	_expect(first_scene.location.get_entities().size() == 4, "Location Entities must derive from EntityRegistry and EntityState.current_location_id.")
 	_expect(first_scene.location.get_entities_at(Vector2i(14, 6)).has(chest), "Cell Entity query must derive the Chest footprint from EntityState.")
 	var player_cell := player.current_cell
@@ -301,8 +302,8 @@ func _test_source_boundaries() -> void:
 	for old_path in [
 		"res://scripts/definitions/definition.gd",
 		"res://scripts/definitions/definition_registry.gd",
-		"res://scripts/actors/actor_definition_loader.gd",
-		"res://scripts/furniture/furniture_definition_loader.gd",
+		"res://scripts/entities/actors/actor_definition_loader.gd",
+		"res://scripts/entities/furniture/furniture_definition_loader.gd",
 		"res://scripts/location_registry/project_world_data_loader.gd",
 		"res://data/world/project_world.json",
 		"res://data/actors/player.json",

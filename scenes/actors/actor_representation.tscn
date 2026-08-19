@@ -1,18 +1,9 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/actors/actor_representation.gd" id="1_representation"]
+[ext_resource type="Script" path="res://scripts/entities/actors/actor_representation.gd" id="1_representation"]
 
-[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_actor"]
-radius = 10.0
-height = 22.0
-
-[node name="ActorRepresentation" type="CharacterBody2D"]
+[node name="ActorRepresentation" type="Node2D"]
 z_index = 20
-collision_layer = 1
-collision_mask = 1
 script = ExtResource("1_representation")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-shape = SubResource("CapsuleShape2D_actor")

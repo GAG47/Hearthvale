@@ -41,7 +41,7 @@ func _run_tests() -> void:
 	_test_same_head_conflict()
 	_test_priority_inheritance_chain()
 	_test_backtracking_and_request_cycle()
-	_test_independent_move_speeds()
+	_test_independent_step_durations()
 	await _test_scene_unload_and_rebuild()
 	_test_no_formal_martha_initialization()
 	_test_removed_resolver_mechanisms()
@@ -69,7 +69,7 @@ func _test_formal_grid_step_and_occupancy() -> void:
 		&"d2000000-0000-4000-8000-000000000001",
 		location_id,
 		Vector2i(1, 1),
-		64.0
+		0.5
 	)
 	_expect(
 		not _movement.request_step(actor, Vector2i(1, 1)),
@@ -175,7 +175,7 @@ func _test_direction_intent_continuity_and_latest_input() -> void:
 		&"d2000000-0000-4000-8000-000000000002",
 		location_id,
 		Vector2i(0, 2),
-		64.0
+		0.5
 	)
 	_expect(
 		_movement.set_direction_intent(actor, Vector2i.RIGHT),
@@ -211,7 +211,7 @@ func _test_direction_intent_continuity_and_latest_input() -> void:
 		&"d2000000-0000-4000-8000-000000000003",
 		location_id,
 		Vector2i(1, 2),
-		64.0
+		0.5
 	)
 	_movement.set_direction_intent(turning_actor, Vector2i.RIGHT)
 	_movement.advance(0.0)
@@ -299,7 +299,7 @@ func _test_player_controller_uses_logical_movement() -> void:
 		and request.head_cell == start_cell + Vector2i.RIGHT,
 		"The controlled Actor must enter the shared Grid extended phase."
 	)
-	var half_step := LocationGridSpace.CELL_SIZE / player.definition.move_speed * 0.5
+	var half_step := player.definition.move_step_duration * 0.5
 	_movement.advance(half_step)
 	await physics_frame
 	var expected_half_position := LocationGridSpace.cell_to_center_position(start_cell).lerp(
@@ -385,7 +385,7 @@ func _test_npc_astar_candidates_and_long_distance_alignment() -> void:
 		&"d2000000-0000-4000-8000-000000000004",
 		location_id,
 		Vector2i(0, 1),
-		64.0
+		0.5
 	)
 	_expect(
 		_movement.request_move(actor, Vector2i(12, 1)),
@@ -429,13 +429,13 @@ func _test_npc_astar_candidates_and_long_distance_alignment() -> void:
 		&"d2000000-0000-4000-8000-000000000005",
 		detour_id,
 		Vector2i(1, 1),
-		64.0
+		0.5
 	)
 	_create_actor(
 		&"d2000000-0000-4000-8000-000000000006",
 		detour_id,
 		Vector2i(2, 1),
-		64.0
+		0.5
 	)
 	_movement.request_move(npc, Vector2i(4, 1))
 	_movement.advance(0.0)
@@ -458,13 +458,13 @@ func _test_same_head_conflict() -> void:
 		&"d2000000-0000-4000-8000-000000000010",
 		location_id,
 		Vector2i(1, 1),
-		32.0
+		1.0
 	)
 	var second := _create_actor(
 		&"d2000000-0000-4000-8000-000000000011",
 		location_id,
 		Vector2i(3, 1),
-		32.0
+		1.0
 	)
 	_movement.request_step(second, Vector2i.LEFT)
 	_movement.request_step(first, Vector2i.RIGHT)
@@ -494,19 +494,19 @@ func _test_priority_inheritance_chain() -> void:
 		&"d2000000-0000-4000-8000-000000000020",
 		location_id,
 		Vector2i(0, 0),
-		32.0
+		1.0
 	)
 	var second := _create_actor(
 		&"d2000000-0000-4000-8000-000000000021",
 		location_id,
 		Vector2i(1, 0),
-		16.0
+		2.0
 	)
 	var third := _create_actor(
 		&"d2000000-0000-4000-8000-000000000022",
 		location_id,
 		Vector2i(2, 0),
-		32.0
+		1.0
 	)
 	_movement.request_move(first, Vector2i(4, 0))
 	_movement.request_move(second, Vector2i(4, 0))
@@ -602,13 +602,13 @@ func _test_backtracking_and_request_cycle() -> void:
 		&"d2000000-0000-4000-8000-000000000030",
 		backtrack_id,
 		Vector2i(1, 1),
-		32.0
+		1.0
 	)
 	var blocker := _create_actor(
 		&"d2000000-0000-4000-8000-000000000031",
 		backtrack_id,
 		Vector2i(2, 1),
-		32.0
+		1.0
 	)
 	_movement.request_move(root_actor, Vector2i(2, 1))
 	_movement.request_move(blocker, Vector2i(0, 1))
@@ -633,13 +633,13 @@ func _test_backtracking_and_request_cycle() -> void:
 		&"d2000000-0000-4000-8000-000000000032",
 		cycle_id,
 		Vector2i(0, 0),
-		32.0
+		1.0
 	)
 	var second := _create_actor(
 		&"d2000000-0000-4000-8000-000000000033",
 		cycle_id,
 		Vector2i(1, 0),
-		32.0
+		1.0
 	)
 	_movement.request_move(first, Vector2i(1, 0))
 	_movement.request_move(second, Vector2i(0, 0))
@@ -667,7 +667,7 @@ func _test_backtracking_and_request_cycle() -> void:
 	)
 
 
-func _test_independent_move_speeds() -> void:
+func _test_independent_step_durations() -> void:
 	_movement.cancel_all()
 	var location_id := &"d1000000-0000-4000-8000-000000000009"
 	_create_location(location_id, Vector2i(3, 3))
@@ -675,13 +675,13 @@ func _test_independent_move_speeds() -> void:
 		&"d2000000-0000-4000-8000-000000000040",
 		location_id,
 		Vector2i(0, 0),
-		32.0
+		1.0
 	)
 	var fast := _create_actor(
 		&"d2000000-0000-4000-8000-000000000041",
 		location_id,
 		Vector2i(0, 2),
-		64.0
+		0.5
 	)
 	_movement.request_step(slow, Vector2i.RIGHT)
 	_movement.request_step(fast, Vector2i.RIGHT)
@@ -693,7 +693,7 @@ func _test_independent_move_speeds() -> void:
 		and fast_request != null
 		and is_equal_approx(slow_request.step_duration, 1.0)
 		and is_equal_approx(fast_request.step_duration, 0.5),
-		"ActorDefinition.move_speed must determine each Actor's independent Cell-step duration."
+		"ActorDefinition.move_step_duration must determine each Actor's independent Cell-step duration."
 	)
 	_movement.advance(0.5)
 	_expect(
@@ -701,12 +701,12 @@ func _test_independent_move_speeds() -> void:
 		and slow_request != null
 		and is_equal_approx(slow_request.get_step_progress(), 0.5)
 		and _movement.get_actor_phase(slow) == ActorMovementRequest.Phase.EXTENDED,
-		"A 32 px/s Actor must remain logically at tail while halfway through its one-second step."
+		"A one-second-step Actor must remain logically at tail while halfway through its step."
 	)
 	_expect(
 		fast.current_cell == Vector2i(1, 2)
 		and not _movement.is_participant(fast),
-		"A 64 px/s Actor must complete independently in the same elapsed time."
+		"A half-second-step Actor must complete independently in the same elapsed time."
 	)
 
 
@@ -718,7 +718,7 @@ func _test_scene_unload_and_rebuild() -> void:
 		&"d2000000-0000-4000-8000-000000000050",
 		location_id,
 		Vector2i(1, 1),
-		32.0
+		1.0
 	)
 	var first_scene := _build_location_scene(location)
 	_expect(first_scene != null, "A Location Scene must build for a logical Actor.")
@@ -801,18 +801,18 @@ func _test_no_formal_martha_initialization() -> void:
 func _test_removed_resolver_mechanisms() -> void:
 	var movement_source := FileAccess.get_file_as_string("res://scripts/movement/logical_movement.gd")
 	var representation_source := FileAccess.get_file_as_string(
-		"res://scripts/actors/actor_representation.gd"
+		"res://scripts/entities/actors/actor_representation.gd"
 	)
 	var entity_state_source := FileAccess.get_file_as_string("res://scripts/entities/entity_state.gd")
 	var entity_source := FileAccess.get_file_as_string("res://scripts/entities/entity.gd")
-	var grid_source := FileAccess.get_file_as_string("res://scripts/location/location_grid_space.gd")
+	var grid_source := FileAccess.get_file_as_string("res://scripts/location/scene/location_grid_space.gd")
 	var furniture_representation_source := FileAccess.get_file_as_string(
-		"res://scripts/furniture/furniture_representation.gd"
+		"res://scripts/entities/furniture/furniture_representation.gd"
 	)
 	var game_source := FileAccess.get_file_as_string("res://scripts/game.gd")
-	var location_entry_source := FileAccess.get_file_as_string("res://scripts/location/location_entry.gd")
+	var location_entry_source := FileAccess.get_file_as_string("res://scripts/location/definition/location_entry.gd")
 	var scene_builder_source := FileAccess.get_file_as_string(
-		"res://scripts/location/location_scene_builder.gd"
+		"res://scripts/location/scene/location_scene_builder.gd"
 	)
 	for removed_term in [
 		"STATUS_VISITING",
@@ -845,8 +845,9 @@ func _test_removed_resolver_mechanisms() -> void:
 		"LocationEntry must expose logical arrival Cells only, without pixel Presentation conversion."
 	)
 	_expect(
-		scene_builder_source.contains("LocationGridSpace.cell_to_center_position(entry.arrival_cells[arrival_index])"),
-		"LocationSceneBuilder must own Entry Cell-to-Pixel marker conversion."
+		not scene_builder_source.contains("Marker2D")
+		and not scene_builder_source.contains("Location" + "ExitArea"),
+		"LocationSceneBuilder must keep Entry and Exit data logical-only."
 	)
 	_expect(
 		entity_state_source.contains("local_cell: Vector2i")
@@ -862,6 +863,12 @@ func _test_removed_resolver_mechanisms() -> void:
 		not movement_source.contains("move_toward")
 		and not movement_source.contains("local_position"),
 		"LogicalMovement must advance elapsed/duration rather than a per-frame Vector2 State."
+	)
+	_expect(
+		movement_source.contains("move_step_duration")
+		and not movement_source.contains("LocationGridSpace")
+		and not movement_source.contains("CELL_SIZE"),
+		"LogicalMovement step timing must be independent from Scene and Pixel units."
 	)
 	_expect(
 		not furniture_representation_source.contains("state.local_cell =")
@@ -901,10 +908,10 @@ func _create_actor(
 	instance_id: StringName,
 	location_id: StringName,
 	cell: Vector2i,
-	move_speed: float
+	move_step_duration: float
 ) -> Actor:
 	var definition := MARTHA_DEFINITION.duplicate(true) as ActorDefinition
-	definition.move_speed = move_speed
+	definition.move_step_duration = move_step_duration
 	var state := ActorState.new(
 		instance_id,
 		location_id,

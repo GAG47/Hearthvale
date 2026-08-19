@@ -162,8 +162,8 @@ func _test_names_and_paths() -> void:
 	for current_path in [
 		"res://scripts/location/location.gd",
 		"res://scripts/location/location_registry.gd",
-		"res://scripts/location/location_grid_space.gd",
-		"res://scripts/location/location_scene.gd",
+		"res://scripts/location/scene/location_grid_space.gd",
+		"res://scripts/location/scene/location_scene.gd",
 		"res://scripts/actions/entity_action.gd",
 		"res://scripts/state/state_registry.gd",
 		"res://scripts/time/game_clock.gd",
@@ -184,8 +184,11 @@ func _test_names_and_paths() -> void:
 	_expect(not location_registry_source.contains("func _get("), "LocationRegistry must not retain a duplicate generic get property API.")
 	var state_source := _read_text("res://scripts/state/state_registry.gd")
 	_expect(not state_source.contains("_active_locations") and not state_source.contains("register_location("), "StateRegistry source must not contain Scene registration.")
-	var builder_source := _read_text("res://scripts/location/location_scene_builder.gd")
-	_expect(builder_source.contains("LocationGridSpace.cell_to_center_position"), "LocationSceneBuilder must own Entry Cell-to-Pixel conversion.")
+	var builder_source := _read_text("res://scripts/location/scene/location_scene_builder.gd")
+	_expect(
+		not builder_source.contains("Marker2D") and not builder_source.contains("Location" + "ExitArea"),
+		"LocationSceneBuilder must not create Entry or Exit Scene representations."
+	)
 	var entity_registry_source := _read_text("res://scripts/entities/entity_registry.gd")
 	var logical_movement_source := _read_text("res://scripts/movement/logical_movement.gd")
 	_expect(not entity_registry_source.contains("class_name"), "EntityRegistry Autoload must not declare a duplicate global class name.")
