@@ -1,4 +1,5 @@
-extends Node
+class_name LogicalMovement
+extends RefCounted
 
 signal step_completed(actor: Actor)
 
@@ -16,17 +17,19 @@ var _location_registry: LocationRegistry
 var _entity_registry: EntityRegistry
 
 
-func _ready() -> void:
-	_location_registry = get_node_or_null("/root/LocationRegistry") as LocationRegistry
-	_entity_registry = get_node_or_null("/root/EntityRegistry") as EntityRegistry
+func _init(
+	location_registry: LocationRegistry,
+	entity_registry: EntityRegistry
+) -> void:
+	_location_registry = location_registry
+	_entity_registry = entity_registry
 
 
-func _physics_process(delta: float) -> void:
-	advance(delta)
+func has_dependencies() -> bool:
+	return _location_registry != null and _entity_registry != null
 
 
 func request_move(actor: Actor, target_cell: Vector2i) -> bool:
-	_resolve_dependencies()
 	if not _can_accept_request(actor):
 		return false
 	var location := _get_location(actor.current_location_id)
@@ -55,7 +58,6 @@ func request_move(actor: Actor, target_cell: Vector2i) -> bool:
 
 
 func request_step(actor: Actor, direction: Vector2i) -> bool:
-	_resolve_dependencies()
 	if not _is_cardinal_direction(direction) or not _can_accept_request(actor):
 		return false
 	var existing := get_request(actor)
@@ -72,7 +74,6 @@ func request_step(actor: Actor, direction: Vector2i) -> bool:
 
 
 func set_direction_intent(actor: Actor, direction: Vector2i) -> bool:
-	_resolve_dependencies()
 	if actor == null or (direction != Vector2i.ZERO and not _is_cardinal_direction(direction)):
 		return false
 	if direction == Vector2i.ZERO:
@@ -167,7 +168,6 @@ func is_actor_cell_occupied(
 	cell: Vector2i,
 	ignored_actor: Actor = null
 ) -> bool:
-	_resolve_dependencies()
 	if _entity_registry == null:
 		return false
 	for entity in _entity_registry.get_entities_in_location(location_id):
@@ -179,7 +179,6 @@ func is_actor_cell_occupied(
 
 
 func advance(delta: float) -> void:
-	_resolve_dependencies()
 	if _location_registry == null or _entity_registry == null:
 		return
 	_remove_invalid_requests()
@@ -670,13 +669,6 @@ func _is_cardinal_direction(direction: Vector2i) -> bool:
 
 func _get_location(location_id: StringName) -> Location:
 	return _location_registry.get_location(location_id) if _location_registry != null else null
-
-
-func _resolve_dependencies() -> void:
-	if _location_registry == null:
-		_location_registry = get_node_or_null("/root/LocationRegistry") as LocationRegistry
-	if _entity_registry == null:
-		_entity_registry = get_node_or_null("/root/EntityRegistry") as EntityRegistry
 
 
 func _set_actor_facing(actor: Actor, direction: Vector2i) -> void:

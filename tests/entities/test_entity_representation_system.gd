@@ -5,6 +5,7 @@ const PLAYER_DEFINITION: ActorDefinition = preload("res://data/actors/player.tre
 const CHEST_DEFINITION: FurnitureDefinition = preload(
 	"res://data/furniture/wooden_chest.tres"
 )
+const TAVERN_ID := &"50000000-0000-4000-8000-000000000001"
 
 var _checks := 0
 var _failures := 0
@@ -27,7 +28,8 @@ class MatchingFactory:
 	func prepare(
 		_entity: Entity,
 		_target_location,
-		target_cell: Vector2i
+		target_cell: Vector2i,
+		_logical_movement: LogicalMovement = null
 	) -> Node:
 		var representation := Node2D.new()
 		representation.position = LocationGridSpace.cell_to_center_position(target_cell)
@@ -204,19 +206,18 @@ func _test_source_boundaries() -> void:
 
 
 func _test_missing_factory_prepare_safety() -> void:
-	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
-	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
-	var entity_registry := root.get_node_or_null("EntityRegistry") as EntityRegistry
-	_expect(location_registry != null, "LocationRegistry Autoload must exist.")
-	_expect(state_registry != null, "StateRegistry Autoload must exist.")
-	_expect(entity_registry != null, "EntityRegistry Autoload must exist.")
-	if location_registry == null or state_registry == null or entity_registry == null:
-		return
-
-	var game := MAIN_SCENE.instantiate()
+	var game := MAIN_SCENE.instantiate() as Game
 	root.add_child(game)
 	await process_frame
 	await physics_frame
+	var location_registry := game.location_registry
+	var state_registry := game.state_registry
+	var entity_registry := game.entity_registry
+	_expect(location_registry != null, "Game must own LocationRegistry.")
+	_expect(state_registry != null, "Game must own StateRegistry.")
+	_expect(entity_registry != null, "Game must own EntityRegistry.")
+	if location_registry == null or state_registry == null or entity_registry == null:
+		return
 	var controller := game.get_node_or_null("PlayerController") as PlayerController
 	var player := controller.controlled_actor if controller != null else null
 	_expect(controller != null and player != null, "Game must initialize controlled Actor.")
@@ -234,7 +235,7 @@ func _test_missing_factory_prepare_safety() -> void:
 		not _has_property(state_registry, &"_active_locations"),
 		"StateRegistry must not maintain a Location Scene registry."
 	)
-	var tavern_id := location_registry.get_project_location_id(&"tavern")
+	var tavern_id := TAVERN_ID
 	var edge := location_registry.get_edge(tavern_id, &"back_door")
 	game.set("representation_registry", EntityRepresentationRegistry.new())
 	var change_result: Variant = game.call(
@@ -265,6 +266,7 @@ func _test_missing_factory_prepare_safety() -> void:
 		"Prepare failure must keep the old world playable."
 	)
 
+	game.end_world()
 	game.queue_free()
 	await process_frame
 

@@ -8,28 +8,74 @@ signal action_completed(result: ActionResult)
 var controlled_actor: Actor
 var controlled_representation: ActorRepresentation
 
+var _location_registry: LocationRegistry
+var _logical_movement: LogicalMovement
+var _game_clock: GameClock
+var _interaction_requested := false
 
-func _ready() -> void:
-	process_physics_priority = -100
 
-
-func _physics_process(_delta: float) -> void:
-	if controlled_actor == null or not is_instance_valid(controlled_representation):
-		return
-
-	var input_direction := _get_input_direction()
-	if input_direction != Vector2i.ZERO:
-		_update_facing(input_direction)
-	var movement := _get_logical_movement()
-	if movement != null:
-		movement.set_direction_intent(controlled_actor, input_direction)
-
-	if Input.is_action_just_pressed(&"interact"):
-		request_interaction()
+func _unhandled_input(event: InputEvent) -> void:
+	if controlled_actor != null and event.is_action_pressed(&"interact", false):
+		_interaction_requested = true
 
 
 func _process(_delta: float) -> void:
 	_sync_camera_position()
+
+
+func bind_world(
+	actor: Actor,
+	location_registry: LocationRegistry,
+	logical_movement: LogicalMovement,
+	game_clock: GameClock = null
+) -> bool:
+	if actor == null or location_registry == null or logical_movement == null:
+		push_error("PlayerController requires an Actor, LocationRegistry, and LogicalMovement.")
+		return false
+	unbind_world()
+	controlled_actor = actor
+	_location_registry = location_registry
+	_logical_movement = logical_movement
+	_game_clock = game_clock
+	return true
+
+
+func unbind_world() -> void:
+	clear_pending_intent()
+	finish_controlled_location_departure()
+	controlled_representation = null
+	controlled_actor = null
+	_location_registry = null
+	_logical_movement = null
+	_game_clock = null
+
+
+func consume_world_intent(game_clock: GameClock) -> void:
+	if controlled_actor == null or not is_instance_valid(controlled_representation):
+		return
+	var input_direction := _get_input_direction()
+	if input_direction != Vector2i.ZERO:
+		_update_facing(input_direction)
+	if _logical_movement != null:
+		_logical_movement.set_direction_intent(controlled_actor, input_direction)
+	if _interaction_requested:
+		_interaction_requested = false
+		request_interaction(game_clock)
+
+
+func queue_interaction_request() -> void:
+	if controlled_actor != null:
+		_interaction_requested = true
+
+
+func has_pending_interaction_request() -> bool:
+	return _interaction_requested
+
+
+func clear_pending_intent() -> void:
+	_interaction_requested = false
+	if _logical_movement != null and controlled_actor != null:
+		_logical_movement.set_direction_intent(controlled_actor, Vector2i.ZERO)
 
 
 func take_control(actor: Actor, representation: Node) -> bool:
@@ -56,7 +102,7 @@ func can_take_control(actor: Actor, representation: Node) -> bool:
 
 func activate_prepared_control(actor: Actor, representation: Node) -> void:
 	var actor_representation := representation as ActorRepresentation
-	_release_controlled_representation(false)
+	_release_controlled_representation()
 	_assign_control(actor, actor_representation)
 
 
@@ -66,33 +112,32 @@ func finish_controlled_location_departure() -> void:
 
 
 func release_controlled_representation() -> void:
-	_release_controlled_representation(true)
+	_release_controlled_representation()
 
 
-func _release_controlled_representation(_sync_state: bool) -> void:
-	var movement := _get_logical_movement()
-	if movement != null and controlled_actor != null:
-		movement.set_direction_intent(controlled_actor, Vector2i.ZERO)
+func _release_controlled_representation() -> void:
+	if _logical_movement != null and controlled_actor != null:
+		_logical_movement.set_direction_intent(controlled_actor, Vector2i.ZERO)
 	controlled_representation = null
 
 
 func _assign_control(actor: Actor, representation: ActorRepresentation) -> void:
-	var movement := _get_logical_movement()
-	if movement != null:
-		movement.cancel_move(actor)
-		movement.set_direction_intent(actor, Vector2i.ZERO)
+	if _logical_movement != null:
+		_logical_movement.cancel_move(actor)
+		_logical_movement.set_direction_intent(actor, Vector2i.ZERO)
 	controlled_actor = actor
 	controlled_representation = representation
 	_sync_camera_position(true)
 
 
 func stop() -> void:
-	var movement := _get_logical_movement()
-	if movement != null and controlled_actor != null:
-		movement.set_direction_intent(controlled_actor, Vector2i.ZERO)
+	if _logical_movement != null and controlled_actor != null:
+		_logical_movement.set_direction_intent(controlled_actor, Vector2i.ZERO)
 
 
 func set_camera_bounds(bounds: Rect2) -> void:
+	if camera == null:
+		return
 	camera.limit_left = floori(bounds.position.x)
 	camera.limit_top = floori(bounds.position.y)
 	camera.limit_right = ceili(bounds.end.x)
@@ -100,7 +145,9 @@ func set_camera_bounds(bounds: Rect2) -> void:
 	camera.reset_smoothing()
 
 
-func request_interaction() -> ActionResult:
+func request_interaction(game_clock: GameClock = null) -> ActionResult:
+	if game_clock == null:
+		game_clock = _game_clock
 	if controlled_actor == null or not is_instance_valid(controlled_representation):
 		var unavailable_result := ActionResult.failed(
 			&"interact",
@@ -128,7 +175,14 @@ func request_interaction() -> ActionResult:
 		action_completed.emit(no_action_result)
 		return no_action_result
 
-	var action := EntityAction.new(action_id, controlled_actor, target)
+	var action := EntityAction.new(
+		action_id,
+		controlled_actor,
+		target,
+		_location_registry,
+		_logical_movement,
+		game_clock
+	)
 	var result := action.execute()
 	action_completed.emit(result)
 	return result
@@ -184,11 +238,7 @@ func _is_better_interaction_candidate(
 
 
 func _get_location(location_id: StringName) -> Location:
-	var tree := Engine.get_main_loop() as SceneTree
-	if tree == null:
-		return null
-	var location_registry := tree.root.get_node_or_null("LocationRegistry") as LocationRegistry
-	return location_registry.get_location(location_id) if location_registry != null else null
+	return _location_registry.get_location(location_id) if _location_registry != null else null
 
 
 func _get_input_direction() -> Vector2i:
@@ -229,14 +279,9 @@ func _sync_camera_position(reset_smoothing := false) -> void:
 	global_position = controlled_representation.global_position
 	if reset_smoothing:
 		reset_physics_interpolation()
-		camera.reset_smoothing()
-
-
-func _get_logical_movement() -> LogicalMovement:
-	return get_node_or_null("/root/LogicalMovement") as LogicalMovement
+		if camera != null:
+			camera.reset_smoothing()
 
 
 func _exit_tree() -> void:
-	var movement := _get_logical_movement()
-	if movement != null and controlled_actor != null:
-		movement.set_direction_intent(controlled_actor, Vector2i.ZERO)
+	unbind_world()

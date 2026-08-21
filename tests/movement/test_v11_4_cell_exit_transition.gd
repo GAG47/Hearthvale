@@ -14,10 +14,15 @@ func _init() -> void:
 
 
 func _run_tests() -> void:
-	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
-	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
-	var entity_registry := root.get_node_or_null("EntityRegistry") as EntityRegistry
-	var movement := root.get_node_or_null("LogicalMovement") as LogicalMovement
+	var game := MAIN_SCENE.instantiate() as Game
+	root.add_child(game)
+	await process_frame
+	await physics_frame
+	game.set_physics_process(false)
+	var location_registry := game.location_registry
+	var state_registry := game.state_registry
+	var entity_registry := game.entity_registry
+	var movement := game.logical_movement
 	_expect(location_registry != null, "V11.4 tests require LocationRegistry.")
 	_expect(state_registry != null, "V11.4 tests require StateRegistry.")
 	_expect(entity_registry != null, "V11.4 tests require EntityRegistry.")
@@ -31,11 +36,6 @@ func _run_tests() -> void:
 		_finish()
 		return
 
-	var game := MAIN_SCENE.instantiate()
-	root.add_child(game)
-	await process_frame
-	await physics_frame
-	movement.set_physics_process(false)
 	movement.cancel_all()
 
 	var controller := game.get_node_or_null("PlayerController") as PlayerController
@@ -83,7 +83,12 @@ func _run_tests() -> void:
 	movement.advance(0.0)
 	movement.advance(player.definition.move_step_duration)
 	_expect(player.current_cell == Vector2i(11, 0), "Exit signal must follow committed ActorState.local_cell.")
-	await _wait_for_transition(game)
+	_expect(game.has_pending_location_transition(), "Exit callback must only record a pending transition.")
+	_expect(
+		movement.get_direction_intent(player) == Vector2i.ZERO,
+		"Exit callback must clear held direction before Movement advance can create another step."
+	)
+	game.call("_process_pending_location_transition")
 	var next_scene := game.get("current_location") as LocationScene
 	_expect(
 		next_scene != null and next_scene.location_id != initial_location_id,
@@ -94,17 +99,10 @@ func _run_tests() -> void:
 		"Location Change must commit the controlled Actor to the target Location."
 	)
 
+	game.end_world()
 	game.queue_free()
 	await process_frame
 	_finish()
-
-
-func _wait_for_transition(game: Node) -> void:
-	for _frame in range(30):
-		await process_frame
-		await physics_frame
-		if not game.get("transition_in_progress"):
-			return
 
 
 func _expect(condition: bool, message: String) -> void:

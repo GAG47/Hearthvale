@@ -9,7 +9,9 @@ Hearthvale 是一款中世纪西幻 RPG / Living World 游戏。玩家作为世�
 
 ## 当前状态
 
-当前世界采用 Location-First 数据架构。Project Definition 是 Godot Custom Resource，Actor、Furniture 与 Location Instance 直接持有对应的强类型 `.tres` 引用；State 只保存具体实例的运行事实，Entity 与 Location Instance UUID 继续保持独立身份。LocationDefinition 直接描述 Topology，以及 Ground、Decoration、Structure 三层 Cell Tile Resource 和 Entries / Exits；LocationState 只保存三层 Resource sparse overrides，Entity 归属仍唯一来自 EntityState。Entity Definition 可以通过 UseSlot 与 SlotEntrance 表达各 Action 的局部交互位置，Location 负责转换和验证当前 Location Cell。ActorState 保存已经提交的 logical Cell，ActorDefinition 保存 `move_step_duration` 等固定定义；LogicalMovement 保存移动过程，包括 tail/head、phase、progress、step duration 与 transient hard occupancy，并通过 AStarGrid2D + Causal-PIBT 推进移动。ActorRepresentation 根据 logical movement progress 在两个 Cell Center 之间进行连续画面插值；PlayerController 只是控制其中一个 Actor。LocationSceneBuilder 从当前 Location 动态生成 LocationScene，再沿用 V8 Factory / Registry 创建 Entity Representations；固定地图 `.tscn` 不是世界真相。LocationEntry 与 LocationExit 只作为逻辑 Location 数据存在；Actor 完成 Cell Step 后由 Game 查询当前 Location 的 Exit Cell 并复用现有 Location Change 流程。Location 切换继续采用失败安全的 Prepare → Commit，Entry 支持按顺序选择多个 arrival Cells，Scene 卸载不影响 Definition Resource、LocationState、Entity、EntityState 或 NPC Movement。
+当前世界采用 Location-First 数据架构。Project Definition 是 Godot Custom Resource，Actor、Furniture 与 Location Instance 直接持有对应的强类型 `.tres` 引用；State 只保存具体实例的运行事实，Entity 与 Location Instance UUID 继续保持独立身份。`NewGameSetup` 只描述 New Game 的初始 Location、统一 Entity spec、受控普通 Actor 与初始时间。Game 以 `EMPTY → INITIALIZING → RUNNING → ENDING → EMPTY` 拥有当前 World 生命周期，按 State-first 顺序创建 Registry、State、Location、Entity、Runtime System 与 Representation，并在失败或结束时使用同一套 teardown。StateRegistry、EntityRegistry、LocationRegistry、GameClock 与 LogicalMovement 都是 Game 创建的 world-scoped `RefCounted`，不再是 Autoload；依赖由 Game 显式传递。
+
+LocationDefinition 直接描述 Topology，以及 Ground、Decoration、Structure 三层 Cell Tile Resource 和 Entries / Exits；LocationState 只保存 sparse overrides，Entity 归属仍唯一来自 EntityState。Entity Definition 可以通过 UseSlot 与 SlotEntrance 表达各 Action 的局部交互位置。ActorState 保存已经提交的 logical Cell；LogicalMovement 保存 tail/head/phase/progress 与 transient hard occupancy，并通过 AStarGrid2D + Causal-PIBT 推进移动。Game 是唯一 World fixed update 入口，按 Player Intent、GameClock、LogicalMovement、pending Location transition 的明确 phase 顺序推进。ActorRepresentation 根据 movement progress 在 Cell Center 间插值；PlayerController 只把人的输入转换为当前普通 Actor 的 intent。LocationSceneBuilder 从当前 Location 动态生成 LocationScene；固定地图 `.tscn` 不是世界真相。Exit callback 只记录 pending transition 并停止持续方向，Game 等 `LogicalMovement.advance()` 返回后再同步执行失败安全的 Prepare → Commit。Scene 卸载不影响 Definition、State、Entity、Location 或未显示 Actor 的逻辑移动。
 
 ## 目录
 
@@ -51,3 +53,4 @@ scripts/  游戏脚本
 - [V10：Entity Interaction Space](docs/v10_entity_interaction_space_development_log.md)
 - [V11：Logical Actor Movement](docs/v11_logical_actor_movement_development_log.md)
 - [V11.3：Location Naming & Responsibility Cleanup](docs/v11_3_location_naming_responsibility_cleanup_development_log.md)
+- [V12：World Initialization & Game Lifecycle](docs/v12_world_initialization_game_lifecycle_development_log.md)

@@ -3,6 +3,8 @@ extends SceneTree
 const MAIN_SCENE := preload("res://scenes/main.tscn")
 const PLAYER_INSTANCE_ID := &"90000000-0000-4000-8000-000000000001"
 const CHEST_INSTANCE_ID := &"5543caf7-2a10-4a40-84de-3a39ffdf670e"
+const TAVERN_ID := &"50000000-0000-4000-8000-000000000001"
+const YARD_ID := &"50000000-0000-4000-8000-000000000003"
 
 var _checks := 0
 var _failures := 0
@@ -13,22 +15,21 @@ func _init() -> void:
 
 
 func _run_tests() -> void:
-	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
-	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
-	var registry := root.get_node_or_null("EntityRegistry") as EntityRegistry
-	_expect(location_registry != null, "LocationRegistry Autoload must exist.")
-	_expect(state_registry != null, "StateRegistry Autoload must exist.")
-	_expect(registry != null, "EntityRegistry Autoload must exist.")
-	if location_registry == null or state_registry == null or registry == null:
-		_finish()
-		return
-	var tavern_id := location_registry.get_project_location_id(&"tavern")
-	var yard_id := location_registry.get_project_location_id(&"tavern_yard")
-
-	var game := MAIN_SCENE.instantiate()
+	var game := MAIN_SCENE.instantiate() as Game
 	root.add_child(game)
 	await process_frame
 	await physics_frame
+	var location_registry := game.location_registry
+	var state_registry := game.state_registry
+	var registry := game.entity_registry
+	_expect(location_registry != null, "Game must own LocationRegistry.")
+	_expect(state_registry != null, "Game must own StateRegistry.")
+	_expect(registry != null, "Game must own EntityRegistry.")
+	if location_registry == null or state_registry == null or registry == null:
+		_finish()
+		return
+	var tavern_id := TAVERN_ID
+	var yard_id := YARD_ID
 	var controller := game.get_node_or_null("PlayerController") as PlayerController
 	var player := registry.get_entity(PLAYER_INSTANCE_ID) as Actor
 	var chest := registry.get_entity(CHEST_INSTANCE_ID) as Furniture
@@ -174,6 +175,7 @@ func _run_tests() -> void:
 		"Rebuilt FurnitureRepresentation must restore current State visuals."
 	)
 
+	game.end_world()
 	game.queue_free()
 	await process_frame
 	_finish()

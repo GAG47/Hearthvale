@@ -1,4 +1,5 @@
-extends Node
+class_name StateRegistry
+extends RefCounted
 
 # Authoritative world facts that survive Location Scene lifecycles.
 var _entity_states: Dictionary[StringName, EntityState] = {}
@@ -85,3 +86,9 @@ func register_game_time_state(state: GameTimeState) -> bool:
 
 	_game_time_state = state
 	return true
+
+
+func clear() -> void:
+	_entity_states.clear()
+	_location_states.clear()
+	_game_time_state = null

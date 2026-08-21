@@ -15,10 +15,13 @@ const SIGN_ENTITY_ID := &"1d67bbf9-edc2-4264-a861-8bd3e3e61e15"
 const BED_ENTITY_ID := &"a6ae5842-8c6d-4df2-9b80-a271b5496716"
 const SECOND_CHEST_ENTITY_ID := &"44444444-4444-4444-8444-444444444444"
 const PLAYER_INSTANCE_ID := &"90000000-0000-4000-8000-000000000001"
+const TAVERN_ID := &"50000000-0000-4000-8000-000000000001"
+const YARD_ID := &"50000000-0000-4000-8000-000000000003"
 
 var _checks := 0
 var _failures := 0
 var _last_action_result: ActionResult
+var _movement: LogicalMovement
 
 
 func _init() -> void:
@@ -26,19 +29,21 @@ func _init() -> void:
 
 
 func _run_tests() -> void:
-	var registry := root.get_node_or_null("EntityRegistry") as EntityRegistry
-	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
-	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
-	_expect(registry != null, "The EntityRegistry Autoload must exist.")
-	_expect(state_registry != null, "The StateRegistry Autoload must exist.")
+	var empty_registry := EntityRegistry.new()
+	_expect(empty_registry.get_entities().is_empty(), "A fresh EntityRegistry must be empty.")
+	var game := MAIN_SCENE.instantiate() as Game
+	root.add_child(game)
+	await process_frame
+	await physics_frame
+	var registry := game.entity_registry
+	var state_registry := game.state_registry
+	var location_registry := game.location_registry
+	_movement = game.logical_movement
+	_expect(registry != null, "Game must own EntityRegistry.")
+	_expect(state_registry != null, "Game must own StateRegistry.")
 	if registry == null or state_registry == null or location_registry == null:
 		_finish()
 		return
-
-	_expect(
-		registry.get_entities().is_empty(),
-		"EntityRegistry must not create Entities during its own startup."
-	)
 
 	var player_definition := PLAYER_DEFINITION
 	var martha_definition := MARTHA_DEFINITION
@@ -47,11 +52,6 @@ func _run_tests() -> void:
 	if player_definition == null or martha_definition == null:
 		_finish()
 		return
-
-	var game := MAIN_SCENE.instantiate()
-	root.add_child(game)
-	await process_frame
-	await physics_frame
 
 	var controller := game.get_node_or_null("PlayerController") as PlayerController
 	_expect(controller != null, "Main must contain a PlayerController.")
@@ -92,8 +92,8 @@ func _run_tests() -> void:
 		and player.definition.visual_right.resource_path == "res://assets/actors/player_right.svg",
 		"The Player ActorDefinition must directly reference all four directional textures."
 	)
-	var tavern_id := location_registry.get_project_location_id(&"tavern")
-	var yard_id := location_registry.get_project_location_id(&"tavern_yard")
+	var tavern_id := TAVERN_ID
+	var yard_id := YARD_ID
 	_expect(player.current_location_id == tavern_id, "Player must start in Tavern.")
 	_expect(
 		player.current_cell == Vector2i(12, 8),
@@ -325,6 +325,7 @@ func _run_tests() -> void:
 	_expect(registry.get_entities().size() == 4, "Location reload must not create duplicate Entities.")
 	_expect(state_registry.get_entity_states().size() == 4, "Location reload must not create duplicate States.")
 
+	game.end_world()
 	game.queue_free()
 	await process_frame
 	_finish()
@@ -409,9 +410,8 @@ func _place_actor(
 	cell: Vector2i,
 	facing: ActorState.Facing
 ) -> void:
-	var movement := root.get_node_or_null("LogicalMovement") as LogicalMovement
-	if movement != null:
-		movement.cancel_move(representation.actor)
+	if _movement != null:
+		_movement.cancel_move(representation.actor)
 	representation.actor.state.local_cell = cell
 	representation.position = LocationGridSpace.cell_to_center_position(cell)
 	(representation.actor.state as ActorState).facing = facing
@@ -483,10 +483,9 @@ func _expect_input_facing_visual(
 	Input.action_press(input_action)
 	await physics_frame
 	Input.action_release(input_action)
-	var movement := root.get_node_or_null("LogicalMovement") as LogicalMovement
 	for _frame in range(40):
 		await physics_frame
-		if movement == null or not movement.is_participant(representation.actor):
+		if _movement == null or not _movement.is_participant(representation.actor):
 			break
 	_expect(
 		representation.facing == expected_facing

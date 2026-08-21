@@ -4,12 +4,25 @@ extends RefCounted
 var action_id: StringName
 var actor: Actor
 var target: Entity
+var location_registry: LocationRegistry
+var logical_movement: LogicalMovement
+var game_clock: GameClock
 
 
-func _init(p_action_id: StringName, p_actor: Actor, p_target: Entity) -> void:
+func _init(
+	p_action_id: StringName,
+	p_actor: Actor,
+	p_target: Entity,
+	p_location_registry: LocationRegistry = null,
+	p_logical_movement: LogicalMovement = null,
+	p_game_clock: GameClock = null
+) -> void:
 	action_id = p_action_id
 	actor = p_actor
 	target = p_target
+	location_registry = p_location_registry
+	logical_movement = p_logical_movement
+	game_clock = p_game_clock
 
 
 func execute() -> ActionResult:

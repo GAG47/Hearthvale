@@ -7,7 +7,8 @@ func prepare_scene(
 	location: Location,
 	representation_registry: EntityRepresentationRegistry,
 	moving_entity: Entity = null,
-	moving_cell: Vector2i = Vector2i.ZERO
+	moving_cell: Vector2i = Vector2i.ZERO,
+	logical_movement: LogicalMovement = null
 ) -> Dictionary:
 	if location == null or not location.is_valid() or representation_registry == null:
 		push_error("LocationSceneBuilder requires a valid Location and Representation Registry.")
@@ -38,7 +39,7 @@ func prepare_scene(
 			scene.free()
 			return {}
 		var target_cell := moving_cell if entity == moving_entity else entity.current_cell
-		var representation := factory.prepare(entity, scene, target_cell)
+		var representation := factory.prepare(entity, scene, target_cell, logical_movement)
 		if representation == null:
 			scene.free()
 			return {}

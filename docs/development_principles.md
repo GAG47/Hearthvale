@@ -95,3 +95,11 @@ AI 可以创造内容、提出建议和辅助决策，但不能直接确定世�
 `XDefinition` 只表示 X 在一个世界生命周期内稳定不变的基础定义；`XState` 只表示具体 X 当前可变化、可持久化的事实；`XRegistry` 只表示一组运行时对象的注册、索引与查询；裸 `X` 表示当前世界中实际存在的逻辑对象。不要为了名称对称创建没有真实职责和消费者的类型。
 
 `World` 只表示一个完整游戏世界本身，不表示“全局系统”“很多对象都会使用的服务”或“世界级单例”。只有真实存在整个 World 自身的固定定义、可变状态或逻辑对象时，才可以建立 WorldDefinition、WorldState 或 World；否则应使用具体职责名称，例如 LocationRegistry、StateRegistry、GameClock。
+
+## 14. Game 是当前 World 的生命周期与固定更新入口
+
+Game 只允许持有零个或一个活动 World，并以 `EMPTY → INITIALIZING → RUNNING → ENDING → EMPTY` 管理初始化、运行和销毁。New Game 初始化数据只负责描述初始内容；Registry 只索引已经存在的对象；Runtime System 只实现自己的规则。初始化失败与正常结束必须复用同一套 teardown，不能按失败来源建立多套 reset / cleanup 路径。
+
+world-scoped Registry 与 System 由 Game 创建并显式装配，不注册为 Application Autoload，也不通过 `/root`、SceneTree root 或 Engine main loop寻找依赖。被依赖对象先完成创建；全部 authoritative State 先于 Entity，Entity 先于 Representation。运行期固定 phase 只由 Game 依次调用同步入口推进，System 的一个 `advance()` 返回就是该 phase 的边界。
+
+PlayerController 只解释输入并产生 intent；Game 决定 intent 何时可以进入 RUNNING World。Location Exit signal callback 只允许记录 pending transition 和停止持续方向，不得在 Movement advance 内部 commit 跨 Location 变化。真正 transfer 必须在 Movement phase 返回后继续使用 Prepare → Validate → Commit。

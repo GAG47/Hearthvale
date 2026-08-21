@@ -3,6 +3,7 @@ extends SceneTree
 const MAIN_SCENE := preload("res://scenes/main.tscn")
 const MARTHA_DEFINITION: ActorDefinition = preload("res://data/actors/martha.tres")
 const TEST_ACTOR_ID := &"e3000000-0000-4000-8000-000000000001"
+const TAVERN_ID := &"50000000-0000-4000-8000-000000000001"
 
 var _checks := 0
 var _failures := 0
@@ -13,45 +14,30 @@ func _init() -> void:
 
 
 func _run_tests() -> void:
-	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
-	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
-	var entity_registry := root.get_node_or_null("EntityRegistry") as EntityRegistry
-	var movement := root.get_node_or_null("LogicalMovement") as LogicalMovement
-	var game_clock := root.get_node_or_null("GameClock") as GameClock
-	_expect(location_registry != null, "LocationRegistry Autoload must exist.")
-	_expect(state_registry != null, "StateRegistry Autoload must exist.")
-	_expect(entity_registry != null, "EntityRegistry Autoload must exist.")
-	_expect(movement != null, "LogicalMovement Autoload must remain independent.")
-	_expect(game_clock != null, "GameClock Autoload must exist.")
+	var empty_location_registry := LocationRegistry.new()
+	var empty_state_registry := StateRegistry.new()
+	_expect(empty_location_registry.get_all().is_empty(), "A fresh LocationRegistry must be empty.")
+	_expect(empty_state_registry.get_location_states().is_empty(), "A fresh StateRegistry must be empty.")
 	_expect(root.get_node_or_null("WorldDefinition") == null, "WorldDefinition Autoload must be removed.")
 	_expect(root.get_node_or_null("WorldState") == null, "WorldState Autoload must be removed.")
 	_expect(root.get_node_or_null("WorldTime") == null, "WorldTime Autoload must be removed.")
-	if location_registry == null or state_registry == null or entity_registry == null or movement == null:
-		_finish()
-		return
-
-	_expect(state_registry.get_location_states().is_empty(), "StateRegistry must not auto-create Project LocationState objects.")
-	var tavern_id_before_game := location_registry.get_project_location_id(&"tavern")
-	var locations_before_game := location_registry.get_all().size()
-	var states_before_game := state_registry.get_location_states().size()
-	_expect(location_registry.get_location_definition(tavern_id_before_game) != null, "Project LocationDefinition should be indexed before runtime Location initialization.")
-	_expect(not location_registry.has_location(tavern_id_before_game), "Definition presence must not count as registered Location presence.")
-	_expect(location_registry.get_location(tavern_id_before_game) == null, "LocationRegistry.get_location must not create an unregistered Project Location.")
 	var unknown_location_id := &"e5000000-0000-4000-8000-000000000001"
-	_expect(not location_registry.has_location(unknown_location_id), "Unknown Location must not be reported as registered.")
-	_expect(location_registry.get_location(unknown_location_id) == null, "LocationRegistry.get_location must return null for an unknown Location.")
-	_expect(location_registry.get_all().size() == locations_before_game, "A pure Location query must not register a Location.")
-	_expect(state_registry.get_location_states().size() == states_before_game, "A pure Location query must not create LocationState.")
-	_expect(not _has_property(state_registry, &"_active_locations"), "StateRegistry must not store LocationScene Nodes.")
-	_expect(not state_registry.has_method("register_location"), "StateRegistry must not register LocationScene Nodes.")
+	_expect(not empty_location_registry.has_location(unknown_location_id), "Unknown Location must not be reported as registered.")
+	_expect(empty_location_registry.get_location(unknown_location_id) == null, "LocationRegistry.get_location must return null for an unknown Location.")
+	_expect(not _has_property(empty_state_registry, &"_active_locations"), "StateRegistry must not store LocationScene Nodes.")
+	_expect(not empty_state_registry.has_method("register_location"), "StateRegistry must not register LocationScene Nodes.")
 
-	var game := MAIN_SCENE.instantiate()
+	var game := MAIN_SCENE.instantiate() as Game
 	root.add_child(game)
 	await process_frame
 	await physics_frame
+	var location_registry := game.location_registry
+	var state_registry := game.state_registry
+	var entity_registry := game.entity_registry
+	var movement := game.logical_movement
 
-	_expect(location_registry.get_all().size() == 3, "Game startup must register the three Project Locations.")
-	var tavern_id := location_registry.get_project_location_id(&"tavern")
+	_expect(location_registry.get_all().size() == 3, "Game startup must register the three New Game Locations.")
+	var tavern_id := TAVERN_ID
 	var tavern := location_registry.get_location(tavern_id)
 	_expect(location_registry.has_location(tavern_id), "LocationRegistry.has_location must find a registered Location.")
 	_expect(location_registry.get_location(tavern_id) == tavern, "LocationRegistry.get_location must return the registered Location.")
@@ -69,6 +55,7 @@ func _run_tests() -> void:
 	)
 	_test_names_and_paths()
 
+	game.end_world()
 	game.queue_free()
 	await process_frame
 	_finish()
@@ -81,8 +68,7 @@ func _test_committed_position_and_arrival_composition(
 	entity_registry: EntityRegistry,
 	movement: LogicalMovement
 ) -> void:
-	movement.set_physics_process(false)
-	var tavern_id := location_registry.get_project_location_id(&"tavern")
+	var tavern_id := TAVERN_ID
 	var edge := location_registry.get_edge(tavern_id, &"back_door")
 	var target_location := location_registry.get_location(edge.target_location_id)
 	var entry := target_location.get_entry(edge.target_entry_id)
@@ -169,8 +155,9 @@ func _test_names_and_paths() -> void:
 		"res://scripts/time/game_clock.gd",
 		"res://scripts/time/game_time_state.gd",
 		"res://scripts/time/game_calendar.gd",
-		"res://scripts/initialization/project_world.gd",
-		"res://scripts/initialization/project_location_instance_spec.gd",
+		"res://scripts/initialization/new_game_setup.gd",
+		"res://scripts/initialization/new_game_location_spec.gd",
+		"res://scripts/initialization/new_game_entity_spec.gd",
 		"res://data/location_tileset.tres",
 	]:
 		_expect(FileAccess.file_exists(current_path), "Current V11.3 path must exist: %s" % current_path)
@@ -191,8 +178,8 @@ func _test_names_and_paths() -> void:
 	)
 	var entity_registry_source := _read_text("res://scripts/entities/entity_registry.gd")
 	var logical_movement_source := _read_text("res://scripts/movement/logical_movement.gd")
-	_expect(not entity_registry_source.contains("class_name"), "EntityRegistry Autoload must not declare a duplicate global class name.")
-	_expect(not logical_movement_source.contains("class_name"), "LogicalMovement Autoload must not declare a duplicate global class name.")
+	_expect(entity_registry_source.contains("class_name EntityRegistry"), "EntityRegistry must expose its RefCounted type explicitly.")
+	_expect(logical_movement_source.contains("class_name LogicalMovement"), "LogicalMovement must expose its RefCounted type explicitly.")
 	var actor_representation_source := _read_text("res://scripts/entities/actors/actor_representation.gd")
 	_expect(not actor_representation_source.contains("world_" + "position"), "ActorRepresentation must use native global_position directly.")
 	var furniture_representation_source := _read_text("res://scripts/entities/furniture/furniture_representation.gd")

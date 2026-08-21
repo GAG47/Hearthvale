@@ -23,13 +23,13 @@ func check_action(action: EntityAction) -> ActionRuleDecision:
 			"%s 不提供“%s”行为。"
 			% [furniture.definition.display_name, action.action_id]
 		)
-	if _get_game_clock() == null:
+	if action.game_clock == null:
 		return ActionRuleDecision.reject("游戏时间系统当前不可用。", &"game_clock_unavailable")
 	return ActionRuleDecision.permit()
 
 
 func apply_action(action: EntityAction) -> ActionResult:
-	var game_clock := _get_game_clock()
+	var game_clock := action.game_clock
 	if game_clock == null:
 		return ActionResult.failed(
 			action.action_id,
@@ -45,8 +45,3 @@ func apply_action(action: EntityAction) -> ActionResult:
 			&"game_clock_advance_failed"
 		)
 	return ActionResult.succeeded(action.action_id, action.target.instance_id, "你睡到了第二天 08:00。")
-
-
-func _get_game_clock() -> GameClock:
-	var tree := Engine.get_main_loop() as SceneTree
-	return tree.root.get_node_or_null("GameClock") as GameClock if tree != null else null

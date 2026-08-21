@@ -15,14 +15,6 @@ run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 
-[autoload]
-
-LocationRegistry="*res://scripts/location/location_registry.gd"
-StateRegistry="*res://scripts/state/state_registry.gd"
-EntityRegistry="*res://scripts/entities/entity_registry.gd"
-LogicalMovement="*res://scripts/movement/logical_movement.gd"
-GameClock="*res://scripts/time/game_clock.gd"
-
 [display]
 
 window/size/viewport_width=640

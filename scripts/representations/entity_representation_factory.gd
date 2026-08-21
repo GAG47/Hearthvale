@@ -9,5 +9,6 @@ extends RefCounted
 @abstract func prepare(
 	entity: Entity,
 	target_location,
-	target_cell: Vector2i
+	target_cell: Vector2i,
+	logical_movement: LogicalMovement = null
 ) -> Node

@@ -5,6 +5,7 @@ const VISUAL_DIRECTIONS: Array[String] = ["up", "down", "left", "right"]
 
 var actor: Actor
 var current_location: LocationScene
+var logical_movement: LogicalMovement
 var _visual_textures: Dictionary[String, Texture2D] = {}
 
 var instance_id: StringName:
@@ -38,7 +39,8 @@ func _physics_process(_delta: float) -> void:
 func prepare_actor(
 	p_actor: Actor,
 	location: LocationScene,
-	target_cell: Vector2i
+	target_cell: Vector2i,
+	p_logical_movement: LogicalMovement = null
 ) -> bool:
 	if p_actor == null or location == null:
 		push_error("ActorRepresentation preparation requires an Actor and target LocationScene.")
@@ -56,6 +58,7 @@ func prepare_actor(
 
 	actor = p_actor
 	current_location = location
+	logical_movement = p_logical_movement
 	_visual_textures = loaded_visual_textures
 	position = _get_actor_display_position(target_cell)
 	_update_facing_visual()
@@ -131,20 +134,10 @@ func _get_facing_direction() -> String:
 
 
 func _get_actor_display_position(fallback_cell: Vector2i) -> Vector2:
-	var movement := _get_logical_movement()
-	var request := movement.get_request(actor) if movement != null else null
+	var request := logical_movement.get_request(actor) if logical_movement != null else null
 	if request != null and request.phase == ActorMovementRequest.Phase.EXTENDED:
 		return LocationGridSpace.cell_to_center_position(request.tail_cell).lerp(
 			LocationGridSpace.cell_to_center_position(request.head_cell),
 			request.get_step_progress()
 		)
 	return LocationGridSpace.cell_to_center_position(fallback_cell)
-
-
-func _get_logical_movement() -> LogicalMovement:
-	var tree := Engine.get_main_loop() as SceneTree
-	return (
-		tree.root.get_node_or_null("LogicalMovement") as LogicalMovement
-		if tree != null
-		else null
-	)

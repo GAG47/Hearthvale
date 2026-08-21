@@ -4,6 +4,7 @@ const MAIN_SCENE := preload("res://scenes/main.tscn")
 const PLAYER_DEFINITION: ActorDefinition = preload("res://data/actors/player.tres")
 const SIGN_DEFINITION: FurnitureDefinition = preload("res://data/furniture/sign.tres")
 const GRASS: GroundTileDefinition = preload("res://data/tiles/ground/grass.tres")
+const TAVERN_DEFINITION: LocationDefinition = preload("res://data/locations/tavern.tres")
 
 const TEST_LOCATION_ID := &"a0000000-0000-4000-8000-000000000010"
 const TARGET_ID := &"a0000000-0000-4000-8000-000000000011"
@@ -13,6 +14,7 @@ const NON_BLOCKING_ID := &"a0000000-0000-4000-8000-000000000014"
 const FACING_PRIORITY_ID := &"a0000000-0000-4000-8000-000000000118"
 const PLAYER_ID := &"90000000-0000-4000-8000-000000000001"
 const CHEST_ID := &"5543caf7-2a10-4a40-84de-3a39ffdf670e"
+const TAVERN_ID := &"50000000-0000-4000-8000-000000000001"
 
 var _checks := 0
 var _failures := 0
@@ -277,27 +279,18 @@ func _test_runtime_slot_validation() -> void:
 	_expect(registry.register_entity(blocker), "Entrance blocker must register in EntityRegistry.")
 	_expect(not location.is_slot_entrance_valid(target, entrance), "Another blocking Entity must invalidate SlotEntrance runtime availability.")
 	_expect(location.get_slot_entrances(slot) == [entrance], "Runtime filtering must not rewrite explicit SlotEntrance data.")
-	registry.free()
+	registry.clear()
 
 
 func _test_allowed_facing() -> void:
-	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
-	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
-	var entity_registry := root.get_node_or_null("EntityRegistry") as EntityRegistry
-	_expect(location_registry != null, "Allowed facing test needs LocationRegistry.")
-	if location_registry == null or state_registry == null or entity_registry == null:
-		return
-	var location_id := location_registry.get_project_location_id(&"tavern")
-	var location_state := state_registry.get_location_state(location_id)
-	if location_state == null:
-		location_state = LocationState.new(location_id)
-		state_registry.register_location_state(location_state)
-	if location_registry.get_location(location_id) == null:
-		location_registry.register(Location.new(
-			location_registry.get_location_definition(location_id),
-			location_state,
-			entity_registry
-		), &"tavern")
+	var location_registry := LocationRegistry.new()
+	var state_registry := StateRegistry.new()
+	var entity_registry := EntityRegistry.new()
+	var location_id := TAVERN_ID
+	var location_state := LocationState.new(location_id)
+	state_registry.register_location_state(location_state)
+	location_registry.register(Location.new(TAVERN_DEFINITION, location_state, entity_registry))
+	var movement := LogicalMovement.new(location_registry, entity_registry)
 	var location := location_registry.get_location(location_id)
 	var target_origin := _find_open_pair_origin(location)
 	var target := _create_furniture(Vector2i.ONE, true, target_origin, TARGET_ID)
@@ -322,7 +315,9 @@ func _test_allowed_facing() -> void:
 			ActorState.Facing.UP
 		)
 	)
-	var action := EntityAction.new(&"inspect", actor, target)
+	var action := EntityAction.new(
+		&"inspect", actor, target, location_registry, movement
+	)
 	var wrong_facing := ActionSpatialRule.evaluate(action)
 	_expect(not wrong_facing.allowed, "Action spatial validation must reject a matching Slot with wrong facing.")
 	(actor.state as ActorState).facing = ActorState.Facing.RIGHT
@@ -342,27 +337,26 @@ func _test_missing_location_rejects() -> void:
 		)
 	)
 	var target := _create_furniture(Vector2i.ONE, true, Vector2i(3, 2), &"a0000000-0000-4000-8000-000000000117")
-	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
-	if location_registry != null:
-		location_registry.name = "UnavailableLocationRegistry"
-	var decision := ActionSpatialRule.evaluate(EntityAction.new(&"inspect", actor, target))
-	if location_registry != null:
-		location_registry.name = "LocationRegistry"
+	var location_registry := LocationRegistry.new()
+	var movement := LogicalMovement.new(location_registry, EntityRegistry.new())
+	var decision := ActionSpatialRule.evaluate(
+		EntityAction.new(&"inspect", actor, target, location_registry, movement)
+	)
 	_expect(not decision.allowed, "ActionSpatialRule must reject when Location cannot be obtained.")
 	_expect(decision.failure_code == &"location_unavailable", "Missing Location must report an explicit unavailable failure.")
 
 
 func _test_existing_interaction_and_scene_rebuild() -> void:
-	var location_registry := root.get_node_or_null("LocationRegistry") as LocationRegistry
-	var state_registry := root.get_node_or_null("StateRegistry") as StateRegistry
-	var registry := root.get_node_or_null("EntityRegistry") as EntityRegistry
-	if location_registry == null or state_registry == null or registry == null:
-		_expect(false, "V10 integration requires project world Autoloads.")
-		return
-	var game := MAIN_SCENE.instantiate()
+	var game := MAIN_SCENE.instantiate() as Game
 	root.add_child(game)
 	await process_frame
 	await physics_frame
+	var location_registry := game.location_registry
+	var state_registry := game.state_registry
+	var registry := game.entity_registry
+	if location_registry == null or state_registry == null or registry == null:
+		_expect(false, "V10 integration requires project world Autoloads.")
+		return
 	var player := registry.get_entity(PLAYER_ID) as Actor
 	var chest := registry.get_entity(CHEST_ID) as Furniture
 	_expect(player != null and chest != null, "Project Player and Chest must initialize for V10 integration.")
@@ -371,13 +365,15 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 		await process_frame
 		return
 
-	var tavern_id := location_registry.get_project_location_id(&"tavern")
+	var tavern_id := TAVERN_ID
 	player.state.local_cell = Vector2i(13, 6)
 	(player.state as ActorState).facing = ActorState.Facing.RIGHT
 	_expect(chest.definition.use_slots.is_empty(), "Ordinary project Furniture must remain valid without explicit V10 data.")
 	var controller := game.get_node("PlayerController") as PlayerController
 	_expect(controller.call("_select_interaction").get("entity") == chest, "Default UseSlots must preserve ordinary front interaction selection.")
-	_expect(ActionSpatialRule.evaluate(EntityAction.new(&"open", player, chest)).allowed, "Default UseSlots must preserve ordinary front Action validation.")
+	_expect(ActionSpatialRule.evaluate(EntityAction.new(
+		&"open", player, chest, location_registry, game.logical_movement, game.game_clock
+	)).allowed, "Default UseSlots must preserve ordinary front Action validation.")
 
 	var location := location_registry.get_location(tavern_id)
 	var foot_cell := _find_unclaimed_walkable_cell(location, player)
@@ -391,7 +387,9 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 	player.state.local_cell = foot_cell
 	(player.state as ActorState).facing = ActorState.Facing.LEFT
 	_expect(controller.call("_select_interaction").get("entity") == foot_entity, "A non-blocking Entity must remain selectable from its foot UseSlot.")
-	_expect(EntityAction.new(&"inspect", player, foot_entity).execute().success, "A non-blocking Entity must remain interactable from its occupied Cell.")
+	_expect(EntityAction.new(
+		&"inspect", player, foot_entity, location_registry, game.logical_movement, game.game_clock
+	).execute().success, "A non-blocking Entity must remain interactable from its occupied Cell.")
 
 	var priority_definition := SIGN_DEFINITION.duplicate(true) as FurnitureDefinition
 	priority_definition.blocks_movement = false
@@ -456,6 +454,7 @@ func _test_existing_interaction_and_scene_rebuild() -> void:
 	_expect(before_slot_cells == _slot_cells(after_slots), "UseSlot results must survive Location Scene destruction and rebuilding.")
 	_expect(before_entrance_cells == _entrance_location_cells(rebuilt_location, chest, after_slots), "SlotEntrance results must survive Location Scene destruction and rebuilding.")
 	_expect(chest.definition.use_slots.is_empty(), "Scene rebuilding must not materialize defaults into FurnitureDefinition.")
+	game.end_world()
 	game.queue_free()
 	await process_frame
 

@@ -1,4 +1,5 @@
-extends Node
+class_name EntityRegistry
+extends RefCounted
 
 var _entities: Dictionary[StringName, Entity] = {}
 
@@ -40,6 +41,10 @@ func get_entities_in_location(location_id: StringName) -> Array[Entity]:
 		if entity.current_location_id == location_id:
 			entities.append(entity)
 	return entities
+
+
+func clear() -> void:
+	_entities.clear()
 
 
 func _validate_entity(entity: Entity) -> bool:

@@ -19,10 +19,10 @@ func _init() -> void:
 
 
 func _run_tests() -> void:
-	_location_registry = root.get_node_or_null("LocationRegistry") as LocationRegistry
-	_state_registry = root.get_node_or_null("StateRegistry") as StateRegistry
-	_registry = root.get_node_or_null("EntityRegistry") as EntityRegistry
-	_movement = root.get_node_or_null("LogicalMovement") as LogicalMovement
+	_location_registry = LocationRegistry.new()
+	_state_registry = StateRegistry.new()
+	_registry = EntityRegistry.new()
+	_movement = LogicalMovement.new(_location_registry, _registry)
 	_expect(_location_registry != null, "V11.2 tests require LocationRegistry.")
 	_expect(_state_registry != null, "V11.2 tests require StateRegistry.")
 	_expect(_registry != null, "V11.2 tests require EntityRegistry.")
@@ -30,7 +30,6 @@ func _run_tests() -> void:
 	if _location_registry == null or _state_registry == null or _registry == null or _movement == null:
 		_finish()
 		return
-	_movement.set_physics_process(false)
 	_movement.cancel_all()
 
 	_test_cell_authority_contract()
@@ -252,10 +251,19 @@ func _test_direction_intent_continuity_and_latest_input() -> void:
 
 func _test_player_controller_uses_logical_movement() -> void:
 	_movement.cancel_all()
+	var test_location_registry := _location_registry
+	var test_state_registry := _state_registry
+	var test_registry := _registry
+	var test_movement := _movement
 	var game := MAIN_SCENE.instantiate()
 	root.add_child(game)
 	await process_frame
 	await physics_frame
+	_location_registry = game.location_registry
+	_state_registry = game.state_registry
+	_registry = game.entity_registry
+	_movement = game.logical_movement
+	game.set_physics_process(false)
 	var controller := game.get_node_or_null("PlayerController") as PlayerController
 	var player := _registry.get_entity(PLAYER_INSTANCE_ID) as Actor
 	_expect(controller != null and player != null, "Main must initialize the controlled ordinary Actor.")
@@ -283,6 +291,7 @@ func _test_player_controller_uses_logical_movement() -> void:
 
 	var start_cell := player.current_cell
 	Input.action_press(&"ui_right")
+	controller.consume_world_intent(game.game_clock)
 	await physics_frame
 	var request := _movement.get_request(player)
 	_expect(
@@ -312,6 +321,7 @@ func _test_player_controller_uses_logical_movement() -> void:
 		"ActorRepresentation must interpolate Cell centers while logical State remains at tail."
 	)
 	Input.action_release(&"ui_right")
+	controller.consume_world_intent(game.game_clock)
 	await physics_frame
 	_movement.advance(half_step)
 	await physics_frame
@@ -334,8 +344,10 @@ func _test_player_controller_uses_logical_movement() -> void:
 		(player.state as ActorState).facing = ActorState.Facing.UP
 		representation.position = LocationGridSpace.cell_to_center_position(interaction_cell)
 		Input.action_press(&"ui_right")
+		controller.consume_world_intent(game.game_clock)
 		await physics_frame
 		Input.action_release(&"ui_right")
+		controller.consume_world_intent(game.game_clock)
 		await physics_frame
 		_expect(
 			player.current_cell == interaction_cell
@@ -343,14 +355,21 @@ func _test_player_controller_uses_logical_movement() -> void:
 			and not _movement.is_participant(player),
 			"Facing must update immediately when blocking Furniture prevents the requested step."
 		)
-		var interaction_result := controller.request_interaction()
+		var interaction_result := controller.request_interaction(game.game_clock)
 		_expect(
 			interaction_result.success and interaction_result.target_id == CHEST_INSTANCE_ID,
 			"Facing a blocking Furniture must still permit its valid V10 interaction."
 		)
 
 		var action_id := chest.get_primary_action(player)
-		var spatial_action := EntityAction.new(action_id, player, chest)
+		var spatial_action := EntityAction.new(
+			action_id,
+			player,
+			chest,
+			_location_registry,
+			_movement,
+			game.game_clock
+		)
 		_expect(
 			ActionSpatialRule.evaluate(spatial_action).allowed,
 			"A contracted Actor at a valid UseSlot must remain eligible for Spatial Action."
@@ -373,8 +392,13 @@ func _test_player_controller_uses_logical_movement() -> void:
 			"An extended Actor must be rejected by the world Spatial Rule before starting a UseSlot Action."
 		)
 		_movement.cancel_all()
+	game.end_world()
 	game.queue_free()
 	await process_frame
+	_location_registry = test_location_registry
+	_state_registry = test_state_registry
+	_registry = test_registry
+	_movement = test_movement
 
 
 func _test_npc_astar_candidates_and_long_distance_alignment() -> void:
@@ -927,7 +951,10 @@ func _create_actor(
 func _build_location_scene(location: Location) -> LocationScene:
 	var prepared := LocationSceneBuilder.new().prepare_scene(
 		location,
-		EntityRepresentationRegistry.create_default()
+		EntityRepresentationRegistry.create_default(),
+		null,
+		Vector2i.ZERO,
+		_movement
 	)
 	if prepared.is_empty():
 		return null

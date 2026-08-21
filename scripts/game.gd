@@ -1,36 +1,31 @@
+class_name Game
 extends Node2D
 
-const PLAYER_DEFINITION: ActorDefinition = preload("res://data/actors/player.tres")
-const PLAYER_INSTANCE_ID := &"90000000-0000-4000-8000-000000000001"
-const PLAYER_INITIAL_LOCATION_KEY := &"tavern"
-const PLAYER_INITIAL_CELL := Vector2i(12, 8)
-const PLAYER_INITIAL_FACING := ActorState.Facing.DOWN
-const FURNITURE_INSTANCES: Array[Dictionary] = [
-	{
-		"instance_id": &"5543caf7-2a10-4a40-84de-3a39ffdf670e",
-		"definition": preload("res://data/furniture/wooden_chest.tres"),
-		"location_key": &"tavern",
-		"local_cell": Vector2i(14, 6),
-	},
-	{
-		"instance_id": &"1d67bbf9-edc2-4264-a861-8bd3e3e61e15",
-		"definition": preload("res://data/furniture/sign.tres"),
-		"location_key": &"tavern",
-		"local_cell": Vector2i(13, 7),
-	},
-	{
-		"instance_id": &"a6ae5842-8c6d-4df2-9b80-a271b5496716",
-		"definition": preload("res://data/furniture/simple_bed.tres"),
-		"location_key": &"tavern",
-		"local_cell": Vector2i(20, 3),
-	},
-]
+enum Lifecycle {
+	EMPTY,
+	INITIALIZING,
+	RUNNING,
+	ENDING,
+}
 
+const DEFAULT_NEW_GAME_SETUP: NewGameSetup = preload(
+	"res://data/world/new_game_setup.tres"
+)
+
+var lifecycle := Lifecycle.EMPTY
 var current_location: LocationScene
 var transition_in_progress := false
 var controlled_actor_instance_id := &""
+
+var state_registry: StateRegistry
+var entity_registry: EntityRegistry
+var location_registry: LocationRegistry
+var game_clock: GameClock
+var logical_movement: LogicalMovement
+
 var representation_registry := EntityRepresentationRegistry.create_default()
 var location_scene_builder := LocationSceneBuilder.new()
+var _pending_location_transition: Dictionary = {}
 
 @onready var location_scene_root: Node2D = $LocationSceneRoot
 @onready var player_controller: PlayerController = $PlayerController
@@ -41,55 +36,127 @@ var location_scene_builder := LocationSceneBuilder.new()
 @onready var action_result_label: Label = $HUD/ActionResultLabel
 @onready var action_result_timer: Timer = $HUD/ActionResultTimer
 
-var game_clock: GameClock
-var location_registry: LocationRegistry
-var state_registry: StateRegistry
-var entity_registry: EntityRegistry
-
 
 func _ready() -> void:
 	action_result_timer.timeout.connect(_on_action_result_timer_timeout)
 	player_controller.action_completed.connect(_on_player_action_completed)
+	initialize_world(DEFAULT_NEW_GAME_SETUP)
 
-	game_clock = get_node_or_null("/root/GameClock") as GameClock
-	if game_clock == null:
-		push_error("GameClock Autoload is required before loading Game.")
-	else:
-		game_clock.time_changed.connect(_on_game_time_changed)
-		_refresh_time_display()
 
-	location_registry = get_node_or_null("/root/LocationRegistry") as LocationRegistry
-	if location_registry == null:
-		push_error("LocationRegistry Autoload is required before loading Game.")
+func _physics_process(delta: float) -> void:
+	if lifecycle != Lifecycle.RUNNING:
 		return
-	state_registry = get_node_or_null("/root/StateRegistry") as StateRegistry
-	if state_registry == null:
-		push_error("StateRegistry Autoload is required before loading Game.")
-		return
-	entity_registry = get_node_or_null("/root/EntityRegistry") as EntityRegistry
-	if entity_registry == null:
-		push_error("EntityRegistry Autoload is required before loading Game.")
-		return
-	var movement := get_node_or_null("/root/LogicalMovement") as LogicalMovement
-	if movement == null:
-		push_error("LogicalMovement Autoload is required before loading Game.")
-		return
-	movement.step_completed.connect(_on_logical_movement_step_completed)
-	if not _initialize_project_locations():
-		return
-	if not _initialize_furniture_entities():
-		return
-	var controlled_actor := _initialize_player_actor()
+
+	# 1. Player Intent Phase.
+	player_controller.consume_world_intent(game_clock)
+	# 2. World Simulation Clock Phase.
+	game_clock.advance(delta)
+	# 3. Reserved future world-system phase (no V12 system is added here).
+	# 4. Logical Movement Phase.
+	logical_movement.advance(delta)
+	# 5. Pending Cross-System Transition Phase.
+	_process_pending_location_transition()
+
+
+func initialize_world(new_game_setup: NewGameSetup) -> bool:
+	if lifecycle != Lifecycle.EMPTY:
+		push_error("Game can only initialize a World from EMPTY lifecycle.")
+		return false
+	lifecycle = Lifecycle.INITIALIZING
+
+	if new_game_setup == null or not new_game_setup.validate():
+		return _abort_world_initialization("Game rejected an invalid NewGameSetup.")
+
+	state_registry = StateRegistry.new()
+	entity_registry = EntityRegistry.new()
+	location_registry = LocationRegistry.new()
+
+	if not _create_authoritative_states(new_game_setup):
+		return _abort_world_initialization("Game could not create all authoritative State.")
+	if not _create_locations(new_game_setup):
+		return _abort_world_initialization("Game could not create all Locations.")
+	if not _create_entities(new_game_setup):
+		return _abort_world_initialization("Game could not create all Entities.")
+	if not _validate_runtime_relationships(new_game_setup):
+		return _abort_world_initialization("Game rejected invalid runtime relationships.")
+
+	game_clock = GameClock.new(state_registry.get_game_time_state())
+	logical_movement = LogicalMovement.new(location_registry, entity_registry)
+	if not game_clock.is_bound() or not logical_movement.has_dependencies():
+		return _abort_world_initialization("Game could not bind World runtime systems.")
+
+	controlled_actor_instance_id = new_game_setup.controlled_actor_spec.instance_id
+	var controlled_actor := entity_registry.get_entity(controlled_actor_instance_id) as Actor
 	if controlled_actor == null:
+		return _abort_world_initialization("Game could not resolve the controlled Actor.")
+	if not player_controller.bind_world(
+		controlled_actor,
+		location_registry,
+		logical_movement,
+		game_clock
+	):
+		return _abort_world_initialization("Game could not bind PlayerController to the World.")
+
+	_connect_world_signals()
+	var prepared_initial_location := _prepare_location_change(
+		controlled_actor.current_location_id,
+		&"",
+		null
+	)
+	if prepared_initial_location.is_empty():
+		return _abort_world_initialization("Game could not prepare the initial Location Representation.")
+	_commit_location_change(prepared_initial_location)
+	_refresh_time_display()
+	lifecycle = Lifecycle.RUNNING
+	return true
+
+
+func end_world() -> void:
+	if lifecycle == Lifecycle.EMPTY or lifecycle == Lifecycle.ENDING:
 		return
-	_replace_location(controlled_actor.current_location_id)
+	lifecycle = Lifecycle.ENDING
+
+	_pending_location_transition.clear()
+	transition_in_progress = false
+	if player_controller != null:
+		player_controller.clear_pending_intent()
+	if logical_movement != null:
+		logical_movement.cancel_all()
+	if player_controller != null:
+		player_controller.unbind_world()
+
+	if is_instance_valid(current_location):
+		if current_location.get_parent() != null:
+			current_location.get_parent().remove_child(current_location)
+		current_location.free()
+	current_location = null
+
+	_disconnect_world_signals()
+	logical_movement = null
+	game_clock = null
+	if entity_registry != null:
+		entity_registry.clear()
+	if location_registry != null:
+		location_registry.clear()
+	if state_registry != null:
+		state_registry.clear()
+	entity_registry = null
+	location_registry = null
+	state_registry = null
+	controlled_actor_instance_id = &""
+	if location_label != null:
+		location_label.text = "Hearthvale"
+	if action_result_label != null:
+		action_result_label.text = ""
+	lifecycle = Lifecycle.EMPTY
 
 
 func request_location_change(edge_key: StringName) -> void:
 	if (
-		transition_in_progress
+		lifecycle != Lifecycle.RUNNING
+		or transition_in_progress
+		or not _pending_location_transition.is_empty()
 		or current_location == null
-		or not is_instance_valid(player_controller.controlled_representation)
 		or edge_key.is_empty()
 	):
 		return
@@ -97,110 +164,97 @@ func request_location_change(edge_key: StringName) -> void:
 	var edge := location_registry.get_edge(from_location_id, edge_key)
 	if edge == null:
 		return
-
-	transition_in_progress = true
+	_pending_location_transition = {
+		"from_location_id": from_location_id,
+		"edge": edge,
+	}
 	player_controller.stop()
-	player_controller.set_physics_process(false)
-	_perform_location_change.call_deferred(from_location_id, edge)
+	if player_controller.controlled_actor != null:
+		logical_movement.set_direction_intent(
+			player_controller.controlled_actor,
+			Vector2i.ZERO
+		)
 
 
-func _initialize_project_locations() -> bool:
-	for spec in location_registry.get_project_location_instance_specs():
-		if spec == null or spec.definition == null:
-			push_error("Game cannot initialize an invalid ProjectLocationInstanceSpec.")
+func has_pending_location_transition() -> bool:
+	return not _pending_location_transition.is_empty()
+
+
+func _create_authoritative_states(new_game_setup: NewGameSetup) -> bool:
+	var game_time_state := GameTimeState.new(new_game_setup.initial_total_minutes)
+	if not state_registry.register_game_time_state(game_time_state):
+		return false
+	for spec in new_game_setup.location_specs:
+		if not state_registry.register_location_state(LocationState.new(spec.instance_id)):
 			return false
+	for spec in new_game_setup.entity_specs:
+		var state := spec.create_initial_state()
+		if state == null or not state_registry.register_entity_state(state):
+			return false
+	return true
+
+
+func _create_locations(new_game_setup: NewGameSetup) -> bool:
+	for spec in new_game_setup.location_specs:
 		var state := state_registry.get_location_state(spec.instance_id)
-		if state == null:
-			state = LocationState.new(spec.instance_id)
-			if not state_registry.register_location_state(state):
-				return false
-		var location := location_registry.get_location(spec.instance_id)
-		if location == null:
-			location = Location.new(spec.definition, state, entity_registry)
-			if not location_registry.register(location, spec.key):
-				return false
-		elif location.state != state or location.entity_registry != entity_registry:
-			push_error("LocationRegistry already contains incompatible Location '%s'." % spec.instance_id)
+		var location := Location.new(spec.definition, state, entity_registry)
+		if not location_registry.register(location):
 			return false
 	return true
 
 
-func _initialize_player_actor() -> Actor:
-	if PLAYER_DEFINITION == null:
-		push_error("Game requires the Player ActorDefinition Resource.")
-		return null
-	var initial_location_id := location_registry.get_project_location_id(PLAYER_INITIAL_LOCATION_KEY)
-
-	var state := ActorState.new(
-		PLAYER_INSTANCE_ID,
-		initial_location_id,
-		PLAYER_INITIAL_CELL,
-		PLAYER_INITIAL_FACING
-	)
-	if not state_registry.register_entity_state(state):
-		push_error(
-			"Game could not register the Player ActorState for instance_id '%s'."
-			% state.instance_id
-		)
-		return null
-
-	var actor := Actor.new(PLAYER_DEFINITION, state)
-	if not entity_registry.register_entity(actor):
-		push_error(
-			"Game could not register the Player Actor for instance_id '%s'."
-			% state.instance_id
-		)
-		return null
-
-	controlled_actor_instance_id = state.instance_id
-	return actor
-
-
-func _initialize_furniture_entities() -> bool:
-	for instance_data in FURNITURE_INSTANCES:
-		var definition := instance_data["definition"] as FurnitureDefinition
-		if definition == null:
-			push_error("Game requires every Furniture Definition Resource.")
-			return false
-		var location_id := location_registry.get_project_location_id(instance_data["location_key"])
-		var state := FurnitureState.new(
-			instance_data["instance_id"],
-			location_id,
-			instance_data["local_cell"]
-		)
-		if not state_registry.register_entity_state(state):
-			push_error("Game could not register FurnitureState '%s'." % state.instance_id)
-			return false
-		var furniture := Furniture.new(definition, state)
-		if not entity_registry.register_entity(furniture):
-			push_error("Game could not register Furniture '%s'." % state.instance_id)
+func _create_entities(new_game_setup: NewGameSetup) -> bool:
+	for spec in new_game_setup.entity_specs:
+		var state := state_registry.get_entity_state(spec.instance_id)
+		var entity := spec.create_entity(state)
+		if entity == null or not entity_registry.register_entity(entity):
 			return false
 	return true
 
 
-func _perform_location_change(
-	from_location_id: StringName,
-	edge: LocationEdgeDefinition
-) -> void:
-	var movement := get_node_or_null("/root/LogicalMovement") as LogicalMovement
-	while (
-		movement != null
-		and player_controller.controlled_actor != null
-		and movement.is_participant(player_controller.controlled_actor)
-	):
-		await get_tree().physics_frame
+func _validate_runtime_relationships(new_game_setup: NewGameSetup) -> bool:
+	if state_registry.get_location_states().size() != new_game_setup.location_specs.size():
+		return false
+	if state_registry.get_entity_states().size() != new_game_setup.entity_specs.size():
+		return false
+	if location_registry.get_all().size() != new_game_setup.location_specs.size():
+		return false
+	if entity_registry.get_entities().size() != new_game_setup.entity_specs.size():
+		return false
+	for location in location_registry.get_all():
+		if (
+			location.state != state_registry.get_location_state(location.instance_id)
+			or location.entity_registry != entity_registry
+		):
+			return false
+	for spec in new_game_setup.entity_specs:
+		if not entity_registry.has_entity(spec.instance_id):
+			return false
+		var entity := entity_registry.get_entity(spec.instance_id)
+		if (
+			entity.state != state_registry.get_entity_state(spec.instance_id)
+			or entity.current_location_id != spec.initial_location.instance_id
+			or not location_registry.has_location(entity.current_location_id)
+		):
+			return false
+	return true
+
+
+func _process_pending_location_transition() -> void:
+	if _pending_location_transition.is_empty() or lifecycle != Lifecycle.RUNNING:
+		return
+	var transition := _pending_location_transition
+	_pending_location_transition = {}
+	transition_in_progress = true
+	var from_location_id := transition["from_location_id"] as StringName
+	var edge := transition["edge"] as LocationEdgeDefinition
 	var changed := _replace_location(edge.target_location_id, from_location_id, edge)
-	if is_instance_valid(player_controller.controlled_representation):
-		player_controller.set_physics_process(true)
-
 	if not changed:
 		action_result_label.text = "此路不通。"
 		push_error(
 			"Could not follow Location edge '%s/%s' to location_id '%s' at target_entry_id '%s'."
 			% [from_location_id, edge.edge_key, edge.target_location_id, edge.target_entry_id]
 		)
-
-	await get_tree().physics_frame
 	transition_in_progress = false
 
 
@@ -221,7 +275,7 @@ func _prepare_location_change(
 	from_location_id: StringName,
 	edge: LocationEdgeDefinition
 ) -> Dictionary:
-	var location := location_registry.get_location(location_id)
+	var location := location_registry.get_location(location_id) if location_registry != null else null
 	if location == null:
 		return {}
 
@@ -239,12 +293,11 @@ func _prepare_location_change(
 		return {}
 	var spawn_cell := moving_actor.current_cell
 	if entry != null:
-		var movement := get_node_or_null("/root/LogicalMovement") as LogicalMovement
 		var found_arrival := false
 		for candidate_cell in entry.arrival_cells:
 			if not location.is_cell_statically_walkable(candidate_cell, moving_actor):
 				continue
-			if movement != null and movement.is_actor_cell_occupied(
+			if logical_movement.is_actor_cell_occupied(
 				location.instance_id,
 				candidate_cell,
 				moving_actor
@@ -264,11 +317,12 @@ func _prepare_location_change(
 		location,
 		representation_registry,
 		moving_actor,
-		spawn_cell
+		spawn_cell,
+		logical_movement
 	)
 	if prepared_scene.is_empty():
 		return {}
-	var next_location: LocationScene = prepared_scene["scene"]
+	var next_location := prepared_scene["scene"] as LocationScene
 	if not next_location.prepare_activation(location):
 		next_location.free()
 		return {}
@@ -276,10 +330,7 @@ func _prepare_location_change(
 	var prepared_player_representation := representations.get(controlled_actor_instance_id) as Node
 
 	if prepared_player_representation == null:
-		push_error(
-			"Location '%s' could not prepare the controlled Representation."
-			% location_id
-		)
+		push_error("Location '%s' could not prepare the controlled Representation." % location_id)
 		next_location.free()
 		return {}
 	if not player_controller.can_take_control(moving_actor, prepared_player_representation):
@@ -320,7 +371,27 @@ func _commit_location_change(prepared_change: Dictionary) -> void:
 
 	if is_instance_valid(previous_location):
 		location_scene_root.remove_child(previous_location)
-		previous_location.queue_free()
+		previous_location.free()
+
+
+func _connect_world_signals() -> void:
+	if game_clock != null and not game_clock.time_changed.is_connected(_on_game_time_changed):
+		game_clock.time_changed.connect(_on_game_time_changed)
+	if logical_movement != null and not logical_movement.step_completed.is_connected(_on_logical_movement_step_completed):
+		logical_movement.step_completed.connect(_on_logical_movement_step_completed)
+
+
+func _disconnect_world_signals() -> void:
+	if game_clock != null and game_clock.time_changed.is_connected(_on_game_time_changed):
+		game_clock.time_changed.disconnect(_on_game_time_changed)
+	if logical_movement != null and logical_movement.step_completed.is_connected(_on_logical_movement_step_completed):
+		logical_movement.step_completed.disconnect(_on_logical_movement_step_completed)
+
+
+func _abort_world_initialization(message: String) -> bool:
+	push_error(message)
+	end_world()
+	return false
 
 
 func _on_player_action_completed(result: ActionResult) -> void:
@@ -331,7 +402,8 @@ func _on_player_action_completed(result: ActionResult) -> void:
 
 func _on_logical_movement_step_completed(actor: Actor) -> void:
 	if (
-		actor == null
+		lifecycle != Lifecycle.RUNNING
+		or actor == null
 		or actor != player_controller.controlled_actor
 		or current_location == null
 		or actor.current_location_id != current_location.location_id
@@ -366,3 +438,7 @@ func _refresh_time_display() -> void:
 		game_clock.get_season_name(),
 	]
 	clock_label.text = "%02d:%02d" % [game_clock.get_hour(), game_clock.get_minute()]
+
+
+func _exit_tree() -> void:
+	end_world()

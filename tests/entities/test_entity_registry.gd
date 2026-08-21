@@ -16,20 +16,13 @@ var _failures := 0
 
 
 func _init() -> void:
-	_disable_project_autoloads()
 	call_deferred("_run_tests")
 
 
 func _run_tests() -> void:
 	var registry := REGISTRY_SCRIPT.new()
-	registry.name = "EntityRegistry"
-	root.add_child(registry)
-	var location_registry: Node = LOCATION_REGISTRY_SCRIPT.new()
-	location_registry.name = "LocationRegistry"
-	root.add_child(location_registry)
-	var state_registry: Node = STATE_REGISTRY_SCRIPT.new()
-	state_registry.name = "StateRegistry"
-	root.add_child(state_registry)
+	var location_registry := LOCATION_REGISTRY_SCRIPT.new()
+	var state_registry := STATE_REGISTRY_SCRIPT.new()
 	var location_definition := LocationDefinition.new()
 	location_definition.display_name = "Entity Registry Test Location"
 	location_definition.grid_size = Vector2i(6, 6)
@@ -41,6 +34,7 @@ func _run_tests() -> void:
 	var location_state := LocationState.new(LOCATION_ID)
 	state_registry.call("register_location_state", location_state)
 	location_registry.call("register", Location.new(location_definition, location_state, registry))
+	var movement := LogicalMovement.new(location_registry, registry)
 	_expect(registry.get_entities().is_empty(), "A new EntityRegistry must not create Entities.")
 	_expect(not registry.register_entity(null), "A null Entity must be rejected.")
 
@@ -81,9 +75,13 @@ func _run_tests() -> void:
 		ActorState.new(GENERIC_ENTITY_ID, LOCATION_ID, Vector2i(2, 1), ActorState.Facing.RIGHT)
 	)
 	_expect(registry.register_entity(generic_entity), "EntityRegistry must accept another valid Entity subtype.")
-	var generic_result := EntityAction.new(&"test_action", actor, generic_entity).execute()
+	var generic_result := EntityAction.new(
+		&"test_action", actor, generic_entity, location_registry, movement
+	).execute()
 	_expect(generic_result.success and generic_result.target_id == GENERIC_ENTITY_ID, "EntityAction must execute the generic Entity Action protocol.")
-	var unsupported_result := EntityAction.new(&"talk", actor, actor).execute()
+	var unsupported_result := EntityAction.new(
+		&"talk", actor, actor, location_registry, movement
+	).execute()
 	_expect(not unsupported_result.success and unsupported_result.failure_code == &"target_action_unsupported", "Entity's default Action protocol must reject unsupported actions.")
 
 	var named_definition := _create_furniture_definition("测试柜")
@@ -94,7 +92,9 @@ func _run_tests() -> void:
 		named_definition,
 		FurnitureState.new(OTHER_ENTITY_ID, LOCATION_ID, Vector2i(2, 1))
 	)
-	var open_result := EntityAction.new(&"open", actor, named_furniture).execute()
+	var open_result := EntityAction.new(
+		&"open", actor, named_furniture, location_registry, movement
+	).execute()
 	_expect(open_result.success and open_result.message == "测试柜打开了。", "OpenableBehavior feedback must derive from FurnitureDefinition.display_name.")
 	_expect(named_furniture.get_openable_state() != null and named_furniture.get_openable_state().is_open, "OpenableBehavior must write the instance's OpenableState.")
 
@@ -103,9 +103,9 @@ func _run_tests() -> void:
 	_expect(entities.has(furniture) and entities.has(actor) and entities.has(generic_entity) and entities == registry.get_entities(), "get_entities must return stable instance_id order.")
 	_expect(registry.get_entities_in_location(LOCATION_ID).size() == 3, "Location queries must include every registered Entity subtype.")
 	_expect(registry.get_entities_in_location(&"unknown").is_empty(), "An unknown Location query must return no Entities.")
-	registry.free()
-	state_registry.free()
-	location_registry.free()
+	registry.clear()
+	state_registry.clear()
+	location_registry.clear()
 	_finish()
 
 
@@ -122,11 +122,6 @@ func _create_furniture_definition(display_name: String) -> FurnitureDefinition:
 	definition.footprint_cells = [Vector2i.ZERO]
 	definition.blocks_movement = true
 	return definition
-
-
-func _disable_project_autoloads() -> void:
-	for autoload_name in ["LocationRegistry", "StateRegistry", "EntityRegistry", "GameClock"]:
-		ProjectSettings.set_setting("autoload/%s" % autoload_name, null)
 
 
 func _expect(condition: bool, message: String) -> void:

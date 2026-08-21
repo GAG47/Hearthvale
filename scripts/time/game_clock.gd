@@ -1,46 +1,35 @@
-extends Node
+class_name GameClock
+extends RefCounted
 
 signal time_changed(previous_total_minutes: int, current_total_minutes: int)
 signal minute_changed(previous_total_minutes: int, current_total_minutes: int, minutes_crossed: int)
 signal hour_changed(previous_hour_index: int, current_hour_index: int, hours_crossed: int)
 signal day_changed(previous_day_index: int, current_day_index: int, days_crossed: int)
 
-const REAL_SECONDS_PER_GAME_MINUTE := 1.0
+const SIMULATION_SECONDS_PER_GAME_MINUTE := 1.0
 
 var _state: GameTimeState
-var _real_seconds_accumulator := 0.0
+var _simulation_seconds_accumulator := 0.0
 
 
-func _ready() -> void:
-	process_mode = Node.PROCESS_MODE_PAUSABLE
-
-	var state_registry := get_node_or_null("/root/StateRegistry") as StateRegistry
-	if state_registry == null:
-		push_error("StateRegistry Autoload is required before GameClock.")
-		set_process(false)
-		return
-
-	_state = state_registry.get_game_time_state()
-	if _state == null:
-		var initial_state := GameTimeState.new(GameCalendar.INITIAL_TOTAL_MINUTES)
-		if state_registry.register_game_time_state(initial_state):
-			_state = initial_state
-
-	if _state == null:
-		push_error("GameClock could not bind the authoritative GameTimeState.")
-		set_process(false)
+func _init(state: GameTimeState) -> void:
+	_state = state
 
 
-func _process(delta: float) -> void:
+func is_bound() -> bool:
+	return _state != null
+
+
+func advance(delta: float) -> void:
 	if _state == null:
 		return
-
-	_real_seconds_accumulator += delta
-	var elapsed_game_minutes := floori(_real_seconds_accumulator / REAL_SECONDS_PER_GAME_MINUTE)
+	_simulation_seconds_accumulator += maxf(delta, 0.0)
+	var elapsed_game_minutes := floori(
+		_simulation_seconds_accumulator / SIMULATION_SECONDS_PER_GAME_MINUTE
+	)
 	if elapsed_game_minutes <= 0:
 		return
-
-	_real_seconds_accumulator -= elapsed_game_minutes * REAL_SECONDS_PER_GAME_MINUTE
+	_simulation_seconds_accumulator -= elapsed_game_minutes * SIMULATION_SECONDS_PER_GAME_MINUTE
 	advance_minutes(elapsed_game_minutes)
 
 
