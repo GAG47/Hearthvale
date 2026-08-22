@@ -1,6 +1,7 @@
 extends SceneTree
 
 const MAIN_SCENE := preload("res://scenes/main.tscn")
+const NEW_GAME_SETUP: NewGameSetup = preload("res://data/world/new_game_setup.tres")
 const MARTHA_DEFINITION: ActorDefinition = preload("res://data/actors/martha.tres")
 const GRASS: GroundTileDefinition = preload("res://data/tiles/ground/grass.tres")
 const PLAYER_INSTANCE_ID := &"90000000-0000-4000-8000-000000000001"
@@ -42,7 +43,7 @@ func _run_tests() -> void:
 	_test_backtracking_and_request_cycle()
 	_test_independent_step_durations()
 	await _test_scene_unload_and_rebuild()
-	_test_no_formal_martha_initialization()
+	_test_formal_martha_uses_normal_actor_spec()
 	_test_removed_resolver_mechanisms()
 	_finish()
 
@@ -810,15 +811,16 @@ func _test_scene_unload_and_rebuild() -> void:
 	await process_frame
 
 
-func _test_no_formal_martha_initialization() -> void:
-	var found_formal_martha := false
-	for entity in _registry.get_entities():
-		if entity is Actor and (entity as Actor).definition == MARTHA_DEFINITION:
-			found_formal_martha = true
+func _test_formal_martha_uses_normal_actor_spec() -> void:
+	var martha_spec: NewGameActorSpec
+	for spec in NEW_GAME_SETUP.entity_specs:
+		if spec is NewGameActorSpec and (spec as NewGameActorSpec).definition == MARTHA_DEFINITION:
+			martha_spec = spec as NewGameActorSpec
 			break
 	_expect(
-		not found_formal_martha,
-		"V11.2 must leave Martha definition-only and must not add formal NPC initialization."
+		martha_spec != null
+		and martha_spec != NEW_GAME_SETUP.controlled_actor_spec,
+		"Martha must be formally initialized through the existing uncontrolled NewGameActorSpec path."
 	)
 
 

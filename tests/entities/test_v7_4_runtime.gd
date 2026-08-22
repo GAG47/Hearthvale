@@ -15,7 +15,9 @@ const SIGN_ENTITY_ID := &"1d67bbf9-edc2-4264-a861-8bd3e3e61e15"
 const BED_ENTITY_ID := &"a6ae5842-8c6d-4df2-9b80-a271b5496716"
 const SECOND_CHEST_ENTITY_ID := &"44444444-4444-4444-8444-444444444444"
 const PLAYER_INSTANCE_ID := &"90000000-0000-4000-8000-000000000001"
+const MARTHA_INSTANCE_ID := &"90000000-0000-4000-8000-000000000002"
 const TAVERN_ID := &"50000000-0000-4000-8000-000000000001"
+const TOWN_STREET_ID := &"50000000-0000-4000-8000-000000000002"
 const YARD_ID := &"50000000-0000-4000-8000-000000000003"
 
 var _checks := 0
@@ -100,12 +102,20 @@ func _run_tests() -> void:
 		"Player must preserve its existing initial logical Cell."
 	)
 	_expect(player.facing == ActorState.Facing.DOWN, "Player must start facing DOWN.")
+	var martha := registry.get_entity(MARTHA_INSTANCE_ID) as Actor
 	_expect(
-		not _has_entity_with_definition(registry, martha_definition),
-		"Martha must remain definition-only in the current runtime."
+		martha != null
+		and _has_entity_with_definition(registry, martha_definition)
+		and martha.definition == martha_definition
+		and martha.state is ActorState
+		and state_registry.get_entity_state(MARTHA_INSTANCE_ID) == martha.state
+		and martha.current_location_id == TOWN_STREET_ID
+		and martha.current_cell == Vector2i(29, 15)
+		and martha.facing == ActorState.Facing.UP,
+		"Martha must be a normal registered Actor in Town Street."
 	)
-	_expect(registry.get_entities().size() == 4, "Player and three Furniture Entities must exist.")
-	_expect(state_registry.get_entity_states().size() == 4, "StateRegistry must hold four EntityStates.")
+	_expect(registry.get_entities().size() == 5, "Player, Martha, and three Furniture Entities must exist.")
+	_expect(state_registry.get_entity_states().size() == 5, "StateRegistry must hold five EntityStates.")
 
 	var chest := _expect_furniture(registry, state_registry, CHEST_ENTITY_ID, CHEST_DEFINITION)
 	var sign := _expect_furniture(registry, state_registry, SIGN_ENTITY_ID, SIGN_DEFINITION)
@@ -322,8 +332,8 @@ func _run_tests() -> void:
 		_get_furniture_visual_path(returned_chest_representation) == "res://assets/furniture/chest_open.svg",
 		"Recreated Chest Representation must restore the open visual from FurnitureState."
 	)
-	_expect(registry.get_entities().size() == 4, "Location reload must not create duplicate Entities.")
-	_expect(state_registry.get_entity_states().size() == 4, "Location reload must not create duplicate States.")
+	_expect(registry.get_entities().size() == 5, "Location reload must not create duplicate Entities.")
+	_expect(state_registry.get_entity_states().size() == 5, "Location reload must not create duplicate States.")
 
 	game.end_world()
 	game.queue_free()

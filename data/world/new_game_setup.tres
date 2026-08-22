@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="NewGameSetup" load_steps=13 format=3]
+[gd_resource type="Resource" script_class="NewGameSetup" load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/initialization/new_game_location_spec.gd" id="1_location"]
 [ext_resource type="Script" path="res://scripts/initialization/new_game_entity_spec.gd" id="2_entity"]
@@ -12,6 +12,7 @@
 [ext_resource type="Resource" path="res://data/furniture/wooden_chest.tres" id="10_chest"]
 [ext_resource type="Resource" path="res://data/furniture/sign.tres" id="11_sign"]
 [ext_resource type="Resource" path="res://data/furniture/simple_bed.tres" id="12_bed"]
+[ext_resource type="Resource" path="res://data/actors/martha.tres" id="13_martha"]
 
 [sub_resource type="Resource" id="Location_tavern"]
 script = ExtResource("1_location")
@@ -35,6 +36,14 @@ initial_location = SubResource("Location_tavern")
 local_cell = Vector2i(12, 8)
 definition = ExtResource("9_player")
 initial_facing = 1
+
+[sub_resource type="Resource" id="Actor_martha"]
+script = ExtResource("3_actor")
+instance_id = &"90000000-0000-4000-8000-000000000002"
+initial_location = SubResource("Location_street")
+local_cell = Vector2i(29, 15)
+definition = ExtResource("13_martha")
+initial_facing = 0
 
 [sub_resource type="Resource" id="Furniture_chest"]
 script = ExtResource("4_furniture")
@@ -61,5 +70,5 @@ definition = ExtResource("12_bed")
 script = ExtResource("5_setup")
 initial_total_minutes = 480
 location_specs = Array[ExtResource("1_location")]([SubResource("Location_tavern"), SubResource("Location_street"), SubResource("Location_yard")])
-entity_specs = Array[ExtResource("2_entity")]([SubResource("Actor_player"), SubResource("Furniture_chest"), SubResource("Furniture_sign"), SubResource("Furniture_bed")])
+entity_specs = Array[ExtResource("2_entity")]([SubResource("Actor_player"), SubResource("Actor_martha"), SubResource("Furniture_chest"), SubResource("Furniture_sign"), SubResource("Furniture_bed")])
 controlled_actor_spec = SubResource("Actor_player")

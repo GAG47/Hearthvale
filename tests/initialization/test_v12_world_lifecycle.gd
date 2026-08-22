@@ -2,8 +2,12 @@ extends SceneTree
 
 const MAIN_SCENE := preload("res://scenes/main.tscn")
 const NEW_GAME_SETUP: NewGameSetup = preload("res://data/world/new_game_setup.tres")
+const MARTHA_DEFINITION: ActorDefinition = preload("res://data/actors/martha.tres")
 const PLAYER_ID := &"90000000-0000-4000-8000-000000000001"
+const MARTHA_ID := &"90000000-0000-4000-8000-000000000002"
 const TAVERN_ID := &"50000000-0000-4000-8000-000000000001"
+const TOWN_STREET_ID := &"50000000-0000-4000-8000-000000000002"
+const MARTHA_INITIAL_CELL := Vector2i(29, 15)
 
 var _checks := 0
 var _failures := 0
@@ -30,6 +34,7 @@ func _run_tests() -> void:
 	_test_late_initialization_failure_teardown(game)
 	_test_source_boundaries()
 	await _test_fixed_tick_exit_transition_integration()
+	await _test_martha_static_actor_integration()
 
 	game.end_world()
 	game.queue_free()
@@ -40,7 +45,7 @@ func _run_tests() -> void:
 func _test_new_game_setup_and_specs() -> void:
 	_expect(NEW_GAME_SETUP != null and NEW_GAME_SETUP.validate(), "Project NewGameSetup must validate.")
 	_expect(NEW_GAME_SETUP.location_specs.size() == 3, "NewGameSetup must contain three Location specs.")
-	_expect(NEW_GAME_SETUP.entity_specs.size() == 4, "NewGameSetup must use one unified Entity spec array.")
+	_expect(NEW_GAME_SETUP.entity_specs.size() == 5, "NewGameSetup must use one unified Entity spec array.")
 	_expect(
 		NEW_GAME_SETUP.entity_specs.has(NEW_GAME_SETUP.controlled_actor_spec),
 		"controlled_actor_spec must directly reference an Actor spec in entity_specs."
@@ -60,6 +65,40 @@ func _test_new_game_setup_and_specs() -> void:
 		furniture_state is FurnitureState and furniture is Furniture,
 		"Furniture spec must polymorphically create FurnitureState and Furniture."
 	)
+	var martha_spec: NewGameActorSpec
+	for spec in NEW_GAME_SETUP.entity_specs:
+		if spec is NewGameActorSpec and (spec as NewGameActorSpec).definition == MARTHA_DEFINITION:
+			martha_spec = spec as NewGameActorSpec
+			break
+	_expect(
+		martha_spec != null
+		and martha_spec != NEW_GAME_SETUP.controlled_actor_spec
+		and martha_spec.instance_id == MARTHA_ID
+		and martha_spec.initial_location.instance_id == TOWN_STREET_ID
+		and martha_spec.local_cell == MARTHA_INITIAL_CELL
+		and martha_spec.initial_facing == ActorState.Facing.UP,
+		"Martha must use a normal uncontrolled NewGameActorSpec with stable initial state data."
+	)
+	if martha_spec != null:
+		var street_definition := martha_spec.initial_location.definition
+		var overlaps_entry_or_exit := false
+		for entry in street_definition.entries:
+			if entry != null and entry.arrival_cells.has(martha_spec.local_cell):
+				overlaps_entry_or_exit = true
+		for location_exit in street_definition.exits:
+			if location_exit != null and location_exit.cell_rect.has_point(martha_spec.local_cell):
+				overlaps_entry_or_exit = true
+		var initial_ground := street_definition.ground_layer.get(
+			martha_spec.local_cell
+		) as GroundTileDefinition
+		_expect(
+			street_definition.is_cell_terrain_walkable(martha_spec.local_cell)
+			and street_definition.is_cell_terrain_walkable(martha_spec.local_cell + Vector2i.UP)
+			and not overlaps_entry_or_exit
+			and initial_ground != null
+			and initial_ground.key == &"grass",
+			"Martha's Town Street Cell must be walkable grass off the Entry, Exit, and road."
+		)
 
 	var duplicate_setup := NewGameSetup.new()
 	duplicate_setup.initial_total_minutes = NEW_GAME_SETUP.initial_total_minutes
@@ -132,6 +171,31 @@ func _test_initial_running_world(game: Game) -> void:
 		game.player_controller.controlled_actor == player
 		and is_instance_valid(game.player_controller.controlled_representation),
 		"PlayerController must bind the ordinary controlled Actor and its Representation."
+	)
+	var martha := game.entity_registry.get_entity(MARTHA_ID) as Actor
+	_expect(
+		martha != null
+		and martha.definition == MARTHA_DEFINITION
+		and martha.state is ActorState
+		and game.state_registry.get_entity_state(MARTHA_ID) == martha.state
+		and martha.current_location_id == TOWN_STREET_ID
+		and martha.current_cell == MARTHA_INITIAL_CELL
+		and martha.facing == ActorState.Facing.UP,
+		"New Game must create Martha's configured ActorState and Actor through the ordinary spec path."
+	)
+	_expect(
+		martha != null
+		and game.location_registry.get_location(TOWN_STREET_ID).get_entities().has(martha)
+		and game.current_location.location_id == TAVERN_ID
+		and _find_actor_representation(game.current_location, MARTHA_ID) == null,
+		"Martha must exist logically in unloaded Town Street without a Tavern Representation."
+	)
+	_expect(
+		martha != null
+		and game.player_controller.controlled_actor != martha
+		and not game.logical_movement.is_participant(martha)
+		and game.logical_movement.get_direction_intent(martha) == Vector2i.ZERO,
+		"Martha must be an ordinary Actor with no PlayerController or movement intent source."
 	)
 
 
@@ -350,6 +414,151 @@ func _test_fixed_tick_exit_transition_integration() -> void:
 	game.end_world()
 	game.queue_free()
 	await process_frame
+
+
+func _test_martha_static_actor_integration() -> void:
+	var game := MAIN_SCENE.instantiate() as Game
+	root.add_child(game)
+	await process_frame
+	await physics_frame
+	game.set_physics_process(false)
+
+	var player := game.player_controller.controlled_actor
+	var martha := game.entity_registry.get_entity(MARTHA_ID) as Actor
+	if player == null or martha == null:
+		_expect(false, "Martha integration requires both configured Actors.")
+		game.end_world()
+		game.queue_free()
+		await process_frame
+		return
+	var martha_state := martha.state as ActorState
+	var initial_facing := martha.facing
+	_expect(
+		_find_actor_representation(game.current_location, MARTHA_ID) == null,
+		"Unloaded Town Street must not create Martha's Representation early."
+	)
+
+	_complete_fixed_tick_step(game, player, Vector2i(11, 1), &"ui_up")
+	_expect(
+		game.current_location.location_id == TOWN_STREET_ID
+		and player.current_location_id == TOWN_STREET_ID,
+		"The existing Tavern Exit transition must enter Martha's Town Street."
+	)
+	var first_representation := _find_actor_representation(game.current_location, MARTHA_ID)
+	_expect(
+		is_instance_valid(first_representation)
+		and first_representation.actor == martha
+		and first_representation.current_location == game.current_location
+		and first_representation.logical_movement == game.logical_movement,
+		"LocationSceneBuilder must automatically build Martha's ordinary ActorRepresentation."
+	)
+	var first_representation_id := (
+		first_representation.get_instance_id() if is_instance_valid(first_representation) else 0
+	)
+
+	var player_blocked_cell := MARTHA_INITIAL_CELL + Vector2i.UP
+	player.state.local_cell = player_blocked_cell
+	game.logical_movement.cancel_all()
+	_expect(
+		game.logical_movement.is_actor_cell_occupied(
+			TOWN_STREET_ID,
+			MARTHA_INITIAL_CELL,
+			player
+		)
+		and not game.logical_movement.is_participant(martha),
+		"Stationary Martha must contribute hard occupancy without a Movement request."
+	)
+	Input.action_press(&"ui_down")
+	for _tick in range(4):
+		game.call("_physics_process", player.definition.move_step_duration)
+	Input.action_release(&"ui_down")
+	_expect(
+		player.current_cell == player_blocked_cell
+		and martha.current_cell == MARTHA_INITIAL_CELL
+		and game.logical_movement.get_actor_phase(player)
+		!= ActorMovementRequest.Phase.EXTENDED,
+		"Existing LogicalMovement hard occupancy must prevent Player from entering Martha's Cell."
+	)
+	game.call("_physics_process", 0.0)
+	_expect(
+		game.logical_movement.get_direction_intent(player) == Vector2i.ZERO
+		and not game.logical_movement.is_participant(player)
+		and game.logical_movement.get_direction_intent(martha) == Vector2i.ZERO
+		and not game.logical_movement.is_participant(martha),
+		"The blocked attempt must clear without adding any Martha intent or request."
+	)
+
+	_complete_fixed_tick_step(game, player, Vector2i(18, 9), &"ui_up")
+	_expect(
+		game.current_location.location_id == TAVERN_ID
+		and not is_instance_valid(first_representation),
+		"Leaving Town Street must destroy Martha's first Representation."
+	)
+	_expect(
+		game.entity_registry.get_entity(MARTHA_ID) == martha
+		and game.state_registry.get_entity_state(MARTHA_ID) == martha_state
+		and martha.instance_id == MARTHA_ID
+		and martha.current_location_id == TOWN_STREET_ID
+		and martha.current_cell == MARTHA_INITIAL_CELL
+		and martha.facing == initial_facing,
+		"Leaving Martha's Location must preserve the same Actor, State, identity, and placement."
+	)
+	_expect(
+		_find_actor_representation(game.current_location, MARTHA_ID) == null,
+		"Martha must have no Representation while the Player is back in Tavern."
+	)
+
+	_complete_fixed_tick_step(game, player, Vector2i(11, 1), &"ui_up")
+	var rebuilt_representation := _find_actor_representation(game.current_location, MARTHA_ID)
+	_expect(
+		game.current_location.location_id == TOWN_STREET_ID
+		and is_instance_valid(rebuilt_representation)
+		and rebuilt_representation.get_instance_id() != first_representation_id
+		and rebuilt_representation.actor == martha
+		and rebuilt_representation.current_cell == MARTHA_INITIAL_CELL
+		and rebuilt_representation.facing == initial_facing,
+		"Re-entering Town Street must rebuild a new Representation from persistent Martha data."
+	)
+	_expect(
+		game.entity_registry.get_entity(MARTHA_ID) == martha
+		and game.state_registry.get_entity_state(MARTHA_ID) == martha_state
+		and martha.current_location_id == TOWN_STREET_ID
+		and martha.current_cell == MARTHA_INITIAL_CELL,
+		"Martha must remain the same Runtime Actor and State across Representation rebuild."
+	)
+
+	game.end_world()
+	game.queue_free()
+	await process_frame
+
+
+func _complete_fixed_tick_step(
+	game: Game,
+	player: Actor,
+	start_cell: Vector2i,
+	input_action: StringName
+) -> void:
+	player.state.local_cell = start_cell
+	game.logical_movement.cancel_all()
+	Input.action_press(input_action)
+	game.call("_physics_process", 0.0)
+	game.call("_physics_process", player.definition.move_step_duration)
+	Input.action_release(input_action)
+
+
+func _find_actor_representation(
+	location_scene: LocationScene,
+	instance_id: StringName
+) -> ActorRepresentation:
+	if not is_instance_valid(location_scene):
+		return null
+	var representation_root := location_scene.get_node_or_null("EntityRepresentationRoot")
+	if representation_root == null:
+		return null
+	for child in representation_root.get_children():
+		if child is ActorRepresentation and (child as ActorRepresentation).instance_id == instance_id:
+			return child as ActorRepresentation
+	return null
 
 
 func _test_source_boundaries() -> void:
