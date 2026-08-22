@@ -92,8 +92,7 @@ func initialize_world(new_game_setup: NewGameSetup) -> bool:
 	if not player_controller.bind_world(
 		controlled_actor,
 		location_registry,
-		logical_movement,
-		game_clock
+		logical_movement
 	):
 		return _abort_world_initialization("Game could not bind PlayerController to the World.")
 

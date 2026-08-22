@@ -29,6 +29,7 @@ func _run_tests() -> void:
 	_test_end_and_reinitialize(game)
 	_test_late_initialization_failure_teardown(game)
 	_test_source_boundaries()
+	await _test_fixed_tick_exit_transition_integration()
 
 	game.end_world()
 	game.queue_free()
@@ -279,6 +280,78 @@ func _test_late_initialization_failure_teardown(game: Game) -> void:
 	game.set_physics_process(false)
 
 
+func _test_fixed_tick_exit_transition_integration() -> void:
+	var game := MAIN_SCENE.instantiate() as Game
+	root.add_child(game)
+	await process_frame
+	await physics_frame
+	game.set_physics_process(false)
+
+	var player := game.player_controller.controlled_actor
+	var source_location := game.current_location
+	var source_representation := game.player_controller.controlled_representation
+	var exit_cell := Vector2i(11, 0)
+	var location_exit := source_location.location.get_exit_at(exit_cell)
+	var edge := game.location_registry.get_edge(source_location.location_id, location_exit.edge_key)
+	var target_location := game.location_registry.get_location(edge.target_location_id)
+	var target_entry := target_location.get_entry(edge.target_entry_id)
+	var expected_arrival_cell := target_entry.arrival_cells[0]
+
+	player.state.local_cell = exit_cell + Vector2i.DOWN
+	game.logical_movement.cancel_all()
+	Input.action_press(&"ui_up")
+	game.call("_physics_process", 0.0)
+	_expect(
+		game.logical_movement.is_participant(player),
+		"Game fixed tick must consume Player input and start the Exit step."
+	)
+	game.call("_physics_process", player.definition.move_step_duration)
+	Input.action_release(&"ui_up")
+
+	_expect(
+		player.current_location_id == target_location.instance_id,
+		"Full Game fixed tick must commit the controlled Actor to the target Location."
+	)
+	_expect(
+		player.state.local_cell == expected_arrival_cell,
+		"Full transition must commit the target Entry arrival Cell."
+	)
+	var target_representation := game.player_controller.controlled_representation
+	_expect(
+		is_instance_valid(target_representation)
+		and target_representation.get_entity() == player
+		and target_representation.current_location == game.current_location,
+		"PlayerController must bind the target Location's controlled Actor Representation."
+	)
+	_expect(
+		game.current_location.location == target_location
+		and game.current_location.location_id == target_location.instance_id,
+		"Game.current_location must commit the target LocationScene."
+	)
+	_expect(
+		not game.has_pending_location_transition(),
+		"Game fixed tick must consume the pending Location transition."
+	)
+	_expect(
+		not game.transition_in_progress,
+		"Synchronous Location commit must finish transition_in_progress."
+	)
+	_expect(
+		game.logical_movement.get_direction_intent(player) == Vector2i.ZERO
+		and not game.logical_movement.is_participant(player),
+		"Exit transition must leave no direction intent or Movement request."
+	)
+	_expect(
+		not is_instance_valid(source_location)
+		and not is_instance_valid(source_representation),
+		"Location commit must release the previous Scene and controlled Representation."
+	)
+
+	game.end_world()
+	game.queue_free()
+	await process_frame
+
+
 func _test_source_boundaries() -> void:
 	var project_source := FileAccess.get_file_as_string("res://project.godot")
 	for autoload_name in [
@@ -313,6 +386,13 @@ func _test_source_boundaries() -> void:
 		and not registry_source.contains("NewGameLocationSpec")
 		and not registry_source.contains("preload"),
 		"LocationRegistry must not read or orchestrate New Game data."
+	)
+	var controller_source := FileAccess.get_file_as_string(
+		"res://scripts/player_controller.gd"
+	)
+	_expect(
+		not controller_source.contains("_game_clock"),
+		"PlayerController must not retain GameClock as a bound World dependency."
 	)
 
 

@@ -364,32 +364,32 @@ func _has_entity_with_definition(
 func _test_interactions(
 	controller: PlayerController,
 	representation: ActorRepresentation,
-	game: Node,
+	game: Game,
 	chest: Furniture
 ) -> void:
 	_place_actor(representation, Vector2i(12, 7), ActorState.Facing.RIGHT)
-	var sign_result := controller.request_interaction()
+	var sign_result := controller.request_interaction(game.game_clock)
 	_expect(sign_result.success and sign_result.action_id == &"inspect", "Sign inspect must use EntityAction.")
 	_expect(sign_result.message == "今日麦酒三铜币。", "Sign inspect result must remain unchanged.")
 	_expect(_last_action_result == sign_result, "PlayerController must emit Sign ActionResult.")
 	_expect(game.get_node("HUD/ActionResultLabel").text == sign_result.message, "HUD must receive ActionResult.")
 
 	_place_actor(representation, Vector2i(13, 6), ActorState.Facing.RIGHT)
-	var open_result := controller.request_interaction()
+	var open_result := controller.request_interaction(game.game_clock)
 	_expect(open_result.success and open_result.action_id == &"open", "Chest open must use OpenableBehavior.")
 	_expect(open_result.message == "储物箱打开了。", "Open feedback must use display_name.")
 	_expect(
 		chest.get_openable_state() != null and chest.get_openable_state().is_open,
 		"Chest open must change OpenableState, not FurnitureState fields or Behavior config."
 	)
-	var close_result := controller.request_interaction()
+	var close_result := controller.request_interaction(game.game_clock)
 	_expect(close_result.success and close_result.action_id == &"close", "Opened Chest must offer close.")
 	_expect(close_result.message == "储物箱关闭了。", "Close feedback must use display_name.")
-	var reopen_result := controller.request_interaction()
+	var reopen_result := controller.request_interaction(game.game_clock)
 	_expect(reopen_result.success and reopen_result.action_id == &"open", "Closed Chest must offer open again.")
 
 	_place_actor(representation, Vector2i(19, 3), ActorState.Facing.RIGHT)
-	var bed_result := controller.request_interaction()
+	var bed_result := controller.request_interaction(game.game_clock)
 	_expect(bed_result.success and bed_result.action_id == &"sleep", "Bed sleep must use SleepableBehavior.")
 	_expect(bed_result.message == "你睡到了第二天 08:00。", "Bed sleep result must remain unchanged.")
 	_expect(_last_action_result == bed_result, "PlayerController must emit Bed ActionResult.")

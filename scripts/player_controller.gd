@@ -10,7 +10,6 @@ var controlled_representation: ActorRepresentation
 
 var _location_registry: LocationRegistry
 var _logical_movement: LogicalMovement
-var _game_clock: GameClock
 var _interaction_requested := false
 
 
@@ -26,8 +25,7 @@ func _process(_delta: float) -> void:
 func bind_world(
 	actor: Actor,
 	location_registry: LocationRegistry,
-	logical_movement: LogicalMovement,
-	game_clock: GameClock = null
+	logical_movement: LogicalMovement
 ) -> bool:
 	if actor == null or location_registry == null or logical_movement == null:
 		push_error("PlayerController requires an Actor, LocationRegistry, and LogicalMovement.")
@@ -36,7 +34,6 @@ func bind_world(
 	controlled_actor = actor
 	_location_registry = location_registry
 	_logical_movement = logical_movement
-	_game_clock = game_clock
 	return true
 
 
@@ -47,7 +44,6 @@ func unbind_world() -> void:
 	controlled_actor = null
 	_location_registry = null
 	_logical_movement = null
-	_game_clock = null
 
 
 func consume_world_intent(game_clock: GameClock) -> void:
@@ -145,9 +141,7 @@ func set_camera_bounds(bounds: Rect2) -> void:
 	camera.reset_smoothing()
 
 
-func request_interaction(game_clock: GameClock = null) -> ActionResult:
-	if game_clock == null:
-		game_clock = _game_clock
+func request_interaction(game_clock: GameClock) -> ActionResult:
 	if controlled_actor == null or not is_instance_valid(controlled_representation):
 		var unavailable_result := ActionResult.failed(
 			&"interact",
